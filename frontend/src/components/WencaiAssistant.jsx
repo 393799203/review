@@ -34,9 +34,10 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
     const top3Blocks = nextDayBlocks.slice(0, 3).map(b => b.block_name).join('、');
     const blockCondition = top3Blocks ? `所属板块是 ${top3Blocks}` : '所属概念为近期热门题材';
     
-    return `${dateFormatted} 涨停 连板高度不大于2板
+    return `${dateFormatted} 涨停
 非ST 非科创板 非北交所
-股价大于等于120日最高价的95%
+${dateFormatted} 前60个交易日未创年度新高 放量上涨 站稳前期高点 非连续加速创新高
+${dateFormatted} 近1年涨停次数大于等于2次 近1月涨幅大于等于10%
 ${blockCondition}`;
   };
 
@@ -137,44 +138,49 @@ ${blockCondition}`;
       },
     },
     {
-      title: '连板情况',
-      key: 'continuousDays',
+      title: '近1年涨停',
+      key: 'yearLimitUp',
       width: isMobile ? 80 : 100,
       render: (_, record) => {
-        const daysKey = Object.keys(record).find(k => k.includes('连续涨停天数'));
-        const boardsKey = Object.keys(record).find(k => k.includes('几天几板'));
-        const days = record[daysKey];
-        const boards = record[boardsKey];
-        
-        if (!days && !boards) return '-';
-        
-        const color = days >= 5 ? '#f5222d' : days >= 3 ? '#fa8c16' : '#1890ff';
-        
+        const key = Object.keys(record).find(k => k.includes('涨停次数['));
+        const val = record[key];
         return (
-          <div style={{ lineHeight: '18px' }}>
-            <div style={{ color, fontWeight: 'bold', fontSize: isMobile ? 12 : 13 }}>{boards || `${days}天${days}板`}</div>
-            {days && <div style={{ fontSize: isMobile ? 10 : 11, color: '#999' }}>连续{days}天</div>}
-          </div>
+          <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13, color: '#f5222d' }}>
+            {val || '-'}
+          </span>
         );
       },
     },
     {
-      title: '强度',
-      key: 'strength',
+      title: '近1月涨幅',
+      key: 'monthChange',
       width: isMobile ? 80 : 100,
       render: (_, record) => {
-        const sealKey = Object.keys(record).find(k => k.includes('涨停封单额['));
-        const timeKey = Object.keys(record).find(k => k.includes('首次涨停时间'));
-        const sealVal = record[sealKey];
-        const timeVal = record[timeKey];
-        
+        const key = Object.keys(record).find(k => k.includes('区间涨跌幅'));
+        const val = record[key];
+        if (!val) return '-';
+        const numVal = typeof val === 'string' ? parseFloat(val) : val;
+        const color = numVal > 0 ? '#f5222d' : numVal < 0 ? '#52c41a' : '#666';
         return (
-          <div style={{ lineHeight: '18px' }}>
-            <div style={{ fontSize: isMobile ? 11 : 12 }}>
-              {sealVal && typeof sealVal === 'number' ? `${(sealVal / 100000000).toFixed(2)}亿` : '-'}
-            </div>
-            <div style={{ fontSize: isMobile ? 10 : 11, color: '#999' }}>{timeVal || '-'}</div>
-          </div>
+          <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13, color }}>
+            {numVal ? `${numVal.toFixed(2)}%` : '-'}
+          </span>
+        );
+      },
+    },
+    {
+      title: '所属概念',
+      key: 'concept',
+      width: isMobile ? 150 : 200,
+      ellipsis: true,
+      render: (_, record) => {
+        const key = Object.keys(record).find(k => k.includes('所属概念'));
+        const val = record[key];
+        if (!val) return '-';
+        return (
+          <Tooltip title={val}>
+            <span style={{ fontSize: isMobile ? 11 : 12 }}>{val}</span>
+          </Tooltip>
         );
       },
     },
@@ -196,19 +202,19 @@ ${blockCondition}`;
           const numChange = typeof changeVal === 'string' ? parseFloat(changeVal) : changeVal;
           const changeColor = numChange > 0 ? '#f5222d' : numChange < 0 ? '#52c41a' : '#666';
           
-          const daysKey = Object.keys(record).find(k => k.includes('连续涨停天数'));
-          const boardsKey = Object.keys(record).find(k => k.includes('几天几板'));
-          const days = record[daysKey];
-          const boards = record[boardsKey];
-          const daysColor = days >= 5 ? '#f5222d' : days >= 3 ? '#fa8c16' : '#1890ff';
-          
           const reasonKey = Object.keys(record).find(k => k.includes('涨停原因类别'));
           const reasonVal = record[reasonKey];
           
-          const sealKey = Object.keys(record).find(k => k.includes('涨停封单额['));
-          const timeKey = Object.keys(record).find(k => k.includes('首次涨停时间'));
-          const sealVal = record[sealKey];
-          const timeVal = record[timeKey];
+          const yearLimitUpKey = Object.keys(record).find(k => k.includes('涨停次数['));
+          const yearLimitUpVal = record[yearLimitUpKey];
+          
+          const monthChangeKey = Object.keys(record).find(k => k.includes('区间涨跌幅'));
+          const monthChangeVal = record[monthChangeKey];
+          const numMonthChange = typeof monthChangeVal === 'string' ? parseFloat(monthChangeVal) : monthChangeVal;
+          const monthChangeColor = numMonthChange > 0 ? '#f5222d' : numMonthChange < 0 ? '#52c41a' : '#666';
+          
+          const conceptKey = Object.keys(record).find(k => k.includes('所属概念'));
+          const conceptVal = record[conceptKey];
           
           return (
             <Card
@@ -236,24 +242,27 @@ ${blockCondition}`;
                 </div>
               )}
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                 <div>
-                  <span style={{ color: '#999' }}>连板：</span>
-                  <span style={{ color: daysColor, fontWeight: 'bold' }}>
-                    {boards || (days ? `${days}天${days}板` : '-')}
+                  <span style={{ color: '#999' }}>近1年涨停：</span>
+                  <span style={{ color: '#f5222d', fontWeight: 'bold' }}>
+                    {yearLimitUpVal || '-'}
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: '#999' }}>封单：</span>
-                  <span style={{ fontWeight: 'bold' }}>
-                    {sealVal && typeof sealVal === 'number' ? `${(sealVal / 100000000).toFixed(2)}亿` : '-'}
+                  <span style={{ color: '#999' }}>近1月涨幅：</span>
+                  <span style={{ color: monthChangeColor, fontWeight: 'bold' }}>
+                    {numMonthChange ? `${numMonthChange.toFixed(2)}%` : '-'}
                   </span>
-                </div>
-                <div>
-                  <span style={{ color: '#999' }}>时间：</span>
-                  <span>{timeVal || '-'}</span>
                 </div>
               </div>
+              
+              {conceptVal && (
+                <div style={{ fontSize: 11 }}>
+                  <span style={{ color: '#999' }}>所属概念：</span>
+                  <span>{conceptVal}</span>
+                </div>
+              )}
             </Card>
           );
         })}
