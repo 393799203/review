@@ -234,6 +234,19 @@ class LimitUpFetcher:
                 block_name = block.get('name', '')
                 
                 if block_code and block_name:
+                    # 找出高位股（连板数最高的股票）
+                    stock_list = block.get('stock_list', [])
+                    high_stock_code = None
+                    high_stock_name = None
+                    max_continue_num = 0
+                    
+                    for stock in stock_list:
+                        continue_num = stock.get('continue_num', 0) or 0
+                        if continue_num > max_continue_num:
+                            max_continue_num = continue_num
+                            high_stock_code = stock.get('code', '')
+                            # 需要从涨停池数据中获取股票名称，这里先保存代码
+                    
                     block_obj = Block(
                         block_code=block_code,
                         block_name=block_name,
@@ -243,13 +256,13 @@ class LimitUpFetcher:
                         continuous_plate_num=block.get('continuous_plate_num', 0) or 0,
                         high=block.get('high', ''),
                         high_num=block.get('high_num', 0) or 0,
-                        list_days=block.get('days', 0) or 0
+                        list_days=block.get('days', 0) or 0,
+                        high_stock_code=high_stock_code
                     )
                     session.add(block_obj)
                     session.flush()
                     block_id_dict[block_code] = block_obj.id
                     
-                    stock_list = block.get('stock_list', [])
                     for stock in stock_list:
                         stock_code = stock.get('code', '')
                         if stock_code and stock_code not in stock_to_block_code:
@@ -363,6 +376,13 @@ class LimitUpFetcher:
                 block_code = stock_to_block_code.get(stock_code, '')
                 block_id = block_id_dict.get(block_code) if block_code else None
                 
+                # 判断是否是高位股
+                is_high_stock = 0
+                if block_id:
+                    block = session.query(Block).filter(Block.id == block_id).first()
+                    if block and block.high_stock_code == stock_code:
+                        is_high_stock = 1
+                
                 # 解析涨停时间（可能是Unix时间戳或字符串）
                 limit_up_time_raw = row.get("最后封板时间")
                 limit_up_time = self.parse_timestamp_or_time(limit_up_time_raw)
@@ -383,7 +403,8 @@ class LimitUpFetcher:
                     sector=self.get_stock_sector(stock_code),
                     change_percent=Decimal(str(row.get("涨跌幅", 0))) if pd.notna(row.get("涨跌幅")) else Decimal('0'),
                     turnover_rate=Decimal(str(row.get("换手率", 0))) if pd.notna(row.get("换手率")) else Decimal('0'),
-                    amount=Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0')
+                    amount=Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0'),
+                    is_high_stock=is_high_stock
                 )
                 
                 stocks_data.append(stock)
@@ -396,6 +417,14 @@ class LimitUpFetcher:
         # 6. 批量保存股票数据
         if stocks_data:
             session.bulk_save_objects(stocks_data)
+            
+            # 更新板块的高位股名称
+            print("\n更新板块高位股信息...")
+            for stock in stocks_data:
+                if stock.block_id:
+                    block = session.query(Block).filter(Block.id == stock.block_id).first()
+                    if block and block.high_stock_code == stock.stock_code:
+                        block.high_stock_name = stock.stock_name
             
             # 保存统计数据
             total_count = sum(ladder_stats.values())

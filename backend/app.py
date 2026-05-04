@@ -4,7 +4,7 @@
 Flask后端API
 """
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
 from sqlalchemy import desc
@@ -13,7 +13,7 @@ import os
 import threading
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock
 from ths_fetcher import ThsFetcher
 
 app = Flask(__name__)
@@ -147,7 +147,8 @@ def get_data_by_date(date_str):
                     "limit_up_num": stock.block.limit_up_num or 0,
                     "continuous_num": stock.block.continuous_plate_num or 0,
                     "high": stock.block.high or "",
-                    "list_days": stock.block.list_days or 0
+                    "list_days": stock.block.list_days or 0,
+                    "high_stock_name": stock.block.high_stock_name or ""
                 }
             
             stock_data = {
@@ -166,7 +167,8 @@ def get_data_by_date(date_str):
                 "continuous_days": stock.continuous_days,
                 "sector": stock.sector or "未知",
                 "change_percent": float(stock.change_percent) if stock.change_percent else 0.0,
-                "turnover_rate": float(stock.turnover_rate) if stock.turnover_rate else 0.0
+                "turnover_rate": float(stock.turnover_rate) if stock.turnover_rate else 0.0,
+                "is_high_stock": stock.is_high_stock or 0
             }
             
             days = stock.continuous_days
@@ -200,6 +202,7 @@ def get_data_by_date(date_str):
         
         # 获取次日板块强度排名
         next_day_blocks = []
+        next_day_date = None
         try:
             from trade_calendar import trade_calendar
             
@@ -209,9 +212,10 @@ def get_data_by_date(date_str):
             
             if trading_days:
                 next_date = datetime.strptime(trading_days[0], '%Y%m%d').date()
+                next_day_date = trading_days[0]  # 保存下一个交易日的日期字符串
                 next_blocks = session.query(Block).filter(
                     Block.trade_date == next_date
-                ).order_by(Block.limit_up_num.desc()).limit(5).all()
+                ).order_by(Block.limit_up_num.desc()).all()
                 
                 for rank, block in enumerate(next_blocks, 1):
                     next_day_blocks.append({
@@ -263,7 +267,8 @@ def get_data_by_date(date_str):
                 'ladder': ladder,
                 'statistics': statistics,
                 'yesterday': yesterday_data,
-                'next_day_blocks': next_day_blocks
+                'next_day_blocks': next_day_blocks,
+                'next_day_date': next_day_date
             },
             'date': date_str
         })
@@ -323,7 +328,8 @@ def get_ladder_by_date(date_str):
                 "continuous_days": stock.continuous_days,
                 "sector": stock.sector or "未知",
                 "change_percent": float(stock.change_percent) if stock.change_percent else 0.0,
-                "turnover_rate": float(stock.turnover_rate) if stock.turnover_rate else 0.0
+                "turnover_rate": float(stock.turnover_rate) if stock.turnover_rate else 0.0,
+                "is_high_stock": stock.is_high_stock or 0
             }
             
             days = stock.continuous_days
@@ -591,42 +597,28 @@ def wencai_query():
 
 @app.route('/api/block-strength/<date_str>', methods=['GET'])
 def get_block_strength(date_str):
-    """获取指定日期的板块强度（按涨停数量排序，取前5）"""
-    from trade_calendar import trade_calendar
-    
+    """获取指定日期的板块强度（按涨停数量排序）"""
     session = get_db_session()
     
     try:
         trade_date = datetime.strptime(date_str, '%Y%m%d').date()
         
-        # 获取下一个交易日（从断板日期往后找）
-        start_date = trade_date + timedelta(days=1)
-        end_date = trade_date + timedelta(days=7)  # 往后找7天，确保能找到下一个交易日
-        
-        trading_days = trade_calendar.get_trading_days(start_date, end_date)
-        
-        if not trading_days:
-            return jsonify({
-                'success': False,
-                'error': '没有找到下一个交易日'
-            }), 404
-        
-        next_date_str = trading_days[0]  # 第一个就是下一个交易日
-        next_date = datetime.strptime(next_date_str, '%Y%m%d').date()
-        
-        # 查询下一个交易日的板块数据，按涨停数量降序排序，取前5
+        # 查询指定日期的板块数据，按涨停数量降序排序
         blocks = session.query(Block).filter(
-            Block.trade_date == next_date
-        ).order_by(Block.limit_up_num.desc()).limit(5).all()
+            Block.trade_date == trade_date
+        ).order_by(Block.limit_up_num.desc()).all()
         
         if not blocks:
             return jsonify({
-                'success': False,
-                'error': f'{next_date_str} 没有板块数据'
-            }), 404
+                'success': True,
+                'data': {
+                    'date': date_str,
+                    'blocks': []
+                }
+            })
         
         result = []
-        for block in blocks:
+        for index, block in enumerate(blocks, 1):
             result.append({
                 'block_code': block.block_code,
                 'block_name': block.block_name,
@@ -635,17 +627,343 @@ def get_block_strength(date_str):
                 'change_rate': float(block.change_rate) if block.change_rate else 0,
                 'high': block.high,
                 'high_num': block.high_num,
+                'rank': index,
+                'high_stock_code': block.high_stock_code,
+                'high_stock_name': block.high_stock_name,
             })
         
         return jsonify({
             'success': True,
             'data': {
-                'date': next_date_str,
+                'date': date_str,
                 'blocks': result
             }
         })
         
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/stock/block', methods=['PUT'])
+def update_stock_block():
+    """更新股票的所属板块"""
+    session = get_db_session()
+    
+    try:
+        data = request.json
+        stock_code = data.get('stock_code')
+        trade_date_str = data.get('trade_date')
+        block_name = data.get('block_name')
+        
+        if not stock_code or not trade_date_str or not block_name:
+            return jsonify({
+                'success': False,
+                'error': '缺少必要参数'
+            }), 400
+        
+        trade_date = datetime.strptime(trade_date_str, '%Y%m%d').date()
+        
+        # 查找股票记录
+        stock = session.query(LimitUpStock).filter(
+            LimitUpStock.stock_code == stock_code,
+            LimitUpStock.trade_date == trade_date
+        ).first()
+        
+        if not stock:
+            return jsonify({
+                'success': False,
+                'error': '找不到股票记录'
+            }), 404
+        
+        # 记录原板块ID
+        old_block_id = stock.block_id
+        
+        # 查找新板块
+        new_block = session.query(Block).filter(
+            Block.block_name == block_name,
+            Block.trade_date == trade_date
+        ).first()
+        
+        if not new_block:
+            return jsonify({
+                'success': False,
+                'error': '找不到板块记录'
+            }), 404
+        
+        # 如果板块没有变化，直接返回
+        if old_block_id == new_block.id:
+            return jsonify({
+                'success': True,
+                'message': '板块未变更'
+            })
+        
+        # 更新股票的板块
+        stock.block_id = new_block.id
+        
+        # 处理原板块的龙头更新
+        if old_block_id:
+            old_block = session.query(Block).filter(Block.id == old_block_id).first()
+            if old_block:
+                # 清除原板块所有股票的龙头标记
+                session.query(LimitUpStock).filter(
+                    LimitUpStock.block_id == old_block_id
+                ).update({'is_high_stock': 0})
+                
+                # 查找原板块中连板数最高的股票作为新龙头
+                new_leader = session.query(LimitUpStock).filter(
+                    LimitUpStock.block_id == old_block_id
+                ).order_by(
+                    LimitUpStock.continuous_days.desc(),
+                    LimitUpStock.seal_amount.desc()
+                ).first()
+                
+                if new_leader:
+                    # 标记新龙头
+                    new_leader.is_high_stock = 1
+                    # 更新板块龙头信息
+                    old_block.high_stock_code = new_leader.stock_code
+                    old_block.high_stock_name = new_leader.stock_name
+                else:
+                    # 板块没有股票了，清空龙头信息
+                    old_block.high_stock_code = None
+                    old_block.high_stock_name = None
+        
+        # 处理新板块的龙头更新
+        # 清除当前股票的龙头标记
+        stock.is_high_stock = 0
+        
+        # 查找新板块当前的龙头
+        current_leader = session.query(LimitUpStock).filter(
+            LimitUpStock.block_id == new_block.id,
+            LimitUpStock.is_high_stock == 1
+        ).first()
+        
+        if current_leader:
+            # 如果存在龙头，比较连板数
+            if stock.continuous_days > current_leader.continuous_days:
+                # 当前股票连板数更高，成为新龙头
+                current_leader.is_high_stock = 0
+                stock.is_high_stock = 1
+                new_block.high_stock_code = stock.stock_code
+                new_block.high_stock_name = stock.stock_name
+            elif stock.continuous_days == current_leader.continuous_days:
+                # 连板数相同，比较封单金额
+                if (stock.seal_amount or 0) > (current_leader.seal_amount or 0):
+                    current_leader.is_high_stock = 0
+                    stock.is_high_stock = 1
+                    new_block.high_stock_code = stock.stock_code
+                    new_block.high_stock_name = stock.stock_name
+        else:
+            # 新板块没有龙头，查找连板数最高的股票
+            potential_leader = session.query(LimitUpStock).filter(
+                LimitUpStock.block_id == new_block.id
+            ).order_by(
+                LimitUpStock.continuous_days.desc(),
+                LimitUpStock.seal_amount.desc()
+            ).first()
+            
+            if potential_leader:
+                # 标记为龙头
+                potential_leader.is_high_stock = 1
+                new_block.high_stock_code = potential_leader.stock_code
+                new_block.high_stock_name = potential_leader.stock_name
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '更新成功'
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/watchlist', methods=['GET'])
+def get_watchlist():
+    """获取自选股列表"""
+    session = get_db_session()
+    
+    try:
+        watchlist = session.query(WatchlistStock).order_by(desc(WatchlistStock.created_at)).all()
+        
+        result = []
+        for stock in watchlist:
+            result.append({
+                'id': stock.id,
+                'stock_code': stock.stock_code,
+                'stock_name': stock.stock_name,
+                'add_date': stock.add_date.strftime('%Y%m%d') if stock.add_date else '',
+                'add_price': float(stock.add_price) if stock.add_price else None,
+                'add_reason': stock.add_reason or '',
+                'source': stock.source or '',
+                'created_at': stock.created_at.strftime('%Y-%m-%d %H:%M:%S') if stock.created_at else ''
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/watchlist', methods=['POST'])
+def add_to_watchlist():
+    """添加股票到自选"""
+    session = get_db_session()
+    
+    try:
+        data = request.json
+        stock_code = data.get('stock_code')
+        stock_name = data.get('stock_name')
+        add_date_str = data.get('add_date')
+        add_price = data.get('add_price')
+        add_reason = data.get('add_reason', '')
+        source = data.get('source', 'wencai')
+        
+        if not stock_code or not stock_name or not add_date_str:
+            return jsonify({
+                'success': False,
+                'error': '缺少必要参数'
+            }), 400
+        
+        add_date = datetime.strptime(add_date_str, '%Y%m%d').date()
+        
+        # 检查是否已存在
+        existing = session.query(WatchlistStock).filter(
+            WatchlistStock.stock_code == stock_code
+        ).first()
+        
+        if existing:
+            return jsonify({
+                'success': False,
+                'error': '该股票已在自选列表中'
+            }), 400
+        
+        watchlist_stock = WatchlistStock(
+            stock_code=stock_code,
+            stock_name=stock_name,
+            add_date=add_date,
+            add_price=add_price,
+            add_reason=add_reason,
+            source=source
+        )
+        
+        session.add(watchlist_stock)
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '添加成功'
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/watchlist/<stock_code>', methods=['DELETE'])
+def remove_from_watchlist(stock_code):
+    """从自选中删除股票"""
+    session = get_db_session()
+    
+    try:
+        stock = session.query(WatchlistStock).filter(
+            WatchlistStock.stock_code == stock_code
+        ).first()
+        
+        if not stock:
+            return jsonify({
+                'success': False,
+                'error': '股票不在自选列表中'
+            }), 404
+        
+        session.delete(stock)
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '删除成功'
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/watchlist/update-prices', methods=['POST'])
+def update_watchlist_prices():
+    """更新自选股价格"""
+    session = get_db_session()
+    
+    try:
+        # 获取所有自选股
+        watchlist = session.query(WatchlistStock).all()
+        
+        if not watchlist:
+            return jsonify({
+                'success': True,
+                'message': '没有自选股需要更新'
+            })
+        
+        updated_count = 0
+        
+        for stock in watchlist:
+            try:
+                # 使用同花顺获取实时价格
+                quote = ths_fetcher.get_realtime_quote(stock.stock_code)
+                
+                if quote and 'price' in quote:
+                    current_price = quote['price']
+                    stock.current_price = current_price
+                    
+                    # 计算盈亏
+                    if stock.add_price and current_price:
+                        stock.profit_amount = current_price - stock.add_price
+                        stock.profit_ratio = (current_price - stock.add_price) / stock.add_price
+                    
+                    updated_count += 1
+            except Exception as e:
+                print(f"更新股票 {stock.stock_code} 价格失败: {e}")
+                continue
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功更新 {updated_count} 只股票价格'
+        })
+        
+    except Exception as e:
+        session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)

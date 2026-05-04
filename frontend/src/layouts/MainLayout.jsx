@@ -47,9 +47,9 @@ const MainLayout = ({ children }) => {
       label: '涨停天梯',
     },
     {
-      key: '/analysis',
+      key: '/watchlist',
       icon: <LineChartOutlined />,
-      label: '数据分析',
+      label: '自选回溯',
     },
     {
       key: '/settings',
@@ -192,7 +192,6 @@ const MainLayout = ({ children }) => {
             justifyContent: 'space-around',
             alignItems: 'center',
             height: 56,
-            paddingBottom: 'env(safe-area-inset-bottom)',
           }}
         >
           {menuItems.map(item => (
