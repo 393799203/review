@@ -35,6 +35,8 @@ class Block(Base):
     high = Column(String(20))
     high_num = Column(Integer, default=0)
     list_days = Column(Integer, default=0)
+    high_stock_code = Column(String(10))
+    high_stock_name = Column(String(50))
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -75,6 +77,7 @@ class LimitUpStock(Base):
     change_percent = Column(Numeric(10, 4))
     turnover_rate = Column(Numeric(10, 4))
     amount = Column(Numeric(20, 2))
+    is_high_stock = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -115,6 +118,28 @@ class FetchLog(Base):
     stocks_count = Column(Integer, default=0)
     error_message = Column(Text)
     duration_seconds = Column(Integer)
+
+
+class WatchlistStock(Base):
+    """自选股表"""
+    __tablename__ = 'watchlist_stocks'
+    __table_args__ = (
+        UniqueConstraint('stock_code', name='uq_watchlist_stock'),
+        Index('idx_watchlist_created', 'created_at'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    stock_code = Column(String(10), nullable=False)
+    stock_name = Column(String(50), nullable=False)
+    add_date = Column(Date, nullable=False)
+    add_price = Column(Numeric(10, 2))
+    current_price = Column(Numeric(10, 2))
+    profit_amount = Column(Numeric(10, 2))
+    profit_ratio = Column(Numeric(10, 4))
+    add_reason = Column(String(200))
+    source = Column(String(50))
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
 class DatabaseConfig:

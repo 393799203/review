@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, Table, message, Spin, Card, Row, Col, Tag } from 'antd';
 import { BarChartOutlined } from '@ant-design/icons';
 import axios from 'axios';
@@ -45,13 +45,13 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
 
   const getRankColor = (index) => {
     const colorMap = {
-      0: '#f5222d',
-      1: '#fa8c16',
-      2: '#faad14',
-      3: '#52c41a',
-      4: '#1890ff',
+      0: '#f5222d',  // 第1名 - 红色
+      1: '#fa8c16',  // 第2名 - 橙色
+      2: '#faad14',  // 第3名 - 黄色
+      3: '#52c41a',  // 第4名 - 绿色
+      4: '#1890ff',  // 第5名 - 蓝色
     };
-    return colorMap[index] || '#666';
+    return colorMap[index] || '#b37feb';  // 第6名及以后 - 淡紫色
   };
 
   const columns = [
@@ -61,8 +61,8 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
       width: isMobile ? 50 : 60,
       render: (_, __, index) => (
         <span style={{ 
-          fontWeight: 'bold', 
-          color: getRankColor(index)
+          fontWeight: 'bold',
+          fontSize: isMobile ? 12 : 14
         }}>
           {index + 1}
         </span>
@@ -73,7 +73,15 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
       dataIndex: 'block_name',
       key: 'block_name',
       width: isMobile ? 120 : 200,
-      render: (text) => <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 14 }}>{text}</span>,
+      render: (text, _, index) => (
+        <span style={{ 
+          fontWeight: 'bold', 
+          fontSize: isMobile ? 12 : 14,
+          color: getRankColor(index)
+        }}>
+          {text}
+        </span>
+      ),
     },
     {
       title: '涨停数量',
@@ -108,7 +116,9 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
       dataIndex: 'high',
       key: 'high',
       width: isMobile ? 70 : 100,
-      render: (val) => <span style={{ fontSize: isMobile ? 12 : 14 }}>{val || '-'}</span>,
+      render: (val) => (
+        <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 'bold' }}>{val || '-'}</span>
+      ),
     },
   ];
 
@@ -133,14 +143,19 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ 
-                  fontWeight: 'bold', 
-                  color: getRankColor(index),
+                  fontWeight: 'bold',
                   fontSize: 16,
                   minWidth: 20
                 }}>
                   {index + 1}
                 </span>
-                <span style={{ fontWeight: 'bold', fontSize: 14 }}>{block.block_name}</span>
+                <span style={{ 
+                  fontWeight: 'bold', 
+                  fontSize: 14,
+                  color: getRankColor(index)
+                }}>
+                  {block.block_name}
+                </span>
               </div>
               <Tag color="red" style={{ fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                 {block.limit_up_num}只
@@ -206,7 +221,7 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BarChartOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1890ff' }} />
-          <span style={{ fontSize: isMobile ? 14 : 16 }}>次日板块强度</span>
+          <span style={{ fontSize: isMobile ? 14 : 16 }}>次日强势板块</span>
         </div>
       }
       open={visible}

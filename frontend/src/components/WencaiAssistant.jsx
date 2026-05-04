@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag } from 'antd';
-import { SearchOutlined, RobotOutlined } from '@ant-design/icons';
+import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag, Radio } from 'antd';
+import { SearchOutlined, RobotOutlined, PlusOutlined, CheckOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { TextArea } = Input;
@@ -10,6 +10,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [queryType, setQueryType] = useState('breakthrough');
+  const [watchlistCodes, setWatchlistCodes] = useState([]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -23,37 +25,56 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const getQueryByType = (queryType, date) => {
     const dateFormatted = `${date.slice(0, 4)}年${date.slice(4, 6)}月${date.slice(6, 8)}日`;
     
-    if (queryType === 'blockStrength') {
-      return `${dateFormatted} 涨停
-按板块统计涨停数量
-显示板块名称、涨停数量
-按涨停数量降序排列
-取前3名`;
-    }
-    
     const top3Blocks = nextDayBlocks.slice(0, 3).map(b => b.block_name).join('、');
     const blockCondition = top3Blocks ? `所属板块是 ${top3Blocks}` : '所属概念为近期热门题材';
     
-    return `${dateFormatted} 涨停
+    // 默认提示词
+    if (queryType === 'default') {
+      return `${dateFormatted} 涨停 显示涨停原因类别 显示概念
 非ST 非科创板 非北交所
 ${dateFormatted} 前60个交易日未创年度新高 放量上涨 站稳前期高点 非连续加速创新高
-${dateFormatted} 近1年涨停次数大于等于2次 近1月涨幅大于等于10%
+近1年涨停次数大于等于2次 近1月涨幅大于等于10%
 ${blockCondition}`;
+    }
+    
+    // 新高突破提示词
+    if (queryType === 'breakthrough') {
+      return `${dateFormatted} 涨停 显示涨停原因类别 显示概念
+非ST 非科创板 非北交所 非创业板 
+当天最高价大于等于120日内最高价的90%
+近1年涨停次数大于等于2次 显示近1月涨幅`;
+    }
+    
+    return '';
   };
 
   const getTitleByType = (queryType) => {
-    if (queryType === 'blockStrength') {
-      return '次日板块强度';
-    }
     return '问财智能助手';
   };
 
-  React.useEffect(() => {
-    if (visible) {
-      setQuery(getQueryByType(type, dateStr));
-      setResult([]);
+  const loadWatchlistCodes = async () => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      
+      const response = await axios.get(`${API_BASE}/watchlist`);
+      
+      if (response.data.success) {
+        const codes = response.data.data.map(stock => stock.stock_code);
+        setWatchlistCodes(codes);
+      }
+    } catch (error) {
+      console.error('加载自选股列表失败:', error);
     }
-  }, [visible, dateStr, type]);
+  };
+
+  useEffect(() => {
+    if (visible) {
+      setQuery(getQueryByType(queryType, dateStr));
+      setResult([]);
+      loadWatchlistCodes();
+    }
+  }, [visible, dateStr, queryType]);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -82,6 +103,40 @@ ${blockCondition}`;
       message.error('查询失败：' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddToWatchlist = async (record) => {
+    try {
+      const stockCode = record['股票代码'];
+      const stockName = record['股票简称'];
+      const price = record['最新价'];
+      
+      if (!stockCode || !stockName) {
+        message.error('股票信息不完整');
+        return;
+      }
+      
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      
+      const response = await axios.post(`${API_BASE}/watchlist`, {
+        stock_code: stockCode,
+        stock_name: stockName,
+        add_date: dateStr,
+        add_price: price,
+        add_reason: query.substring(0, 200),
+        source: 'wencai'
+      });
+      
+      if (response.data.success) {
+        message.success('已加入自选');
+        setWatchlistCodes([...watchlistCodes, stockCode]);
+      } else {
+        message.error(response.data.error || '添加失败');
+      }
+    } catch (error) {
+      message.error('添加失败：' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -184,12 +239,40 @@ ${blockCondition}`;
         );
       },
     },
+    {
+      title: '操作',
+      key: 'action',
+      width: isMobile ? 60 : 80,
+      fixed: 'right',
+      render: (_, record) => (
+        <Button
+          type="primary"
+          size="small"
+          icon={<PlusOutlined />}
+          onClick={() => handleAddToWatchlist(record)}
+          style={{ fontSize: isMobile ? 11 : 12 }}
+        >
+          {isMobile ? '' : '自选'}
+        </Button>
+      ),
+    },
   ];
 
   const tableColumns = columns;
 
   const renderMobileContent = () => {
-    if (result.length === 0) return null;
+    if (result.length === 0) {
+      return (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '40px 20px', 
+          color: '#999',
+          fontSize: 14 
+        }}>
+          暂无数据
+        </div>
+      );
+    }
     
     return (
       <div>
@@ -216,6 +299,9 @@ ${blockCondition}`;
           const conceptKey = Object.keys(record).find(k => k.includes('所属概念'));
           const conceptVal = record[conceptKey];
           
+          const stockCode = record['股票代码'];
+          const isAdded = watchlistCodes.includes(stockCode);
+          
           return (
             <Card
               key={index}
@@ -224,11 +310,11 @@ ${blockCondition}`;
               styles={{ body: { padding: '8px 10px' } }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 'bold', color: '#1890ff', fontSize: 13 }}>{record['股票代码']}</div>
                   <div style={{ fontSize: 12, color: '#666' }}>{record['股票简称']}</div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', marginLeft: 8 }}>
                   <div style={{ color: changeColor, fontWeight: 'bold', fontSize: 14 }}>
                     {numChange ? `${numChange.toFixed(2)}%` : '-'}
                   </div>
@@ -236,11 +322,23 @@ ${blockCondition}`;
                 </div>
               </div>
               
-              {reasonVal && (
-                <div style={{ marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                {reasonVal ? (
                   <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>{reasonVal}</Tag>
-                </div>
-              )}
+                ) : (
+                  <div></div>
+                )}
+                <Button
+                  type={isAdded ? 'default' : 'primary'}
+                  size="small"
+                  icon={isAdded ? <CheckOutlined /> : <PlusOutlined />}
+                  onClick={() => !isAdded && handleAddToWatchlist(record)}
+                  disabled={isAdded}
+                  style={{ fontSize: 10, padding: '0 6px', height: 22 }}
+                >
+                  {isAdded ? '已添加' : '自选'}
+                </Button>
+              </div>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                 <div>
@@ -271,7 +369,18 @@ ${blockCondition}`;
   };
 
   const renderDesktopContent = () => {
-    if (result.length === 0) return null;
+    if (result.length === 0) {
+      return (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '60px 20px', 
+          color: '#999',
+          fontSize: 14 
+        }}>
+          暂无数据
+        </div>
+      );
+    }
     
     return (
       <div>
@@ -329,6 +438,17 @@ ${blockCondition}`;
       }}
     >
       <div style={{ marginBottom: isMobile ? 6 : 8 }}>
+        <div style={{ marginBottom: isMobile ? 6 : 8 }}>
+          <Radio.Group 
+            value={queryType} 
+            onChange={(e) => setQueryType(e.target.value)}
+            size={isMobile ? 'small' : 'middle'}
+            style={{ width: '100%' }}
+          >
+            <Radio.Button value="default" style={{ fontSize: isMobile ? 11 : 12 }}>默认策略</Radio.Button>
+            <Radio.Button value="breakthrough" style={{ fontSize: isMobile ? 11 : 12 }}>新高突破</Radio.Button>
+          </Radio.Group>
+        </div>
         <TextArea
           rows={4}
           value={query}
