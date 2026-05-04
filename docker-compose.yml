@@ -1,0 +1,57 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - stock-network
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password_2024@db:5432/stock_review
+      - FLASK_ENV=production
+      - TZ=Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - stock-network
+    restart: always
+    volumes:
+      - backend-logs:/app/logs
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=stock_review
+      - POSTGRES_USER=stock_user
+      - POSTGRES_PASSWORD=stock_password_2024
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - stock-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stock_user -d stock_review"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  stock-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  backend-logs:
