@@ -6,6 +6,7 @@ import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
 import BlockStrengthModal from '../components/BlockStrengthModal';
 import EditBlockModal from '../components/EditBlockModal';
+import StockKlineModal from '../components/StockKlineModal';
 
 const LadderPage = ({ showFirstBoard }) => {
   const { currentDate, loading, setLoading } = useGlobal();
@@ -21,6 +22,8 @@ const LadderPage = ({ showFirstBoard }) => {
   const [blockStrengthVisible, setBlockStrengthVisible] = useState(false);
   const [editBlockVisible, setEditBlockVisible] = useState(false);
   const [editingStock, setEditingStock] = useState(null);
+  const [klineVisible, setKlineVisible] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -322,8 +325,24 @@ const LadderPage = ({ showFirstBoard }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 'bold', fontSize: 14 }}>{stock.code}</span>
-                <span style={{ fontWeight: 'bold', fontSize: 14, color: '#262626' }}>{stock.name}</span>
+                <span 
+                  style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedStock({ code: stock.code, name: stock.name });
+                    setKlineVisible(true);
+                  }}
+                >
+                  {stock.code}
+                </span>
+                <span 
+                  style={{ fontWeight: 'bold', fontSize: 14, color: '#262626', cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedStock({ code: stock.code, name: stock.name });
+                    setKlineVisible(true);
+                  }}
+                >
+                  {stock.name}
+                </span>
                   {stock.limit_up_type && (
                     <Tag color={getLimitUpTypeColor(stock.limit_up_type)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.limit_up_type}</Tag>
                   )}
@@ -430,7 +449,15 @@ const LadderPage = ({ showFirstBoard }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontWeight: 'bold', fontSize: 14 }}>{stock.code}</span>
+                <span 
+                  style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedStock({ code: stock.code, name: stock.name });
+                    setKlineVisible(true);
+                  }}
+                >
+                  {stock.code}
+                </span>
                 {stock.limit_up_type && (
                   <Tag color={getLimitUpTypeColor(stock.limit_up_type)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.limit_up_type}</Tag>
                 )}
@@ -583,7 +610,7 @@ const LadderPage = ({ showFirstBoard }) => {
                 onClick={() => setWencaiVisible(true)}
                 style={{ fontSize: isMobile ? 12 : 14 }}
               >
-                断板策略
+                断板日选股
               </Button>
             )}
             {hasNextDayBlocks && (
@@ -724,6 +751,16 @@ const LadderPage = ({ showFirstBoard }) => {
           }}
         />
       )}
+      
+      <StockKlineModal
+        visible={klineVisible}
+        stockCode={selectedStock?.code}
+        stockName={selectedStock?.name}
+        onClose={() => {
+          setKlineVisible(false);
+          setSelectedStock(null);
+        }}
+      />
     </>
   );
 };

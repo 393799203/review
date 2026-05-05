@@ -17,7 +17,7 @@ export const GlobalProvider = ({ children }) => {
   const [currentDate, setCurrentDate] = useState('');
   const [latestDate, setLatestDate] = useState('');
   const [tradingDays, setTradingDays] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const loadTradingDays = async (dateStr) => {
     try {
@@ -130,6 +130,25 @@ export const GlobalProvider = ({ children }) => {
     }
   };
 
+  const refreshWatchlistPrices = async () => {
+    try {
+      setLoading(true);
+      
+      message.loading({ content: '正在刷新自选股列表...', key: 'refresh' });
+      const response = await stockApi.getWatchlist();
+      
+      if (response.data.success) {
+        message.success({ content: `刷新成功，已更新 ${response.data.data?.length || 0} 只股票价格`, key: 'refresh' });
+      } else {
+        message.error({ content: '刷新失败：' + response.data.error, key: 'refresh' });
+      }
+    } catch (error) {
+      message.error({ content: '刷新失败：' + error.message, key: 'refresh' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     initLoad();
   }, []);
@@ -150,6 +169,7 @@ export const GlobalProvider = ({ children }) => {
     handlePrevDay,
     handleNextDay,
     refreshCurrentData,
+    refreshWatchlistPrices,
   };
 
   return (

@@ -3,7 +3,7 @@ import { Card, Descriptions, Tag } from 'antd';
 
 const SettingsPage = () => {
   return (
-    <div style={{ padding: 16 }}>
+    <div>
       <Card title="数据源信息">
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="主数据源">

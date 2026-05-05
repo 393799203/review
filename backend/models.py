@@ -133,13 +133,33 @@ class WatchlistStock(Base):
     stock_name = Column(String(50), nullable=False)
     add_date = Column(Date, nullable=False)
     add_price = Column(Numeric(10, 2))
-    current_price = Column(Numeric(10, 2))
-    profit_amount = Column(Numeric(10, 2))
-    profit_ratio = Column(Numeric(10, 4))
     add_reason = Column(String(200))
     source = Column(String(50))
+    limit_up_reason_category = Column(String(200))
+    
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class TradeRecord(Base):
+    """交易记录表"""
+    __tablename__ = 'trade_records'
+    
+    id = Column(Integer, primary_key=True)
+    stock_code = Column(String(10), nullable=False)
+    stock_name = Column(String(50), nullable=False)
+    operation_type = Column(String(10), nullable=False)
+    price = Column(Numeric(10, 2), nullable=False)
+    buy_price = Column(Numeric(10, 2))
+    quantity = Column(Integer, nullable=False)
+    remaining_quantity = Column(Integer, default=0)
+    amount = Column(Numeric(12, 2))
+    profit = Column(Numeric(10, 2))
+    profit_ratio = Column(Numeric(10, 4))
+    operation_date = Column(DateTime, nullable=False, default=datetime.now)
+    notes = Column(String(200))
+    
+    created_at = Column(DateTime, default=datetime.now)
 
 
 class DatabaseConfig:

@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, message, Spin, Popconfirm, Tag, Statistic, Row, Col } from 'antd';
-import { DeleteOutlined, ReloadOutlined, SyncOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form } from 'antd';
+import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useGlobal } from '../contexts/GlobalContext';
+import { stockApi } from '../services/api';
+import StockKlineModal from '../components/StockKlineModal';
 
 const WatchlistPage = () => {
   const { loading, setLoading } = useGlobal();
   const [watchlist, setWatchlist] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [buyModalVisible, setBuyModalVisible] = useState(false);
+  const [sellModalVisible, setSellModalVisible] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [buyForm] = Form.useForm();
+  const [sellForm] = Form.useForm();
+  const [klineVisible, setKlineVisible] = useState(false);
+  const [klineStock, setKlineStock] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -60,176 +69,67 @@ const WatchlistPage = () => {
     }
   };
 
-  const handleRefresh = async () => {
-    setLoading(true);
+  const handleBuy = (stock) => {
+    setSelectedStock(stock);
+    buyForm.setFieldsValue({
+      buy_price: stock.current_price || stock.add_price,
+      buy_quantity: 100
+    });
+    setBuyModalVisible(true);
+  };
+
+  const handleSell = (stock) => {
+    setSelectedStock(stock);
+    sellForm.setFieldsValue({
+      sell_price: stock.current_price,
+      sell_quantity: stock.buy_quantity
+    });
+    setSellModalVisible(true);
+  };
+
+  const handleBuySubmit = async () => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      const values = await buyForm.validateFields();
+      const response = await stockApi.buyStock({
+        stock_code: selectedStock.stock_code,
+        buy_price: values.buy_price,
+        buy_quantity: values.buy_quantity
+      });
       
-      // 先更新价格
-      const updateResponse = await axios.post(`${API_BASE}/watchlist/update-prices`);
-      
-      if (updateResponse.data.success) {
-        // 然后重新加载列表
-        const listResponse = await axios.get(`${API_BASE}/watchlist`);
-        
-        if (listResponse.data.success) {
-          setWatchlist(listResponse.data.data || []);
-          message.success(`已更新价格并刷新列表`);
-        }
+      if (response.data.success) {
+        message.success(response.data.message);
+        setBuyModalVisible(false);
+        buyForm.resetFields();
+        loadWatchlist();
       } else {
-        message.error(updateResponse.data.error || '更新失败');
+        message.error(response.data.error);
       }
     } catch (error) {
-      message.error('刷新失败：' + (error.response?.data?.error || error.message));
-    } finally {
-      setLoading(false);
+      message.error('买入失败：' + (error.response?.data?.error || error.message));
     }
   };
 
-  const columns = [
-    {
-      title: '股票信息',
-      key: 'stockInfo',
-      width: isMobile ? 100 : 120,
-      fixed: 'left',
-      render: (_, record) => (
-        <div style={{ lineHeight: '18px' }}>
-          <div style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13 }}>{record.stock_code}</div>
-          <div style={{ fontSize: isMobile ? 11 : 12, color: '#666' }}>{record.stock_name}</div>
-        </div>
-      ),
-    },
-    {
-      title: '加入日期',
-      dataIndex: 'add_date',
-      key: 'add_date',
-      width: isMobile ? 90 : 100,
-      render: (val) => (
-        <span style={{ fontSize: isMobile ? 11 : 12 }}>
-          {val ? `${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}` : '-'}
-        </span>
-      ),
-    },
-    {
-      title: '加入价格',
-      dataIndex: 'add_price',
-      key: 'add_price',
-      width: isMobile ? 80 : 100,
-      render: (val) => (
-        <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13 }}>
-          {val ? `¥${val.toFixed(2)}` : '-'}
-        </span>
-      ),
-    },
-    {
-      title: '当前价格',
-      dataIndex: 'current_price',
-      key: 'current_price',
-      width: isMobile ? 80 : 100,
-      render: (val) => (
-        <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13 }}>
-          {val ? `¥${val.toFixed(2)}` : '-'}
-        </span>
-      ),
-    },
-    {
-      title: '盈亏金额',
-      dataIndex: 'profit_amount',
-      key: 'profit_amount',
-      width: isMobile ? 80 : 100,
-      render: (val, record) => {
-        if (!val) return '-';
-        const numVal = parseFloat(val);
-        const color = numVal > 0 ? '#f5222d' : numVal < 0 ? '#52c41a' : '#666';
-        const icon = numVal > 0 ? <RiseOutlined /> : numVal < 0 ? <FallOutlined /> : null;
-        return (
-          <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13, color }}>
-            {icon} ¥{numVal.toFixed(2)}
-          </span>
-        );
-      },
-    },
-    {
-      title: '盈亏比例',
-      dataIndex: 'profit_ratio',
-      key: 'profit_ratio',
-      width: isMobile ? 80 : 100,
-      render: (val, record) => {
-        if (!val) return '-';
-        const numVal = parseFloat(val);
-        const color = numVal > 0 ? '#f5222d' : numVal < 0 ? '#52c41a' : '#666';
-        return (
-          <span style={{ fontWeight: 'bold', fontSize: isMobile ? 12 : 13, color }}>
-            {numVal > 0 ? '+' : ''}{(numVal * 100).toFixed(2)}%
-          </span>
-        );
-      },
-    },
-    {
-      title: '加入原因',
-      dataIndex: 'add_reason',
-      key: 'add_reason',
-      width: isMobile ? 150 : 200,
-      ellipsis: true,
-      render: (val) => (
-        <span style={{ fontSize: isMobile ? 11 : 12 }}>{val || '-'}</span>
-      ),
-    },
-    {
-      title: '来源',
-      dataIndex: 'source',
-      key: 'source',
-      width: isMobile ? 70 : 80,
-      render: (val) => {
-        const colorMap = {
-          'wencai': 'blue',
-          'manual': 'green'
-        };
-        const textMap = {
-          'wencai': '问财',
-          'manual': '手动'
-        };
-        return (
-          <Tag color={colorMap[val] || 'default'} style={{ fontSize: isMobile ? 10 : 11 }}>
-            {textMap[val] || val || '-'}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: '加入时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: isMobile ? 120 : 150,
-      render: (val) => (
-        <span style={{ fontSize: isMobile ? 11 : 12 }}>{val || '-'}</span>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: isMobile ? 60 : 80,
-      fixed: 'right',
-      render: (_, record) => (
-        <Popconfirm
-          title="确定删除？"
-          onConfirm={() => handleDelete(record.stock_code)}
-          okText="确定"
-          cancelText="取消"
-        >
-          <Button
-            danger
-            size="small"
-            icon={<DeleteOutlined />}
-            style={{ fontSize: isMobile ? 11 : 12 }}
-          >
-            {isMobile ? '' : '删除'}
-          </Button>
-        </Popconfirm>
-      ),
-    },
-  ];
+  const handleSellSubmit = async () => {
+    try {
+      const values = await sellForm.validateFields();
+      const response = await stockApi.sellStock({
+        stock_code: selectedStock.stock_code,
+        sell_price: values.sell_price,
+        sell_quantity: values.sell_quantity
+      });
+      
+      if (response.data.success) {
+        message.success(response.data.message);
+        setSellModalVisible(false);
+        sellForm.resetFields();
+        loadWatchlist();
+      } else {
+        message.error(response.data.error);
+      }
+    } catch (error) {
+      message.error('卖出失败：' + (error.response?.data?.error || error.message));
+    }
+  };
 
   const renderMobileContent = () => {
     if (watchlist.length === 0) {
@@ -248,10 +148,13 @@ const WatchlistPage = () => {
     return (
       <div>
         {watchlist.map((record) => {
-          const profitAmount = record.profit_amount ? parseFloat(record.profit_amount) : null;
-          const profitRatio = record.profit_ratio ? parseFloat(record.profit_ratio) : null;
-          const profitColor = profitAmount > 0 ? '#f5222d' : profitAmount < 0 ? '#52c41a' : '#666';
-          const profitIcon = profitAmount > 0 ? <RiseOutlined /> : profitAmount < 0 ? <FallOutlined /> : null;
+          const isHolding = record.position_status === '持仓';
+          const positionProfit = record.position_profit !== null && record.position_profit !== undefined ? parseFloat(record.position_profit) : null;
+          const positionProfitRatio = record.position_profit_ratio !== null && record.position_profit_ratio !== undefined ? parseFloat(record.position_profit_ratio) : null;
+          const totalProfit = record.total_profit || 0;
+          const totalProfitColor = totalProfit > 0 ? '#f5222d' : totalProfit < 0 ? '#52c41a' : '#8c8c8c';
+          const profitColor = positionProfit !== null ? (positionProfit > 0 ? '#f5222d' : positionProfit < 0 ? '#52c41a' : '#8c8c8c') : '#8c8c8c';
+          const profitPercent = positionProfitRatio !== null ? (positionProfitRatio * 100).toFixed(2) : '0.00';
           
           return (
             <Card
@@ -259,60 +162,272 @@ const WatchlistPage = () => {
               size="small"
               style={{ 
                 marginBottom: 8,
-                border: profitAmount > 0 ? '1px solid #ffccc7' : profitAmount < 0 ? '1px solid #b7eb8f' : '1px solid #f0f0f0'
+                borderLeft: `3px solid ${totalProfitColor}`,
+                background: `${totalProfitColor}08`,
+                position: 'relative',
+                overflow: 'hidden',
               }}
-              styles={{ body: { padding: '10px' } }}
+              styles={{ body: { padding: '8px 10px' } }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 'bold', color: '#1890ff', fontSize: 14 }}>{record.stock_code}</div>
-                  <div style={{ fontSize: 12, color: '#666' }}>{record.stock_name}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span 
+                      style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
+                      onClick={() => {
+                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                        setKlineVisible(true);
+                      }}
+                    >
+                      {record.stock_code.split('.')[0]}
+                    </span>
+                    <span 
+                      style={{ fontWeight: 'bold', fontSize: 14, color: '#262626', cursor: 'pointer' }}
+                      onClick={() => {
+                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                        setKlineVisible(true);
+                      }}
+                    >
+                      {record.stock_name}
+                    </span>
+                    <Tag color={isHolding ? 'blue' : 'default'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
+                      {isHolding ? '持仓' : '空仓'}
+                    </Tag>
+                    <Tag color="purple" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
+                      {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
+                    </Tag>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#595959' }}>
+                    {isHolding ? (
+                      <>
+                        <span>买入: <span style={{ fontWeight: 'bold', color: '#1890ff' }}>¥{record.buy_price ? record.buy_price.toFixed(2) : '-'}</span></span>
+                        <span>×{record.buy_quantity}股</span>
+                      </>
+                    ) : (
+                      <span>加入: <span style={{ fontWeight: 'bold', color: '#262626' }}>¥{record.add_price ? record.add_price.toFixed(2) : '-'}</span></span>
+                    )}
+                    <span>现价: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  {profitAmount !== null && (
-                    <>
-                      <div style={{ color: profitColor, fontWeight: 'bold', fontSize: 16 }}>
-                        {profitIcon} ¥{profitAmount.toFixed(2)}
+                <div style={{ textAlign: 'right', marginLeft: 10, minWidth: 85 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ fontSize: 12, fontWeight: 'bold', color: totalProfitColor }}>
+                      累计: {totalProfit.toFixed(0)}
+                    </div>
+                    {isHolding && positionProfit !== null && (
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: profitColor }}>
+                        盈亏: {positionProfit.toFixed(0)}
+                        <span style={{ fontSize: 10, marginLeft: 2 }}>{positionProfitRatio > 0 ? '+' : ''}{profitPercent}%</span>
                       </div>
-                      <div style={{ fontSize: 12, color: profitColor }}>
-                        {profitRatio > 0 ? '+' : ''}{(profitRatio * 100).toFixed(2)}%
-                      </div>
-                    </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 4 }}>
+                <div style={{ flex: 1 }}>
+                  {record.limit_up_reason_category && (
+                    <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
+                      {record.limit_up_reason_category}
+                    </Tag>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<ShoppingCartOutlined />}
+                    onClick={() => handleBuy(record)}
+                    style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                  >
+                    买入
+                  </Button>
+                  {isHolding && (
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<DollarOutlined />}
+                      onClick={() => handleSell(record)}
+                      style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                    >
+                      卖出
+                    </Button>
+                  )}
+                  {!isHolding && (
+                    <Popconfirm
+                      title="确定删除？"
+                      onConfirm={() => handleDelete(record.stock_code)}
+                      okText="确定"
+                      cancelText="取消"
+                    >
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                      >
+                        删除
+                      </Button>
+                    </Popconfirm>
                   )}
                 </div>
               </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6, padding: '6px 0', borderTop: '1px dashed #f0f0f0' }}>
-                <div>
-                  <span style={{ color: '#999' }}>加入：</span>
-                  <span style={{ fontWeight: 'bold' }}>
-                    {record.add_date ? `${record.add_date.slice(0, 4)}-${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ color: '#999' }}>加入价：</span>
-                  <span style={{ fontWeight: 'bold' }}>
-                    ¥{record.add_price ? record.add_price.toFixed(2) : '-'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ color: '#999' }}>现价：</span>
-                  <span style={{ fontWeight: 'bold', color: profitColor }}>
-                    ¥{record.current_price ? record.current_price.toFixed(2) : '-'}
-                  </span>
-                </div>
-              </div>
-              
-              {record.add_reason && (
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 6, padding: '4px 6px', background: '#f5f5f5', borderRadius: 4 }}>
-                  {record.add_reason.substring(0, 50)}{record.add_reason.length > 50 ? '...' : ''}
-                </div>
-              )}
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                <Tag color={record.source === 'wencai' ? 'blue' : 'green'} style={{ fontSize: 10, margin: 0 }}>
-                  {record.source === 'wencai' ? '问财' : '手动'}
-                </Tag>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderDesktopContent = () => {
+    const columns = [
+      {
+        title: '股票代码',
+        dataIndex: 'stock_code',
+        key: 'stock_code',
+        width: 100,
+        render: (text, record) => (
+          <span 
+            style={{ color: '#1890ff', cursor: 'pointer' }}
+            onClick={() => {
+              setKlineStock({ code: text.split('.')[0], name: record.stock_name });
+              setKlineVisible(true);
+            }}
+          >
+            {text.split('.')[0]}
+          </span>
+        ),
+      },
+      {
+        title: '股票名称',
+        dataIndex: 'stock_name',
+        key: 'stock_name',
+        width: 100,
+        render: (text, record) => (
+          <span 
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              setKlineStock({ code: record.stock_code.split('.')[0], name: text });
+              setKlineVisible(true);
+            }}
+          >
+            {text}
+          </span>
+        ),
+      },
+      {
+        title: '持仓状态',
+        dataIndex: 'position_status',
+        key: 'position_status',
+        width: 80,
+        render: (text) => (
+          <Tag color={text === '持仓' ? 'blue' : 'default'}>
+            {text || '空仓'}
+          </Tag>
+        ),
+      },
+      {
+        title: '加入价格',
+        dataIndex: 'add_price',
+        key: 'add_price',
+        width: 100,
+        render: (value) => value ? `¥${value.toFixed(2)}` : '-',
+      },
+      {
+        title: '买入价格',
+        dataIndex: 'buy_price',
+        key: 'buy_price',
+        width: 100,
+        render: (value) => value ? `¥${value.toFixed(2)}` : '-',
+      },
+      {
+        title: '买入数量',
+        dataIndex: 'buy_quantity',
+        key: 'buy_quantity',
+        width: 100,
+        render: (value) => value ? `${value}股` : '-',
+      },
+      {
+        title: '当前价格',
+        dataIndex: 'current_price',
+        key: 'current_price',
+        width: 100,
+        render: (value, record) => {
+          const color = record.position_status === '持仓' && record.position_profit > 0 ? '#f5222d' : 
+                       record.position_status === '持仓' && record.position_profit < 0 ? '#52c41a' : '#262626';
+          return value ? <span style={{ color, fontWeight: 'bold' }}>¥{value.toFixed(2)}</span> : '-';
+        },
+      },
+      {
+        title: '持仓盈亏',
+        dataIndex: 'position_profit',
+        key: 'position_profit',
+        width: 120,
+        render: (value, record) => {
+          if (record.position_status !== '持仓' || value === null) return '-';
+          const color = value > 0 ? '#f5222d' : value < 0 ? '#52c41a' : '#8c8c8c';
+          const ratio = record.position_profit_ratio ? (record.position_profit_ratio * 100).toFixed(2) : '0.00';
+          return (
+            <div style={{ color }}>
+              <div style={{ fontWeight: 'bold' }}>{value > 0 ? '+' : ''}{value.toFixed(2)}元</div>
+              <div style={{ fontSize: 12 }}>{ratio > 0 ? '+' : ''}{ratio}%</div>
+            </div>
+          );
+        },
+      },
+      {
+        title: '策略日期',
+        key: 'source_info',
+        width: 100,
+        render: (_, record) => (
+          <Tag color="purple" style={{ fontSize: 11 }}>
+            {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
+          </Tag>
+        ),
+      },
+      {
+        title: '涨停原因',
+        dataIndex: 'limit_up_reason_category',
+        key: 'limit_up_reason_category',
+        width: 150,
+        ellipsis: true,
+        render: (text) => {
+          if (!text) return '-';
+          return (
+            <Tooltip title={text}>
+              <Tag color="blue" style={{ fontSize: 11 }}>
+                {text}
+              </Tag>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        title: '操作',
+        key: 'action',
+        width: 150,
+        fixed: 'right',
+        render: (_, record) => (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {record.position_status === '持仓' ? (
+              <Button
+                type="primary"
+                size="small"
+                icon={<DollarOutlined />}
+                onClick={() => handleSell(record)}
+              >
+                卖出
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<ShoppingCartOutlined />}
+                  onClick={() => handleBuy(record)}
+                >
+                  买入
+                </Button>
                 <Popconfirm
                   title="确定删除？"
                   onConfirm={() => handleDelete(record.stock_code)}
@@ -323,40 +438,24 @@ const WatchlistPage = () => {
                     danger
                     size="small"
                     icon={<DeleteOutlined />}
-                    style={{ fontSize: 10 }}
                   >
                     删除
                   </Button>
                 </Popconfirm>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    );
-  };
+              </>
+            )}
+          </div>
+        ),
+      },
+    ];
 
-  const renderDesktopContent = () => {
-    if (watchlist.length === 0) {
-      return (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px', 
-          color: '#999',
-          fontSize: 14 
-        }}>
-          暂无自选股
-        </div>
-      );
-    }
-    
     return (
       <Table
         columns={columns}
         dataSource={watchlist}
         rowKey="id"
         loading={loading}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1300 }}
         pagination={{
           pageSize: 20,
           showSizeChanger: true,
@@ -371,29 +470,128 @@ const WatchlistPage = () => {
   return (
     <div style={{ padding: 0 }}>
       <Card
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: isMobile ? 14 : 16 }}>自选回溯</span>
-            <Button
-              icon={<SyncOutlined />}
-              onClick={handleRefresh}
-              loading={loading}
-              size="small"
-              type="primary"
-              style={{ fontSize: isMobile ? 11 : 12 }}
-            >
-              {isMobile ? '' : '刷新'}
-            </Button>
-          </div>
-        }
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 8 }}
+        styles={{ body: { padding: isMobile ? '8px' : '12px' } }}
       >
-        <div style={{ marginBottom: 12, fontSize: isMobile ? 11 : 12, color: '#666' }}>
-          共 {watchlist.length} 只自选股
-        </div>
-        
-        {isMobile ? renderMobileContent() : renderDesktopContent()}
+        <Spin spinning={loading} description="加载中...">
+          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c' }}>
+            共 {watchlist.length} 只自选股，{watchlist.filter(s => s.position_status === '持仓').length} 只持仓中
+          </div>
+          
+          {isMobile ? renderMobileContent() : renderDesktopContent()}
+        </Spin>
       </Card>
+
+      <Modal
+        title="买入股票"
+        open={buyModalVisible}
+        onOk={handleBuySubmit}
+        onCancel={() => {
+          setBuyModalVisible(false);
+          buyForm.resetFields();
+        }}
+        okText="确认买入"
+        cancelText="取消"
+      >
+        <Form form={buyForm} layout="vertical">
+          <Form.Item
+            label="买入价格"
+            name="buy_price"
+            rules={[{ required: true, message: '请输入买入价格' }]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              precision={2}
+              min={0}
+              step={0.01}
+              placeholder="请输入买入价格"
+            />
+          </Form.Item>
+          <Form.Item
+            label="买入数量（股）"
+            name="buy_quantity"
+            rules={[
+              { required: true, message: '请输入买入数量' },
+              { 
+                validator: (_, value) => {
+                  if (value && value % 100 !== 0) {
+                    return Promise.reject('买入数量必须是100的倍数');
+                  }
+                  return Promise.resolve();
+                }
+              }
+            ]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              min={100}
+              step={100}
+              placeholder="请输入买入数量（100股的倍数）"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="卖出股票"
+        open={sellModalVisible}
+        onOk={handleSellSubmit}
+        onCancel={() => {
+          setSellModalVisible(false);
+          sellForm.resetFields();
+        }}
+        okText="确认卖出"
+        cancelText="取消"
+      >
+        <Form form={sellForm} layout="vertical">
+          <Form.Item
+            label="卖出价格"
+            name="sell_price"
+            rules={[{ required: true, message: '请输入卖出价格' }]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              precision={2}
+              min={0}
+              step={0.01}
+              placeholder="请输入卖出价格"
+            />
+          </Form.Item>
+          <Form.Item
+            label={`卖出数量（持仓：${selectedStock?.buy_quantity || 0}股）`}
+            name="sell_quantity"
+            rules={[
+              { required: true, message: '请输入卖出数量' },
+              { 
+                validator: (_, value) => {
+                  if (value && value % 100 !== 0) {
+                    return Promise.reject('卖出数量必须是100的倍数');
+                  }
+                  return Promise.resolve();
+                }
+              }
+            ]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              min={100}
+              max={selectedStock?.buy_quantity || 0}
+              step={100}
+              placeholder="请输入卖出数量（100股的倍数）"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <StockKlineModal
+        visible={klineVisible}
+        stockCode={klineStock?.code}
+        stockName={klineStock?.name}
+        onClose={() => {
+          setKlineVisible(false);
+          setKlineStock(null);
+        }}
+      />
     </div>
   );
 };

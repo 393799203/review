@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch } from 'antd';
-import { StockOutlined, LineChartOutlined, SettingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import dayjs from 'dayjs';
@@ -22,6 +22,7 @@ const MainLayout = ({ children }) => {
     handlePrevDay,
     handleNextDay,
     refreshCurrentData,
+    refreshWatchlistPrices,
   } = useGlobal();
 
   useEffect(() => {
@@ -48,13 +49,13 @@ const MainLayout = ({ children }) => {
     },
     {
       key: '/watchlist',
-      icon: <LineChartOutlined />,
+      icon: <StarOutlined />,
       label: '自选回溯',
     },
     {
-      key: '/settings',
-      icon: <SettingOutlined />,
-      label: '设置',
+      key: '/statistics',
+      icon: <BarChartOutlined />,
+      label: '数据统计',
     },
   ];
 
@@ -74,7 +75,38 @@ const MainLayout = ({ children }) => {
   const isLadderPage = location.pathname === '/';
 
   const renderHeaderRight = () => {
+    const isWatchlistPage = location.pathname === '/watchlist';
+    const isStatisticsPage = location.pathname === '/statistics';
+    
     if (isMobile) {
+      if (isWatchlistPage) {
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Button 
+              type="primary" 
+              icon={<ReloadOutlined />} 
+              size="small"
+              onClick={refreshWatchlistPrices}
+              loading={loading}
+            />
+          </div>
+        );
+      }
+      
+      if (isStatisticsPage) {
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Button 
+              type="primary" 
+              icon={<ReloadOutlined />} 
+              size="small"
+              onClick={() => window.location.reload()}
+              loading={loading}
+            />
+          </div>
+        );
+      }
+      
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isLadderPage && (
@@ -104,6 +136,26 @@ const MainLayout = ({ children }) => {
             onClick={refreshCurrentData}
             loading={loading}
           />
+        </div>
+      );
+    }
+
+    if (isWatchlistPage) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={refreshWatchlistPrices}>
+            更新价格
+          </Button>
+        </div>
+      );
+    }
+
+    if (isStatisticsPage) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={() => window.location.reload()}>
+            刷新数据
+          </Button>
         </div>
       );
     }

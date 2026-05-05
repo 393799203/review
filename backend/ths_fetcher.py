@@ -8,6 +8,7 @@ import requests
 import time
 import random
 import threading
+import re
 from typing import Dict, List, Optional
 
 
@@ -219,6 +220,181 @@ class ThsFetcher:
             print(f"✗ 获取同花顺板块强度数据失败: {e}")
         
         return None
+    
+    def get_realtime_quote(self, stock_code: str) -> Optional[Dict]:
+        """
+        获取单只股票的实时行情（通过新浪财经API，速度快）
+        
+        Args:
+            stock_code: 股票代码（6位数字）
+            
+        Returns:
+            实时行情数据字典
+        """
+        try:
+            if stock_code.startswith('6'):
+                symbol = f"sh{stock_code}"
+            else:
+                symbol = f"sz{stock_code}"
+            
+            url = f"http://hq.sinajs.cn/list={symbol}"
+            
+            headers = {
+                'Referer': 'http://finance.sina.com.cn',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = self.session.get(url, headers=headers, timeout=5)
+            response.encoding = 'gbk'
+            
+            pattern = re.compile(r'="(.*)"')
+            match = pattern.search(response.text)
+            
+            if match:
+                data_str = match.group(1)
+                data_list = data_str.split(',')
+                
+                if len(data_list) >= 32:
+                    price = float(data_list[3]) if data_list[3] else None
+                    prev_close = float(data_list[2]) if data_list[2] else None
+                    
+                    return {
+                        'code': stock_code,
+                        'name': data_list[0],
+                        'open': float(data_list[1]) if data_list[1] else None,
+                        'prev_close': prev_close,
+                        'price': price,
+                        'high': float(data_list[4]) if data_list[4] else None,
+                        'low': float(data_list[5]) if data_list[5] else None,
+                        'volume': float(data_list[8]) if data_list[8] else 0,
+                        'amount': float(data_list[9]) if data_list[9] else 0,
+                        'change_amount': price - prev_close if price and prev_close else 0,
+                        'change_percent': ((price - prev_close) / prev_close * 100) if price and prev_close else 0,
+                    }
+            
+            return None
+            
+        except Exception as e:
+            print(f"✗ 获取股票 {stock_code} 实时行情失败: {e}")
+            return None
+    
+    def get_stock_kline(self, stock_code: str, days: int = 60) -> Optional[List[Dict]]:
+        """
+        获取股票历史K线数据
+        
+        Args:
+            stock_code: 股票代码（6位数字）
+            days: 获取最近多少天的数据，默认60天
+            
+        Returns:
+            K线数据列表
+        """
+        try:
+            import akshare as ak
+            from datetime import datetime, timedelta
+            
+            end_date = datetime.now().strftime('%Y%m%d')
+            start_date = (datetime.now() - timedelta(days=days*2)).strftime('%Y%m%d')
+            
+            df = ak.stock_zh_a_hist(
+                symbol=stock_code,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq"
+            )
+            
+            if df is not None and not df.empty:
+                df = df.tail(days)
+                
+                kline_data = []
+                for _, row in df.iterrows():
+                    kline_data.append({
+                        'date': row['日期'],
+                        'open': float(row['开盘']),
+                        'close': float(row['收盘']),
+                        'high': float(row['最高']),
+                        'low': float(row['最低']),
+                        'volume': float(row['成交量']),
+                        'amount': float(row['成交额']),
+                        'change_percent': float(row['涨跌幅']) if row['涨跌幅'] else 0,
+                        'change_amount': float(row['涨跌额']) if row['涨跌额'] else 0,
+                        'turnover': float(row['换手率']) if row['换手率'] else 0,
+                    })
+                
+                return kline_data
+            
+            return None
+            
+        except Exception as e:
+            print(f"✗ 获取股票 {stock_code} K线数据失败: {e}")
+            return None
+    
+    def get_stock_intraday(self, stock_code: str) -> Optional[Dict]:
+        """
+        获取股票最近交易日分时数据
+        
+        Args:
+            stock_code: 股票代码（6位数字）
+            
+        Returns:
+            包含分时数据和昨日收盘价的字典
+        """
+        try:
+            import akshare as ak
+            from datetime import datetime, timedelta
+            
+            for days_ago in range(0, 7):
+                date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+                
+                try:
+                    df = ak.stock_zh_a_hist_min_em(
+                        symbol=stock_code,
+                        start_date=f'{date} 09:30:00',
+                        end_date=f'{date} 15:00:00',
+                        period='1',
+                        adjust='qfq'
+                    )
+                    
+                    if df is not None and not df.empty:
+                        intraday_data = []
+                        for _, row in df.iterrows():
+                            intraday_data.append({
+                                'time': row['时间'],
+                                'price': float(row['收盘']),
+                                'volume': float(row['成交量']),
+                                'amount': float(row['成交额']),
+                            })
+                        
+                        try:
+                            df_daily = ak.stock_zh_a_hist(
+                                symbol=stock_code,
+                                period='daily',
+                                start_date=(datetime.now() - timedelta(days=30)).strftime('%Y%m%d'),
+                                end_date=date.replace('-', ''),
+                                adjust='qfq'
+                            )
+                            
+                            if df_daily is not None and len(df_daily) >= 2:
+                                yesterday_close = float(df_daily.iloc[-2]['收盘'])
+                            else:
+                                yesterday_close = float(df.iloc[0]['开盘'])
+                        except Exception:
+                            yesterday_close = float(df.iloc[0]['开盘'])
+                        
+                        return {
+                            'intraday': intraday_data,
+                            'yesterday_close': yesterday_close
+                        }
+                        
+                except Exception:
+                    continue
+            
+            return None
+            
+        except Exception as e:
+            print(f"✗ 获取股票 {stock_code} 分时数据失败: {e}")
+            return None
     
     def get_all_data(self, date_str: str) -> Dict:
         """

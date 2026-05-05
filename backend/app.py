@@ -7,14 +7,15 @@ Flask后端API
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 import sys
 import os
 import threading
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord
 from ths_fetcher import ThsFetcher
+from statistics_api import register_statistics_routes
 
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +38,9 @@ def init_ths_session():
 def get_db_session():
     """获取数据库会话"""
     return db_config.create_session()
+
+
+register_statistics_routes(app, get_db_session)
 
 
 @app.route('/')
@@ -792,7 +796,7 @@ def update_stock_block():
 
 @app.route('/api/watchlist', methods=['GET'])
 def get_watchlist():
-    """获取自选股列表"""
+    """获取自选股列表（自动更新价格）"""
     session = get_db_session()
     
     try:
@@ -800,14 +804,65 @@ def get_watchlist():
         
         result = []
         for stock in watchlist:
+            stock_total_profit = session.query(func.sum(TradeRecord.profit)).filter(
+                TradeRecord.stock_code == stock.stock_code,
+                TradeRecord.operation_type == '卖出',
+                TradeRecord.profit.isnot(None)
+            ).scalar() or 0
+            
+            buy_records = session.query(TradeRecord).filter(
+                TradeRecord.stock_code == stock.stock_code,
+                TradeRecord.operation_type == '买入',
+                TradeRecord.remaining_quantity > 0
+            ).all()
+            
+            current_quantity = sum(r.remaining_quantity for r in buy_records)
+            
+            try:
+                stock_code_num = stock.stock_code.split('.')[0]
+                quote = ths_fetcher.get_realtime_quote(stock_code_num)
+                current_price = quote['price'] if quote and 'price' in quote else None
+            except Exception as e:
+                print(f"更新股票 {stock.stock_code} 价格失败: {e}")
+                current_price = None
+            
+            if current_quantity > 0:
+                total_cost = sum(float(r.price) * r.remaining_quantity for r in buy_records)
+                avg_buy_price = total_cost / current_quantity
+                
+                if current_price:
+                    position_profit = (current_price - avg_buy_price) * current_quantity
+                    position_profit_ratio = (current_price - avg_buy_price) / avg_buy_price
+                else:
+                    position_profit = None
+                    position_profit_ratio = None
+                
+                position_status = '持仓'
+                buy_date = min(r.operation_date for r in buy_records)
+            else:
+                position_profit = None
+                position_profit_ratio = None
+                position_status = '空仓'
+                avg_buy_price = None
+                buy_date = None
+            
             result.append({
                 'id': stock.id,
                 'stock_code': stock.stock_code,
                 'stock_name': stock.stock_name,
                 'add_date': stock.add_date.strftime('%Y%m%d') if stock.add_date else '',
                 'add_price': float(stock.add_price) if stock.add_price else None,
+                'current_price': float(current_price) if current_price else None,
                 'add_reason': stock.add_reason or '',
                 'source': stock.source or '',
+                'limit_up_reason_category': stock.limit_up_reason_category or '',
+                'position_status': position_status,
+                'buy_price': float(avg_buy_price) if avg_buy_price else None,
+                'buy_date': buy_date.strftime('%Y-%m-%d') if buy_date else None,
+                'buy_quantity': current_quantity,
+                'position_profit': float(position_profit) if position_profit is not None else None,
+                'position_profit_ratio': float(position_profit_ratio) if position_profit_ratio is not None else None,
+                'total_profit': float(stock_total_profit),
                 'created_at': stock.created_at.strftime('%Y-%m-%d %H:%M:%S') if stock.created_at else ''
             })
         
@@ -817,6 +872,7 @@ def get_watchlist():
         })
         
     except Exception as e:
+        session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -838,6 +894,7 @@ def add_to_watchlist():
         add_price = data.get('add_price')
         add_reason = data.get('add_reason', '')
         source = data.get('source', 'wencai')
+        limit_up_reason_category = data.get('limit_up_reason_category', '')
         
         if not stock_code or not stock_name or not add_date_str:
             return jsonify({
@@ -847,7 +904,6 @@ def add_to_watchlist():
         
         add_date = datetime.strptime(add_date_str, '%Y%m%d').date()
         
-        # 检查是否已存在
         existing = session.query(WatchlistStock).filter(
             WatchlistStock.stock_code == stock_code
         ).first()
@@ -864,7 +920,8 @@ def add_to_watchlist():
             add_date=add_date,
             add_price=add_price,
             add_reason=add_reason,
-            source=source
+            source=source,
+            limit_up_reason_category=limit_up_reason_category
         )
         
         session.add(watchlist_stock)
@@ -901,6 +958,18 @@ def remove_from_watchlist(stock_code):
                 'error': '股票不在自选列表中'
             }), 404
         
+        buy_records = session.query(TradeRecord).filter(
+            TradeRecord.stock_code == stock_code,
+            TradeRecord.operation_type == '买入',
+            TradeRecord.remaining_quantity > 0
+        ).all()
+        
+        if buy_records:
+            return jsonify({
+                'success': False,
+                'error': '该股票正在持仓中，请先卖出后再删除'
+            }), 400
+        
         session.delete(stock)
         session.commit()
         
@@ -921,45 +990,79 @@ def remove_from_watchlist(stock_code):
 
 @app.route('/api/watchlist/update-prices', methods=['POST'])
 def update_watchlist_prices():
-    """更新自选股价格"""
+    """更新自选股价格（已废弃，价格在获取列表时实时更新）"""
+    return jsonify({
+        'success': True,
+        'message': '价格已在获取列表时实时更新，无需手动刷新'
+    })
+
+
+@app.route('/api/stock/quote/<stock_code>', methods=['GET'])
+def get_stock_quote(stock_code):
+    """获取单只股票的实时行情"""
+    try:
+        quote = ths_fetcher.get_realtime_quote(stock_code)
+        
+        if quote:
+            return jsonify({
+                'success': True,
+                'data': quote
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '未找到该股票'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/buy', methods=['POST'])
+def buy_stock():
+    """买入股票"""
     session = get_db_session()
     
     try:
-        # 获取所有自选股
-        watchlist = session.query(WatchlistStock).all()
+        data = request.json
+        stock_code = data.get('stock_code')
+        buy_price = data.get('buy_price')
+        buy_quantity = data.get('buy_quantity', 100)
         
-        if not watchlist:
+        if not stock_code or not buy_price:
             return jsonify({
-                'success': True,
-                'message': '没有自选股需要更新'
-            })
+                'success': False,
+                'error': '缺少必要参数'
+            }), 400
         
-        updated_count = 0
+        stock = session.query(WatchlistStock).filter_by(stock_code=stock_code).first()
         
-        for stock in watchlist:
-            try:
-                # 使用同花顺获取实时价格
-                quote = ths_fetcher.get_realtime_quote(stock.stock_code)
-                
-                if quote and 'price' in quote:
-                    current_price = quote['price']
-                    stock.current_price = current_price
-                    
-                    # 计算盈亏
-                    if stock.add_price and current_price:
-                        stock.profit_amount = current_price - stock.add_price
-                        stock.profit_ratio = (current_price - stock.add_price) / stock.add_price
-                    
-                    updated_count += 1
-            except Exception as e:
-                print(f"更新股票 {stock.stock_code} 价格失败: {e}")
-                continue
+        if not stock:
+            return jsonify({
+                'success': False,
+                'error': '股票不在自选列表中'
+            }), 404
+        
+        trade_record = TradeRecord(
+            stock_code=stock_code,
+            stock_name=stock.stock_name,
+            operation_type='买入',
+            price=buy_price,
+            quantity=buy_quantity,
+            remaining_quantity=buy_quantity,
+            amount=buy_price * buy_quantity,
+            operation_date=datetime.now()
+        )
+        session.add(trade_record)
         
         session.commit()
         
         return jsonify({
             'success': True,
-            'message': f'成功更新 {updated_count} 只股票价格'
+            'message': f'成功买入 {stock.stock_name}'
         })
         
     except Exception as e:
@@ -970,6 +1073,202 @@ def update_watchlist_prices():
         }), 500
     finally:
         session.close()
+
+
+@app.route('/api/watchlist/sell', methods=['POST'])
+def sell_stock():
+    """卖出股票"""
+    session = get_db_session()
+    
+    try:
+        data = request.json
+        stock_code = data.get('stock_code')
+        sell_price = data.get('sell_price')
+        sell_quantity = data.get('sell_quantity')
+        
+        if not stock_code or not sell_price:
+            return jsonify({
+                'success': False,
+                'error': '缺少必要参数'
+            }), 400
+        
+        stock = session.query(WatchlistStock).filter_by(stock_code=stock_code).first()
+        
+        if not stock:
+            return jsonify({
+                'success': False,
+                'error': '股票不在自选列表中'
+            }), 404
+        
+        buy_records = session.query(TradeRecord).filter(
+            TradeRecord.stock_code == stock_code,
+            TradeRecord.operation_type == '买入',
+            TradeRecord.remaining_quantity > 0
+        ).order_by(TradeRecord.operation_date).all()
+        
+        if not buy_records:
+            return jsonify({
+                'success': False,
+                'error': '该股票未持仓，无法卖出'
+            }), 400
+        
+        total_quantity = sum(r.remaining_quantity for r in buy_records)
+        
+        if not sell_quantity:
+            sell_quantity = total_quantity
+        
+        if sell_quantity > total_quantity:
+            return jsonify({
+                'success': False,
+                'error': f'卖出数量不能超过持仓数量（{total_quantity}股）'
+            }), 400
+        
+        total_profit = 0
+        remaining_to_sell = sell_quantity
+        total_buy_cost = 0
+        total_sell_quantity = 0
+        
+        for record in buy_records:
+            if remaining_to_sell <= 0:
+                break
+            
+            sell_from_this_record = min(remaining_to_sell, record.remaining_quantity)
+            buy_price_float = float(record.price)
+            profit_from_this = (sell_price - buy_price_float) * sell_from_this_record
+            total_profit += profit_from_this
+            
+            total_buy_cost += buy_price_float * sell_from_this_record
+            total_sell_quantity += sell_from_this_record
+            
+            record.remaining_quantity -= sell_from_this_record
+            remaining_to_sell -= sell_from_this_record
+        
+        avg_buy_price = total_buy_cost / total_sell_quantity if total_sell_quantity > 0 else 0
+        profit_ratio = (sell_price - avg_buy_price) / avg_buy_price if avg_buy_price > 0 else 0
+        
+        trade_record = TradeRecord(
+            stock_code=stock_code,
+            stock_name=stock.stock_name,
+            operation_type='卖出',
+            price=sell_price,
+            buy_price=avg_buy_price,
+            quantity=sell_quantity,
+            remaining_quantity=0,
+            amount=sell_price * sell_quantity,
+            profit=total_profit,
+            profit_ratio=profit_ratio,
+            operation_date=datetime.now()
+        )
+        session.add(trade_record)
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功卖出 {stock.stock_name} {sell_quantity}股，盈亏: {total_profit:.2f}元'
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/trade-records', methods=['GET'])
+def get_trade_records():
+    """获取交易记录"""
+    session = get_db_session()
+    
+    try:
+        records = session.query(TradeRecord).order_by(TradeRecord.operation_date.desc()).all()
+        
+        result = []
+        for record in records:
+            result.append({
+                'id': record.id,
+                'stock_code': record.stock_code,
+                'stock_name': record.stock_name,
+                'operation_type': record.operation_type,
+                'price': float(record.price) if record.price else None,
+                'buy_price': float(record.buy_price) if record.buy_price else None,
+                'quantity': record.quantity,
+                'amount': float(record.amount) if record.amount else None,
+                'profit': float(record.profit) if record.profit is not None else None,
+                'profit_ratio': float(record.profit_ratio) if record.profit_ratio is not None else None,
+                'operation_date': record.operation_date.strftime('%Y-%m-%d %H:%M:%S') if record.operation_date else '',
+                'notes': record.notes or ''
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/stock/kline/<stock_code>', methods=['GET'])
+def get_stock_kline(stock_code):
+    """获取股票K线数据"""
+    try:
+        days = request.args.get('days', 60, type=int)
+        
+        stock_code_clean = stock_code.split('.')[0]
+        
+        kline_data = ths_fetcher.get_stock_kline(stock_code_clean, days)
+        
+        if kline_data:
+            return jsonify({
+                'success': True,
+                'data': kline_data
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '未找到K线数据'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/stock/intraday/<stock_code>', methods=['GET'])
+def get_stock_intraday(stock_code):
+    """获取股票当日分时数据"""
+    try:
+        stock_code_clean = stock_code.split('.')[0]
+        
+        intraday_data = ths_fetcher.get_stock_intraday(stock_code_clean)
+        
+        if intraday_data:
+            return jsonify({
+                'success': True,
+                'data': intraday_data
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '未找到分时数据或今日无交易数据'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 if __name__ == '__main__':
