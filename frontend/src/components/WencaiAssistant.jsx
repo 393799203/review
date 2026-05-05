@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag, Radio } from 'antd';
 import { SearchOutlined, RobotOutlined, PlusOutlined, CheckOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import StockKlineModal from './StockKlineModal';
 
 const { TextArea } = Input;
 
@@ -12,6 +13,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const [isMobile, setIsMobile] = useState(false);
   const [queryType, setQueryType] = useState('breakthrough');
   const [watchlistCodes, setWatchlistCodes] = useState([]);
+  const [klineVisible, setKlineVisible] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -112,6 +115,9 @@ ${blockCondition}`;
       const stockName = record['股票简称'];
       const price = record['最新价'];
       
+      const reasonKey = Object.keys(record).find(k => k.includes('涨停原因类别'));
+      const limitUpReasonCategory = record[reasonKey] || '';
+      
       if (!stockCode || !stockName) {
         message.error('股票信息不完整');
         return;
@@ -126,7 +132,8 @@ ${blockCondition}`;
         add_date: dateStr,
         add_price: price,
         add_reason: query.substring(0, 200),
-        source: 'wencai'
+        source: 'wencai',
+        limit_up_reason_category: limitUpReasonCategory
       });
       
       if (response.data.success) {
@@ -148,8 +155,24 @@ ${blockCondition}`;
       fixed: 'left',
       render: (_, record) => (
         <div style={{ lineHeight: '18px' }}>
-          <div style={{ fontWeight: 'bold', color: '#1890ff', fontSize: isMobile ? 12 : 13 }}>{record['股票代码']}</div>
-          <div style={{ fontSize: isMobile ? 11 : 12, color: '#666' }}>{record['股票简称']}</div>
+          <div 
+            style={{ fontWeight: 'bold', color: '#1890ff', fontSize: isMobile ? 12 : 13, cursor: 'pointer' }}
+            onClick={() => {
+              setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+              setKlineVisible(true);
+            }}
+          >
+            {record['股票代码']}
+          </div>
+          <div 
+            style={{ fontSize: isMobile ? 11 : 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+            onClick={() => {
+              setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+              setKlineVisible(true);
+            }}
+          >
+            {record['股票简称']}
+          </div>
         </div>
       ),
     },
@@ -311,8 +334,24 @@ ${blockCondition}`;
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold', color: '#1890ff', fontSize: 13 }}>{record['股票代码']}</div>
-                  <div style={{ fontSize: 12, color: '#666' }}>{record['股票简称']}</div>
+                  <div 
+                    style={{ fontWeight: 'bold', color: '#1890ff', fontSize: 13, cursor: 'pointer' }}
+                    onClick={() => {
+                      setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                      setKlineVisible(true);
+                    }}
+                  >
+                    {record['股票代码']}
+                  </div>
+                  <div 
+                    style={{ fontSize: 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+                    onClick={() => {
+                      setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                      setKlineVisible(true);
+                    }}
+                  >
+                    {record['股票简称']}
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right', marginLeft: 8 }}>
                   <div style={{ color: changeColor, fontWeight: 'bold', fontSize: 14 }}>
@@ -478,6 +517,16 @@ ${blockCondition}`;
       <Spin spinning={loading}>
         {isMobile ? renderMobileContent() : renderDesktopContent()}
       </Spin>
+
+      <StockKlineModal
+        visible={klineVisible}
+        stockCode={selectedStock?.code}
+        stockName={selectedStock?.name}
+        onClose={() => {
+          setKlineVisible(false);
+          setSelectedStock(null);
+        }}
+      />
     </Modal>
   );
 };

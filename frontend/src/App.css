@@ -182,3 +182,9 @@
     border-right-color: var(--border);
   }
 }
+
+.stock-kline-modal .ant-modal-close:focus,
+.stock-kline-modal .ant-modal-close:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

@@ -4,7 +4,7 @@ import { GlobalProvider } from '../contexts/GlobalContext';
 import MainLayout from '../layouts/MainLayout';
 import LadderPage from '../pages/LadderPage';
 import WatchlistPage from '../pages/WatchlistPage';
-import SettingsPage from '../pages/SettingsPage';
+import StatisticsPage from '../pages/StatisticsPage';
 
 const AppRouter = () => {
   return (
@@ -15,7 +15,7 @@ const AppRouter = () => {
             <Routes>
               <Route path="/" element={<LadderPage {...props} />} />
               <Route path="/watchlist" element={<WatchlistPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/statistics" element={<StatisticsPage />} />
             </Routes>
           )}
         </MainLayout>
