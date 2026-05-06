@@ -50,6 +50,7 @@ def register_statistics_routes(app, get_db_session):
         results = session.query(
             func.date(TradeRecord.operation_date).label('date'),
             func.sum(TradeRecord.profit).label('profit'),
+            func.sum(TradeRecord.amount).label('amount'),
             func.count(TradeRecord.id).label('count')
         ).filter(
             and_(
@@ -69,6 +70,7 @@ def register_statistics_routes(app, get_db_session):
             data.append({
                 'date': str(result.date),
                 'profit': float(result.profit) if result.profit else 0,
+                'amount': float(result.amount) if result.amount else 0,
                 'count': result.count
             })
         
@@ -81,7 +83,8 @@ def register_statistics_routes(app, get_db_session):
         
         results = session.query(
             TradeRecord.operation_date,
-            TradeRecord.profit
+            TradeRecord.profit,
+            TradeRecord.amount
         ).filter(
             and_(
                 func.date(TradeRecord.operation_date) >= start_date,
@@ -101,10 +104,12 @@ def register_statistics_routes(app, get_db_session):
                 if week_key not in weekly_data:
                     weekly_data[week_key] = {
                         'profit': 0,
+                        'amount': 0,
                         'count': 0
                     }
                 
                 weekly_data[week_key]['profit'] += float(result.profit) if result.profit else 0
+                weekly_data[week_key]['amount'] += float(result.amount) if result.amount else 0
                 weekly_data[week_key]['count'] += 1
         
         data = []
@@ -112,6 +117,7 @@ def register_statistics_routes(app, get_db_session):
             data.append({
                 'date': week_key,
                 'profit': weekly_data[week_key]['profit'],
+                'amount': weekly_data[week_key]['amount'],
                 'count': weekly_data[week_key]['count']
             })
         
@@ -124,7 +130,8 @@ def register_statistics_routes(app, get_db_session):
         
         results = session.query(
             TradeRecord.operation_date,
-            TradeRecord.profit
+            TradeRecord.profit,
+            TradeRecord.amount
         ).filter(
             and_(
                 func.date(TradeRecord.operation_date) >= start_date,
@@ -143,10 +150,12 @@ def register_statistics_routes(app, get_db_session):
                 if month_key not in monthly_data:
                     monthly_data[month_key] = {
                         'profit': 0,
+                        'amount': 0,
                         'count': 0
                     }
                 
                 monthly_data[month_key]['profit'] += float(result.profit) if result.profit else 0
+                monthly_data[month_key]['amount'] += float(result.amount) if result.amount else 0
                 monthly_data[month_key]['count'] += 1
         
         data = []
@@ -154,6 +163,7 @@ def register_statistics_routes(app, get_db_session):
             data.append({
                 'date': month_key,
                 'profit': monthly_data[month_key]['profit'],
+                'amount': monthly_data[month_key]['amount'],
                 'count': monthly_data[month_key]['count']
             })
         

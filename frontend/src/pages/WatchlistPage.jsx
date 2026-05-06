@@ -71,9 +71,12 @@ const WatchlistPage = () => {
 
   const handleBuy = (stock) => {
     setSelectedStock(stock);
+    const buyPrice = stock.current_price || stock.add_price;
+    // 计算10万金额对应的股数（100的整数倍）
+    const defaultQuantity = Math.floor(100000 / buyPrice / 100) * 100;
     buyForm.setFieldsValue({
-      buy_price: stock.current_price || stock.add_price,
-      buy_quantity: 100
+      buy_price: buyPrice,
+      buy_quantity: defaultQuantity
     });
     setBuyModalVisible(true);
   };

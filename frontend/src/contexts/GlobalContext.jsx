@@ -43,7 +43,7 @@ const saveAllSettings = (settings) => {
 };
 
 export const GlobalProvider = ({ children }) => {
-  const [currentDate, setCurrentDate] = useState('');
+  const [currentDate, setCurrentDateState] = useState('');
   const [latestDate, setLatestDate] = useState('');
   const [tradingDays, setTradingDays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +66,12 @@ export const GlobalProvider = ({ children }) => {
   });
   
   const intervalRef = useRef(null);
+  const currentDateRef = useRef('');
+  
+  const setCurrentDate = (date) => {
+    setCurrentDateState(date);
+    currentDateRef.current = date;
+  };
 
   const loadPageSettings = (page) => {
     const pageSettings = allSettings[page] || getDefaultSettings()[page];
@@ -138,6 +144,8 @@ export const GlobalProvider = ({ children }) => {
       setLoading(true);
       
       const today = dayjs().format('YYYYMMDD');
+      console.log('初始化加载，今天日期:', today);
+      
       const response = await stockApi.getAdjacentTradingDays(today);
       
       if (response.data.success) {
@@ -145,6 +153,12 @@ export const GlobalProvider = ({ children }) => {
         const prevDays = data.prev_days || [];
         const nextDays = data.next_days || [];
         const isTradingDay = data.is_trading_day;
+        
+        console.log('交易日数据:', {
+          isTradingDay,
+          prevDays: prevDays.length,
+          nextDays: nextDays.length
+        });
         
         let allDays;
         if (isTradingDay) {
@@ -162,12 +176,20 @@ export const GlobalProvider = ({ children }) => {
           targetDate = prevDays[prevDays.length - 1];
         }
         
+        console.log('目标日期:', targetDate);
+        
         if (targetDate) {
           setCurrentDate(targetDate);
           setLatestDate(targetDate);
+          console.log('日期初始化完成:', targetDate);
+        } else {
+          console.warn('无法确定目标日期');
         }
+      } else {
+        console.error('获取交易日失败:', response.data.error);
       }
     } catch (error) {
+      console.error('加载数据失败:', error);
       message.error('加载数据失败');
     } finally {
       setLoading(false);
@@ -215,16 +237,17 @@ export const GlobalProvider = ({ children }) => {
   };
 
   const refreshCurrentData = async () => {
-    if (!currentDate) {
-      message.error('请先选择日期');
+    const date = currentDateRef.current;
+    if (!date) {
+      console.log('等待日期初始化...');
       return;
     }
     
     try {
       setLoading(true);
       
-      message.loading({ content: `正在刷新 ${currentDate} 数据...`, key: 'refresh' });
-      const refreshRes = await stockApi.refreshData(currentDate);
+      message.loading({ content: `正在刷新 ${date} 数据...`, key: 'refresh' });
+      const refreshRes = await stockApi.refreshData(date);
       
       if (refreshRes.data.success) {
         message.success({ content: refreshRes.data.message, key: 'refresh' });
@@ -258,6 +281,20 @@ export const GlobalProvider = ({ children }) => {
     }
   };
 
+  const refreshStatistics = async () => {
+    try {
+      setLoading(true);
+      
+      message.loading({ content: '正在刷新统计数据...', key: 'refresh' });
+      setRefreshKey(prev => prev + 1);
+      message.success({ content: '统计数据已刷新', key: 'refresh' });
+    } catch (error) {
+      message.error({ content: '刷新失败：' + error.message, key: 'refresh' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const autoRefreshCallback = useRef(null);
 
   const setAutoRefreshCallback = (callback) => {
@@ -280,7 +317,7 @@ export const GlobalProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    if (autoRefresh && autoRefreshCallback.current) {
+    if (autoRefresh && autoRefreshCallback.current && currentDate) {
       const shouldRefresh = smartMode ? isInTradingTime() : true;
       
       if (shouldRefresh) {
@@ -299,10 +336,10 @@ export const GlobalProvider = ({ children }) => {
         intervalRef.current = null;
       }
     };
-  }, [autoRefresh, refreshInterval, smartMode]);
+  }, [autoRefresh, refreshInterval, smartMode, currentDate]);
 
   useEffect(() => {
-    if (smartMode && autoRefresh) {
+    if (smartMode && autoRefresh && currentDate) {
       const checkInterval = setInterval(() => {
         const inTime = isInTradingTime();
         if (!inTime && intervalRef.current) {
@@ -319,7 +356,7 @@ export const GlobalProvider = ({ children }) => {
       
       return () => clearInterval(checkInterval);
     }
-  }, [smartMode, autoRefresh, refreshInterval]);
+  }, [smartMode, autoRefresh, refreshInterval, currentDate]);
 
   useEffect(() => {
     initLoad();
@@ -351,6 +388,7 @@ export const GlobalProvider = ({ children }) => {
     handleNextDay,
     refreshCurrentData,
     refreshWatchlistPrices,
+    refreshStatistics,
   };
 
   return (
