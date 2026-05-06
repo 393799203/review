@@ -199,6 +199,8 @@ const MainLayout = ({ children }) => {
               checked={autoRefresh}
               onChange={handleAutoRefreshChange}
               size="small"
+              checkedChildren="自"
+              unCheckedChildren="自"
             />
           </Popover>
         </div>
