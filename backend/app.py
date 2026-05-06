@@ -102,7 +102,7 @@ def get_data_by_date(date_str):
             return jsonify({
                 'success': False,
                 'error': '无法获取未来日期的数据'
-            }), 400
+            }), 200
         
         # 检查是否有该日期的数据
         stocks = session.query(LimitUpStock).filter(
@@ -136,8 +136,8 @@ def get_data_by_date(date_str):
                 print(f"日期 {date_str} 数据同步失败")
                 return jsonify({
                     'success': False,
-                    'error': '该日期没有涨停股票数据或不是交易日'
-                }), 404
+                    'error': '该日期暂无涨停股票数据'
+                }), 200
         
         ladder_dict = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: []}
         
@@ -474,13 +474,16 @@ def get_adjacent_trading_days(date_str):
             if next_days:
                 next_date = next_days[0]
         
+        is_trading_day = trade_calendar.is_trading_day(date)
+        
         return jsonify({
             'success': True,
             'data': {
                 'prev': prev_date,
                 'next': next_date,
                 'prev_days': prev_days,
-                'next_days': next_days
+                'next_days': next_days,
+                'is_trading_day': is_trading_day
             }
         })
         
@@ -498,7 +501,6 @@ def refresh_data():
     from flask import request
     
     try:
-        # 获取前端传递的日期参数
         data = request.get_json()
         date_str = data.get('date')
         
@@ -508,9 +510,16 @@ def refresh_data():
                 'error': '请提供日期参数'
             }), 400
         
+        trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+        
+        if trade_date > datetime.now().date():
+            return jsonify({
+                'success': False,
+                'error': '无法获取未来日期的数据'
+            }), 200
+        
         fetcher = LimitUpFetcher(ths_fetcher=ths_fetcher)
         
-        # 重新爬取数据（fetch_and_save内部会删除旧数据）
         success = fetcher.fetch_and_save(date_str)
         
         if success:
@@ -522,8 +531,8 @@ def refresh_data():
         else:
             return jsonify({
                 'success': False,
-                'error': '数据爬取失败'
-            }), 500
+                'error': '该日期暂无涨停股票数据'
+            }), 200
             
     except Exception as e:
         return jsonify({

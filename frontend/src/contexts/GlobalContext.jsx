@@ -18,6 +18,7 @@ export const GlobalProvider = ({ children }) => {
   const [latestDate, setLatestDate] = useState('');
   const [tradingDays, setTradingDays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadTradingDays = async (dateStr) => {
     try {
@@ -43,13 +44,20 @@ export const GlobalProvider = ({ children }) => {
         const data = response.data.data;
         const prevDays = data.prev_days || [];
         const nextDays = data.next_days || [];
-        const allDays = [...prevDays, ...nextDays];
+        const isTradingDay = data.is_trading_day;
+        
+        let allDays;
+        if (isTradingDay) {
+          allDays = [...prevDays, today, ...nextDays];
+        } else {
+          allDays = [...prevDays, ...nextDays];
+        }
         setTradingDays(allDays);
         
         let targetDate = null;
         
-        if (nextDays.length > 0) {
-          targetDate = nextDays[nextDays.length - 1];
+        if (isTradingDay) {
+          targetDate = today;
         } else if (prevDays.length > 0) {
           targetDate = prevDays[prevDays.length - 1];
         }
@@ -120,6 +128,7 @@ export const GlobalProvider = ({ children }) => {
       
       if (refreshRes.data.success) {
         message.success({ content: refreshRes.data.message, key: 'refresh' });
+        setRefreshKey(prev => prev + 1);
       } else {
         message.error({ content: '刷新失败：' + refreshRes.data.error, key: 'refresh' });
       }
@@ -165,6 +174,7 @@ export const GlobalProvider = ({ children }) => {
     tradingDays,
     loading,
     setLoading,
+    refreshKey,
     handleDateChange,
     handlePrevDay,
     handleNextDay,

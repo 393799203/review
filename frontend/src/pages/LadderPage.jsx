@@ -9,7 +9,7 @@ import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 
 const LadderPage = ({ showFirstBoard }) => {
-  const { currentDate, loading, setLoading } = useGlobal();
+  const { currentDate, loading, setLoading, refreshKey } = useGlobal();
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [yesterdayData, setYesterdayData] = useState(null);
@@ -38,7 +38,7 @@ const LadderPage = ({ showFirstBoard }) => {
     if (currentDate) {
       loadData(currentDate);
     }
-  }, [currentDate]);
+  }, [currentDate, refreshKey]);
 
   const loadData = async (dateStr) => {
     try {
@@ -70,6 +70,8 @@ const LadderPage = ({ showFirstBoard }) => {
           setSelectedBlocks([]);
         }
       } else {
+        const errorMsg = response.data.error || '加载数据失败';
+        message.error(errorMsg);
         setLadderData([]);
         setStatistics({});
         setYesterdayData(null);
@@ -78,7 +80,8 @@ const LadderPage = ({ showFirstBoard }) => {
         setSelectedBlocks([]);
       }
     } catch (error) {
-      message.error('加载数据失败');
+      const errorMsg = error.response?.data?.error || error.message || '加载数据失败';
+      message.error(errorMsg);
       setLadderData([]);
       setStatistics({});
       setYesterdayData(null);
