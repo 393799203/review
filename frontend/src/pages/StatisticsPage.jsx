@@ -3,8 +3,10 @@ import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Radio, Divider } 
 import { ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, RiseOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import axios from 'axios';
+import { useGlobal } from '../contexts/GlobalContext';
 
 const StatisticsPage = () => {
+  const { refreshKey } = useGlobal();
   const [period, setPeriod] = useState('day');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -22,7 +24,7 @@ const StatisticsPage = () => {
   useEffect(() => {
     loadStatistics();
     loadTrades();
-  }, [period]);
+  }, [period, refreshKey]);
 
   const loadStatistics = async () => {
     setLoading(true);
@@ -127,11 +129,19 @@ const StatisticsPage = () => {
 
     const dates = data.map(item => item.date);
     const profits = data.map(item => item.profit);
+    const amounts = data.map(item => item.amount || 0);
     const cumulativeProfits = [];
-    let cumulative = 0;
-    profits.forEach(profit => {
-      cumulative += profit;
-      cumulativeProfits.push(cumulative);
+    const cumulativeReturns = [];
+    let cumulativeProfit = 0;
+    let cumulativeAmount = 0;
+    
+    profits.forEach((profit, index) => {
+      cumulativeProfit += profit;
+      cumulativeAmount += amounts[index];
+      cumulativeProfits.push(cumulativeProfit);
+      // 计算累计收益率
+      const returnRate = cumulativeAmount > 0 ? (cumulativeProfit / cumulativeAmount) * 100 : 0;
+      cumulativeReturns.push(returnRate);
     });
 
     return {
@@ -142,7 +152,18 @@ const StatisticsPage = () => {
       },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'cross' }
+        axisPointer: { type: 'cross' },
+        formatter: function(params) {
+          let result = params[0].axisValue + '<br/>';
+          params.forEach(param => {
+            if (param.seriesName === '盈亏金额') {
+              result += `${param.marker}${param.seriesName}: ¥${param.value.toFixed(2)}<br/>`;
+            } else if (param.seriesName === '累计收益率') {
+              result += `${param.marker}${param.seriesName}: ${param.value.toFixed(2)}%<br/>`;
+            }
+          });
+          return result;
+        }
       },
       grid: {
         left: '3%',
@@ -165,9 +186,9 @@ const StatisticsPage = () => {
         },
         {
           type: 'value',
-          name: '累计盈亏',
+          name: '累计收益率',
           position: 'right',
-          axisLabel: { formatter: '¥{value}', fontSize: 10 },
+          axisLabel: { formatter: '{value}%', fontSize: 10 },
           nameTextStyle: { fontSize: 10 }
         }
       ],
@@ -181,10 +202,10 @@ const StatisticsPage = () => {
           }
         },
         {
-          name: '累计盈亏',
+          name: '累计收益率',
           type: 'line',
           yAxisIndex: 1,
-          data: cumulativeProfits,
+          data: cumulativeReturns,
           itemStyle: { color: '#1890ff' },
           lineStyle: { width: 2 },
           symbol: 'circle',
@@ -243,74 +264,6 @@ const StatisticsPage = () => {
           { value: winCount, name: '获利', itemStyle: { color: '#f5222d' } },
           { value: lossCount, name: '亏损', itemStyle: { color: '#52c41a' } }
         ]
-      }]
-    };
-  };
-
-  const getMonthlyOption = () => {
-    const monthlyData = {};
-    trades.forEach(trade => {
-      if (trade.operation_date) {
-        const month = trade.operation_date.substring(0, 7);
-        if (!monthlyData[month]) {
-          monthlyData[month] = { profit: 0, count: 0 };
-        }
-        monthlyData[month].profit += parseFloat(trade.profit || 0);
-        monthlyData[month].count += 1;
-      }
-    });
-
-    const months = Object.keys(monthlyData).sort();
-    const profits = months.map(month => monthlyData[month].profit);
-
-    if (months.length === 0) {
-      return {
-        title: {
-          text: '暂无数据',
-          left: 'center',
-          top: 'center',
-          textStyle: { color: '#999', fontSize: 12 }
-        }
-      };
-    }
-
-    return {
-      title: {
-        text: '月度收益',
-        left: 'center',
-        textStyle: { fontSize: 14 }
-      },
-      tooltip: {
-        trigger: 'axis',
-        formatter: params => {
-          const month = params[0].axisValue;
-          const profit = params[0].value;
-          const count = monthlyData[month].count;
-          return `${month}<br/>盈亏: ¥${profit.toFixed(2)}<br/>笔数: ${count}笔`;
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        data: months,
-        axisLabel: { fontSize: 10 }
-      },
-      yAxis: {
-        type: 'value',
-        axisLabel: { formatter: '¥{value}', fontSize: 10 }
-      },
-      series: [{
-        name: '月度盈亏',
-        type: 'bar',
-        data: profits,
-        itemStyle: {
-          color: params => params.value > 0 ? '#f5222d' : params.value < 0 ? '#52c41a' : '#8c8c8c'
-        }
       }]
     };
   };
@@ -539,16 +492,6 @@ const StatisticsPage = () => {
               <ReactECharts
                 option={getPieOption()}
                 style={{ height: '350px', width: '100%' }}
-                notMerge={true}
-              />
-            </Card>
-          </Col>
-
-          <Col span={24}>
-            <Card size="small">
-              <ReactECharts
-                option={getMonthlyOption()}
-                style={{ height: '300px', width: '100%' }}
                 notMerge={true}
               />
             </Card>

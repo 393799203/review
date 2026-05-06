@@ -32,6 +32,7 @@ const MainLayout = ({ children }) => {
     handleNextDay,
     refreshCurrentData,
     refreshWatchlistPrices,
+    refreshStatistics,
   } = useGlobal();
 
   useEffect(() => {
@@ -49,7 +50,7 @@ const MainLayout = ({ children }) => {
     } else if (location.pathname === '/watchlist') {
       setAutoRefreshCallback(refreshWatchlistPrices);
     } else if (location.pathname === '/statistics') {
-      setAutoRefreshCallback(() => window.location.reload());
+      setAutoRefreshCallback(refreshStatistics);
     }
     
     return () => {
@@ -152,7 +153,7 @@ const MainLayout = ({ children }) => {
     
     const getRefreshHandler = () => {
       if (isWatchlistPage) return refreshWatchlistPrices;
-      if (isStatisticsPage) return () => window.location.reload();
+      if (isStatisticsPage) return refreshStatistics;
       return refreshCurrentData;
     };
     
@@ -168,17 +169,21 @@ const MainLayout = ({ children }) => {
               unCheckedChildren="首"
             />
           )}
-          <Button onClick={handlePrevDay} size="small">前</Button>
-          <DatePicker
-            value={currentDate ? dayjs(currentDate, 'YYYYMMDD') : null}
-            onChange={handleDateChange}
-            format="YYYYMMDD"
-            placeholder="日期"
-            disabledDate={disabledDate}
-            size="small"
-            style={{ width: 100 }}
-          />
-          {!isLatestDate && <Button onClick={handleNextDay} size="small">后</Button>}
+          {isLadderPage && (
+            <>
+              <Button onClick={handlePrevDay} size="small">前</Button>
+              <DatePicker
+                value={currentDate ? dayjs(currentDate, 'YYYYMMDD') : null}
+                onChange={handleDateChange}
+                format="YYYYMMDD"
+                placeholder="日期"
+                disabledDate={disabledDate}
+                size="small"
+                style={{ width: 100 }}
+              />
+              {!isLatestDate && <Button onClick={handleNextDay} size="small">后</Button>}
+            </>
+          )}
           <Button 
             type="primary" 
             icon={<ReloadOutlined />} 
@@ -283,8 +288,8 @@ const MainLayout = ({ children }) => {
             height: 48,
           }}
         >
-          <div style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img src="/favicon.svg" alt="logo" style={{ width: 24, height: 24 }} />
+          <div style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <img src="/favicon.svg" alt="logo" style={{ width: 22, height: 22 }} />
             节节高
           </div>
           {renderHeaderRight()}

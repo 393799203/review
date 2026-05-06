@@ -127,7 +127,7 @@ class ThsFetcher:
         
         return None
     
-    def get_limit_up_pool(self, date_str: str, page: int = 1, limit: int = 200) -> Optional[Dict]:
+    def get_limit_up_pool(self, date_str: str, page: int = 1, limit: int = 150) -> Optional[Dict]:
         """
         获取涨停池数据
         
@@ -292,6 +292,129 @@ class ThsFetcher:
         try:
             import akshare as ak
             from datetime import datetime, timedelta
+            import time
+            import random
+            
+            data_sources = [
+                ('新浪财经', self._get_kline_sina),
+                ('东方财富', self._get_kline_eastmoney),
+                ('腾讯财经', self._get_kline_tencent),
+            ]
+            
+            for source_name, source_func in data_sources:
+                try:
+                    print(f"尝试从 {source_name} 获取 {stock_code} K线数据...")
+                    result = source_func(stock_code, days, ak, datetime, timedelta)
+                    if result:
+                        print(f"✓ 成功从 {source_name} 获取K线数据，共 {len(result)} 条记录")
+                        return result
+                except Exception as e:
+                    print(f"✗ {source_name} 数据源失败: {e}")
+                    time.sleep(random.uniform(0.5, 1.5))
+                    continue
+            
+            print(f"✗ 所有数据源都无法获取股票 {stock_code} K线数据")
+            return None
+            
+        except Exception as e:
+            print(f"✗ 获取股票 {stock_code} K线数据失败: {e}")
+            return None
+    
+    def _get_kline_tencent(self, stock_code: str, days: int, ak, datetime, timedelta) -> Optional[List[Dict]]:
+        """从腾讯财经获取K线数据"""
+        import time
+        import random
+        
+        try:
+            time.sleep(random.uniform(0.3, 0.8))
+            
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=days*2)).strftime('%Y-%m-%d')
+            
+            df = ak.stock_zh_a_hist_tx(
+                symbol=stock_code,
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq"
+            )
+            
+            if df is not None and not df.empty:
+                df = df.tail(days)
+                
+                kline_data = []
+                for _, row in df.iterrows():
+                    try:
+                        kline_data.append({
+                            'date': str(row['date']),
+                            'open': float(row['open']) if row['open'] else 0,
+                            'close': float(row['close']) if row['close'] else 0,
+                            'high': float(row['high']) if row['high'] else 0,
+                            'low': float(row['low']) if row['low'] else 0,
+                            'volume': float(row['volume']) if row['volume'] else 0,
+                            'amount': 0,
+                            'change_percent': 0,
+                            'change_amount': 0,
+                            'turnover': 0,
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"解析腾讯财经数据行失败: {e}, row: {row}")
+                        continue
+                
+                if kline_data:
+                    return kline_data
+            
+        except Exception as e:
+            if 'Connection' in str(e) or 'RemoteDisconnected' in str(e):
+                time.sleep(random.uniform(2, 4))
+            raise e
+        
+        return None
+    
+    def _get_kline_sina(self, stock_code: str, days: int, ak, datetime, timedelta) -> Optional[List[Dict]]:
+        """从新浪财经获取K线数据"""
+        import time
+        import random
+        
+        try:
+            time.sleep(random.uniform(0.3, 0.8))
+            
+            df = ak.stock_zh_a_daily(symbol=f"sh{stock_code}" if stock_code.startswith('6') else f"sz{stock_code}")
+            
+            if df is not None and not df.empty:
+                df = df.tail(days)
+                
+                kline_data = []
+                for _, row in df.iterrows():
+                    kline_data.append({
+                        'date': row['date'],
+                        'open': float(row['open']),
+                        'close': float(row['close']),
+                        'high': float(row['high']),
+                        'low': float(row['low']),
+                        'volume': float(row['volume']),
+                        'amount': 0,
+                        'change_percent': 0,
+                        'change_amount': 0,
+                        'turnover': 0,
+                    })
+                
+                return kline_data
+            
+        except Exception as e:
+            if 'Connection' in str(e) or 'RemoteDisconnected' in str(e):
+                time.sleep(random.uniform(2, 4))
+            raise e
+        
+        return None
+    
+    def _get_kline_eastmoney(self, stock_code: str, days: int, ak, datetime, timedelta) -> Optional[List[Dict]]:
+        """从东方财富获取K线数据"""
+        import time
+        import random
+        
+        try:
+            # 添加随机延迟，避免触发频率限制
+            time.sleep(random.uniform(0.3, 0.8))
             
             end_date = datetime.now().strftime('%Y%m%d')
             start_date = (datetime.now() - timedelta(days=days*2)).strftime('%Y%m%d')
@@ -324,11 +447,13 @@ class ThsFetcher:
                 
                 return kline_data
             
-            return None
-            
         except Exception as e:
-            print(f"✗ 获取股票 {stock_code} K线数据失败: {e}")
-            return None
+            # 如果是连接错误，等待更长时间后重试
+            if 'Connection' in str(e) or 'RemoteDisconnected' in str(e):
+                time.sleep(random.uniform(2, 4))
+            raise e
+        
+        return None
     
     def get_stock_intraday(self, stock_code: str) -> Optional[Dict]:
         """
@@ -343,58 +468,177 @@ class ThsFetcher:
         try:
             import akshare as ak
             from datetime import datetime, timedelta
+            import time
+            import random
             
-            for days_ago in range(0, 7):
-                date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
-                
+            data_sources = [
+                ('腾讯财经', self._get_intraday_tencent),
+                ('新浪财经', self._get_intraday_sina),
+                ('东方财富', self._get_intraday_eastmoney),
+            ]
+            
+            for source_name, source_func in data_sources:
                 try:
-                    df = ak.stock_zh_a_hist_min_em(
-                        symbol=stock_code,
-                        start_date=f'{date} 09:30:00',
-                        end_date=f'{date} 15:00:00',
-                        period='1',
-                        adjust='qfq'
-                    )
-                    
-                    if df is not None and not df.empty:
-                        intraday_data = []
-                        for _, row in df.iterrows():
-                            intraday_data.append({
-                                'time': row['时间'],
-                                'price': float(row['收盘']),
-                                'volume': float(row['成交量']),
-                                'amount': float(row['成交额']),
-                            })
-                        
-                        try:
-                            df_daily = ak.stock_zh_a_hist(
-                                symbol=stock_code,
-                                period='daily',
-                                start_date=(datetime.now() - timedelta(days=30)).strftime('%Y%m%d'),
-                                end_date=date.replace('-', ''),
-                                adjust='qfq'
-                            )
-                            
-                            if df_daily is not None and len(df_daily) >= 2:
-                                yesterday_close = float(df_daily.iloc[-2]['收盘'])
-                            else:
-                                yesterday_close = float(df.iloc[0]['开盘'])
-                        except Exception:
-                            yesterday_close = float(df.iloc[0]['开盘'])
-                        
-                        return {
-                            'intraday': intraday_data,
-                            'yesterday_close': yesterday_close
-                        }
-                        
-                except Exception:
+                    print(f"尝试从 {source_name} 获取 {stock_code} 分时数据...")
+                    result = source_func(stock_code, ak, datetime, timedelta)
+                    if result:
+                        print(f"✓ 成功从 {source_name} 获取分时数据")
+                        return result
+                except Exception as e:
+                    print(f"✗ {source_name} 数据源失败: {e}")
+                    time.sleep(random.uniform(0.5, 1.5))
                     continue
             
+            print(f"✗ 所有数据源都无法获取股票 {stock_code} 分时数据")
             return None
             
         except Exception as e:
             print(f"✗ 获取股票 {stock_code} 分时数据失败: {e}")
             return None
+    
+    def _get_intraday_tencent(self, stock_code: str, ak, datetime, timedelta) -> Optional[Dict]:
+        """从腾讯财经获取分时数据"""
+        import time
+        import random
+        
+        try:
+            time.sleep(random.uniform(0.3, 0.8))
+            
+            df = ak.stock_zh_a_minute(symbol=f"sh{stock_code}" if stock_code.startswith('6') else f"sz{stock_code}", period='1', adjust="qfq")
+            
+            if df is not None and not df.empty:
+                for days_ago in range(0, 7):
+                    date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+                    date_data = df[df['day'].str.startswith(date)]
+                    
+                    if not date_data.empty:
+                        intraday_data = []
+                        for _, row in date_data.iterrows():
+                            intraday_data.append({
+                                'time': row['day'],
+                                'price': float(row['close']),
+                                'volume': float(row['volume']),
+                                'amount': 0,
+                            })
+                        
+                        yesterday_close = float(date_data.iloc[0]['open'])
+                        
+                        return {
+                            'intraday': intraday_data,
+                            'yesterday_close': yesterday_close
+                        }
+            
+        except Exception as e:
+            if 'Connection' in str(e) or 'RemoteDisconnected' in str(e):
+                time.sleep(random.uniform(2, 4))
+            raise e
+        
+        return None
+    
+    def _get_intraday_eastmoney(self, stock_code: str, ak, datetime, timedelta) -> Optional[Dict]:
+        """从东方财富获取分时数据"""
+        import time
+        import random
+        
+        for days_ago in range(0, 7):
+            date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+            
+            try:
+                # 添加随机延迟，避免触发频率限制
+                time.sleep(random.uniform(0.3, 0.8))
+                
+                df = ak.stock_zh_a_hist_min_em(
+                    symbol=stock_code,
+                    start_date=f'{date} 09:30:00',
+                    end_date=f'{date} 15:00:00',
+                    period='1',
+                    adjust='qfq'
+                )
+                
+                if df is not None and not df.empty:
+                    intraday_data = []
+                    for _, row in df.iterrows():
+                        intraday_data.append({
+                            'time': row['时间'],
+                            'price': float(row['收盘']),
+                            'volume': float(row['成交量']),
+                            'amount': float(row['成交额']),
+                        })
+                    
+                    yesterday_close = self._get_yesterday_close(stock_code, ak, datetime, timedelta, df)
+                    
+                    return {
+                        'intraday': intraday_data,
+                        'yesterday_close': yesterday_close
+                    }
+                    
+            except Exception as e:
+                # 如果是连接错误，等待更长时间后重试
+                if 'Connection' in str(e) or 'RemoteDisconnected' in str(e):
+                    time.sleep(random.uniform(2, 4))
+                continue
+        
+        return None
+    
+    def _get_intraday_sina(self, stock_code: str, ak, datetime, timedelta) -> Optional[Dict]:
+        """从新浪财经获取分时数据"""
+        import time
+        import random
+        
+        try:
+            time.sleep(random.uniform(0.3, 0.8))
+            
+            market = 'sh' if stock_code.startswith(('6', '5')) else 'sz'
+            symbol = f"{market}{stock_code}"
+            
+            df = ak.stock_zh_a_minute(symbol=symbol, period='1', adjust="qfq")
+            
+            if df is not None and not df.empty:
+                for days_ago in range(0, 7):
+                    date = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+                    date_data = df[df['day'].str.startswith(date)]
+                    
+                    if not date_data.empty:
+                        intraday_data = []
+                        for _, row in date_data.iterrows():
+                            intraday_data.append({
+                                'time': row['day'],
+                                'price': float(row['close']),
+                                'volume': float(row['volume']),
+                                'amount': 0,
+                            })
+                        
+                        yesterday_close = float(date_data.iloc[0]['open'])
+                        
+                        return {
+                            'intraday': intraday_data,
+                            'yesterday_close': yesterday_close
+                        }
+            
+        except Exception as e:
+            if 'Connection' in str(e) or 'RemoteDisconnected' in str(e):
+                time.sleep(random.uniform(2, 4))
+            raise e
+        
+        return None
+    
+    def _get_yesterday_close(self, stock_code: str, ak, datetime, timedelta, df) -> float:
+        """获取昨日收盘价"""
+        try:
+            df_daily = ak.stock_zh_a_hist(
+                symbol=stock_code,
+                period='daily',
+                start_date=(datetime.now() - timedelta(days=30)).strftime('%Y%m%d'),
+                end_date=datetime.now().strftime('%Y%m%d'),
+                adjust='qfq'
+            )
+            
+            if df_daily is not None and len(df_daily) >= 2:
+                return float(df_daily.iloc[-2]['收盘'])
+            else:
+                return float(df.iloc[0]['开盘'])
+        except Exception:
+            return float(df.iloc[0]['开盘'])
     
     def get_all_data(self, date_str: str) -> Dict:
         """

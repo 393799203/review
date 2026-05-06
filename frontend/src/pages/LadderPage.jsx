@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge } from 'antd';
 import { EditOutlined, DiffOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
@@ -28,6 +28,9 @@ const LadderPage = ({ showFirstBoard }) => {
   const [previousStocks, setPreviousStocks] = useState([]);
   const [diffVisible, setDiffVisible] = useState(false);
   const [diffData, setDiffData] = useState({ added: [], removed: [] });
+  
+  const lastDateRef = useRef('');
+  const previousStocksRef = useRef([]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -40,6 +43,12 @@ const LadderPage = ({ showFirstBoard }) => {
 
   useEffect(() => {
     if (currentDate) {
+      if (lastDateRef.current && lastDateRef.current !== currentDate) {
+        setDiffData({ added: [], removed: [] });
+        previousStocksRef.current = [];
+        setPreviousStocks([]);
+      }
+      lastDateRef.current = currentDate;
       loadData(currentDate);
     }
   }, [currentDate, refreshKey]);
@@ -52,52 +61,76 @@ const LadderPage = ({ showFirstBoard }) => {
       if (response.data.success) {
         const data = response.data.data;
         
-        // 获取当前所有股票代码
         const currentStocks = [];
         data.ladder.forEach(item => {
           item.stocks.forEach(stock => {
             currentStocks.push({
-              code: stock.stock_code,
-              name: stock.stock_name,
+              code: stock.code,
+              name: stock.name,
               level: item.level,
               limitUpTime: stock.limit_up_time,
             });
           });
         });
         
-        // 对比新旧数据
-        if (previousStocks.length > 0) {
-          const previousCodes = new Set(previousStocks.map(s => s.code));
+        if (lastDateRef.current === dateStr && previousStocksRef.current.length > 0) {
+          const previousCodes = new Set(previousStocksRef.current.map(s => s.code));
           const currentCodes = new Set(currentStocks.map(s => s.code));
           
-          // 找出新增的股票
+          console.log('之前的股票代码:', Array.from(previousCodes).slice(0, 10));
+          console.log('当前的股票代码:', Array.from(currentCodes).slice(0, 10));
+          
           const added = currentStocks.filter(s => !previousCodes.has(s.code));
           
-          // 找出减少的股票
-          const removed = previousStocks.filter(s => !currentCodes.has(s.code));
+          const removed = previousStocksRef.current.filter(s => !currentCodes.has(s.code));
           
-          // 如果有变化，保存对比结果
+          console.log('数据对比:', {
+            之前股票数: previousStocksRef.current.length,
+            当前股票数: currentStocks.length,
+            新增: added.length,
+            减少: removed.length,
+            新增股票: added,
+            减少股票: removed
+          });
+          
           if (added.length > 0 || removed.length > 0) {
-            setDiffData({ added, removed });
+            setDiffData(prev => {
+              const existingAddedCodes = new Set(prev.added.map(s => s.code));
+              const existingRemovedCodes = new Set(prev.removed.map(s => s.code));
+              
+              const newAdded = added.filter(s => !existingAddedCodes.has(s.code));
+              const newRemoved = removed.filter(s => !existingRemovedCodes.has(s.code));
+              
+              return {
+                added: [...prev.added, ...newAdded],
+                removed: [...prev.removed, ...newRemoved],
+              };
+            });
+            console.log('检测到数据变化，已累积对比结果');
+          } else {
+            console.log('数据无变化');
+            if (previousStocksRef.current.length !== currentStocks.length) {
+              console.warn('警告：股票数量变化但未检测到新增或减少，可能是数据格式问题');
+            }
           }
+        } else {
+          console.log('首次加载或日期切换，跳过对比');
         }
         
-        // 更新数据
         setLadderData(data.ladder);
         setStatistics(data.statistics);
         setYesterdayData(data.yesterday);
         setNextDayBlocks(data.next_day_blocks || []);
         setNextDayDate(data.next_day_date || null);
+        previousStocksRef.current = currentStocks;
         setPreviousStocks(currentStocks);
         
-        // 判断是否是断板日
         const isBroken = data.yesterday && data.ladder && data.ladder.length > 0;
         if (isBroken) {
           const todayMaxLevel = Math.max(...data.ladder.map(item => item.level));
           const expectedLevel = data.yesterday.max_level + 1;
           const isBrokenDay = todayMaxLevel !== expectedLevel;
           
-          // 如果是断板日，默认选中所有板块；否则选中"全部"
           if (isBrokenDay && data.next_day_blocks && data.next_day_blocks.length > 0) {
             setSelectedBlocks(data.next_day_blocks.map(b => b.block_name));
           } else {
@@ -817,7 +850,16 @@ const LadderPage = ({ showFirstBoard }) => {
         title="刷新对比结果"
         open={diffVisible}
         onCancel={() => setDiffVisible(false)}
-        footer={null}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Button onClick={() => setDiffData({ added: [], removed: [] })}>
+              清空记录
+            </Button>
+            <Button type="primary" onClick={() => setDiffVisible(false)}>
+              关闭
+            </Button>
+          </div>
+        }
         width={800}
       >
         <div>
