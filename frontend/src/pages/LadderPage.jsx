@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Tooltip, Button } from 'antd';
-import { EditOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge } from 'antd';
+import { EditOutlined, DiffOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -9,7 +9,7 @@ import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 
 const LadderPage = ({ showFirstBoard }) => {
-  const { currentDate, loading, setLoading, refreshKey } = useGlobal();
+  const { currentDate, loading, setLoading, refreshKey, autoRefresh } = useGlobal();
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [yesterdayData, setYesterdayData] = useState(null);
@@ -24,6 +24,10 @@ const LadderPage = ({ showFirstBoard }) => {
   const [editingStock, setEditingStock] = useState(null);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
+  
+  const [previousStocks, setPreviousStocks] = useState([]);
+  const [diffVisible, setDiffVisible] = useState(false);
+  const [diffData, setDiffData] = useState({ added: [], removed: [] });
 
   useEffect(() => {
     const checkMobile = () => {
@@ -47,11 +51,44 @@ const LadderPage = ({ showFirstBoard }) => {
 
       if (response.data.success) {
         const data = response.data.data;
+        
+        // 获取当前所有股票代码
+        const currentStocks = [];
+        data.ladder.forEach(item => {
+          item.stocks.forEach(stock => {
+            currentStocks.push({
+              code: stock.stock_code,
+              name: stock.stock_name,
+              level: item.level,
+              limitUpTime: stock.limit_up_time,
+            });
+          });
+        });
+        
+        // 对比新旧数据
+        if (previousStocks.length > 0) {
+          const previousCodes = new Set(previousStocks.map(s => s.code));
+          const currentCodes = new Set(currentStocks.map(s => s.code));
+          
+          // 找出新增的股票
+          const added = currentStocks.filter(s => !previousCodes.has(s.code));
+          
+          // 找出减少的股票
+          const removed = previousStocks.filter(s => !currentCodes.has(s.code));
+          
+          // 如果有变化，保存对比结果
+          if (added.length > 0 || removed.length > 0) {
+            setDiffData({ added, removed });
+          }
+        }
+        
+        // 更新数据
         setLadderData(data.ladder);
         setStatistics(data.statistics);
         setYesterdayData(data.yesterday);
         setNextDayBlocks(data.next_day_blocks || []);
         setNextDayDate(data.next_day_date || null);
+        setPreviousStocks(currentStocks);
         
         // 判断是否是断板日
         const isBroken = data.yesterday && data.ladder && data.ladder.length > 0;
@@ -172,68 +209,71 @@ const LadderPage = ({ showFirstBoard }) => {
     }
 
     return (
-      <Row gutter={12} style={{ marginBottom: 12 }}>
-        <Col span={4}>
-          <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>涨停总数</div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                {statistics.total_count || 0}
+      <div>
+        <Row gutter={12} style={{ marginBottom: 12 }}>
+          <Col span={4}>
+            <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>涨停总数</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
+                  {statistics.total_count || 0}
+                </div>
               </div>
-            </div>
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'}}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>首板</div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                {statistics.first_board || 0}
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'}}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>首板</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
+                  {statistics.first_board || 0}
+                </div>
               </div>
-            </div>
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'}}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>2连板</div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                {statistics.second_board || 0}
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'}}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>2连板</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
+                  {statistics.second_board || 0}
+                </div>
               </div>
-            </div>
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'}}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>3连板</div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                {statistics.third_board || 0}
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'}}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>3连板</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
+                  {statistics.third_board || 0}
+                </div>
               </div>
-            </div>
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'}}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>4连板</div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                {statistics.fourth_board || 0}
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'}}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>4连板</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
+                  {statistics.fourth_board || 0}
+                </div>
               </div>
-            </div>
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)'}}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>5连板+</div>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                {statistics.fifth_plus_board || 0}
+            </Card>
+          </Col>
+          <Col span={4}>
+            <Card size="small" styles={{ body: { padding: '12px 8px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)'}}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>5连板+</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
+                  {statistics.fifth_plus_board || 0}
+                </div>
               </div>
-            </div>
-          </Card>
-        </Col>
-      </Row>
+            </Card>
+          </Col>
+        </Row>
+        
+      </div>
     );
   };
 
@@ -564,8 +604,16 @@ const LadderPage = ({ showFirstBoard }) => {
         ? item.stocks.filter(stock => selectedBlocks.includes(stock.block_name))
         : item.stocks;
       
+      // 按照涨停时间排序（时间早的排在前面）
+      const sortedStocks = [...filteredStocks].sort((a, b) => {
+        if (!a.limit_up_time && !b.limit_up_time) return 0;
+        if (!a.limit_up_time) return 1;
+        if (!b.limit_up_time) return -1;
+        return a.limit_up_time.localeCompare(b.limit_up_time);
+      });
+      
       // 如果没有符合条件的股票，不显示这个梯队
-      if (filteredStocks.length === 0) return null;
+      if (sortedStocks.length === 0) return null;
       
       return (
         <Card
@@ -573,14 +621,14 @@ const LadderPage = ({ showFirstBoard }) => {
           title={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: isMobile ? 14 : 16, fontWeight: 'bold' }}>{item.label}</span>
-              <Tag color="red">共 {filteredStocks.length} 只</Tag>
+              <Tag color="red">共 {sortedStocks.length} 只</Tag>
             </div>
           }
           style={{ marginBottom: isMobile ? 12 : 16 }}
           size={isMobile ? 'small' : 'medium'}
         >
           <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]}>
-            {filteredStocks.map(stock => renderStockCard(stock))}
+            {sortedStocks.map(stock => renderStockCard(stock))}
           </Row>
         </Card>
       );
@@ -764,6 +812,74 @@ const LadderPage = ({ showFirstBoard }) => {
           setSelectedStock(null);
         }}
       />
+      
+      <Modal
+        title="刷新对比结果"
+        open={diffVisible}
+        onCancel={() => setDiffVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <div>
+          {diffData.added.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ color: '#52c41a', marginBottom: 8 }}>
+                新增股票 ({diffData.added.length}只)
+              </h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {diffData.added.map((stock, index) => (
+                  <Tag key={index} color="green">
+                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板)
+                  </Tag>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {diffData.removed.length > 0 && (
+            <div>
+              <h4 style={{ color: '#ff4d4f', marginBottom: 8 }}>
+                减少股票 ({diffData.removed.length}只)
+              </h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {diffData.removed.map((stock, index) => (
+                  <Tag key={index} color="red">
+                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板)
+                  </Tag>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {diffData.added.length === 0 && diffData.removed.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#8c8c8c', padding: 20 }}>
+              暂无变化
+            </div>
+          )}
+        </div>
+      </Modal>
+      
+      {autoRefresh && (
+        <div
+          style={{
+            position: 'fixed',
+            left: 16,
+            bottom: 16,
+            zIndex: 1000,
+          }}
+        >
+          <Badge count={diffData.added.length + diffData.removed.length} showZero={false}>
+            <Button
+              type="primary"
+              shape="circle"
+              size="large"
+              icon={<DiffOutlined />}
+              onClick={() => setDiffVisible(true)}
+              style={{ width: 56, height: 56 }}
+            />
+          </Badge>
+        </div>
+      )}
     </>
   );
 };

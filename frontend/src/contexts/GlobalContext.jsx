@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
@@ -13,12 +13,112 @@ export const useGlobal = () => {
   return context;
 };
 
+const SETTINGS_KEY = 'stockAppSettings';
+
+const getDefaultSettings = () => ({
+  ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true },
+  watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
+  statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
+});
+
+const loadAllSettings = () => {
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...getDefaultSettings(), ...parsed };
+    }
+  } catch (error) {
+    console.error('加载设置失败', error);
+  }
+  return getDefaultSettings();
+};
+
+const saveAllSettings = (settings) => {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.error('保存设置失败', error);
+  }
+};
+
 export const GlobalProvider = ({ children }) => {
   const [currentDate, setCurrentDate] = useState('');
   const [latestDate, setLatestDate] = useState('');
   const [tradingDays, setTradingDays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  const [allSettings, setAllSettings] = useState(() => loadAllSettings());
+  const [currentPage, setCurrentPage] = useState('ladder');
+  
+  const [autoRefresh, setAutoRefreshState] = useState(() => {
+    const settings = loadAllSettings();
+    return settings.ladder.autoRefresh;
+  });
+  const [refreshInterval, setRefreshIntervalState] = useState(() => {
+    const settings = loadAllSettings();
+    return settings.ladder.refreshInterval;
+  });
+  const [smartMode, setSmartModeState] = useState(() => {
+    const settings = loadAllSettings();
+    return settings.ladder.smartMode;
+  });
+  
+  const intervalRef = useRef(null);
+
+  const loadPageSettings = (page) => {
+    const pageSettings = allSettings[page] || getDefaultSettings()[page];
+    setAutoRefreshState(pageSettings.autoRefresh);
+    setRefreshIntervalState(pageSettings.refreshInterval);
+    setSmartModeState(pageSettings.smartMode);
+    setCurrentPage(page);
+  };
+
+  const setAutoRefresh = (value) => {
+    setAutoRefreshState(value);
+    setAllSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [currentPage]: {
+          ...prev[currentPage],
+          autoRefresh: value,
+        },
+      };
+      saveAllSettings(newSettings);
+      return newSettings;
+    });
+  };
+
+  const setRefreshInterval = (value) => {
+    setRefreshIntervalState(value);
+    setAllSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [currentPage]: {
+          ...prev[currentPage],
+          refreshInterval: value,
+        },
+      };
+      saveAllSettings(newSettings);
+      return newSettings;
+    });
+  };
+
+  const setSmartMode = (value) => {
+    setSmartModeState(value);
+    setAllSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [currentPage]: {
+          ...prev[currentPage],
+          smartMode: value,
+        },
+      };
+      saveAllSettings(newSettings);
+      return newSettings;
+    });
+  };
 
   const loadTradingDays = async (dateStr) => {
     try {
@@ -158,6 +258,69 @@ export const GlobalProvider = ({ children }) => {
     }
   };
 
+  const autoRefreshCallback = useRef(null);
+
+  const setAutoRefreshCallback = (callback) => {
+    autoRefreshCallback.current = callback;
+  };
+
+  const isInTradingTime = () => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentTime = hours * 60 + minutes;
+    
+    const morningStart = 9 * 60 + 15;
+    const morningEnd = 11 * 60 + 30;
+    const afternoonStart = 13 * 60;
+    const afternoonEnd = 15 * 60;
+    
+    return (currentTime >= morningStart && currentTime <= morningEnd) ||
+           (currentTime >= afternoonStart && currentTime <= afternoonEnd);
+  };
+
+  useEffect(() => {
+    if (autoRefresh && autoRefreshCallback.current) {
+      const shouldRefresh = smartMode ? isInTradingTime() : true;
+      
+      if (shouldRefresh) {
+        intervalRef.current = setInterval(() => {
+          const stillInTime = smartMode ? isInTradingTime() : true;
+          if (stillInTime && autoRefreshCallback.current) {
+            autoRefreshCallback.current();
+          }
+        }, refreshInterval * 1000);
+      }
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [autoRefresh, refreshInterval, smartMode]);
+
+  useEffect(() => {
+    if (smartMode && autoRefresh) {
+      const checkInterval = setInterval(() => {
+        const inTime = isInTradingTime();
+        if (!inTime && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        } else if (inTime && !intervalRef.current && autoRefreshCallback.current) {
+          intervalRef.current = setInterval(() => {
+            if (isInTradingTime() && autoRefreshCallback.current) {
+              autoRefreshCallback.current();
+            }
+          }, refreshInterval * 1000);
+        }
+      }, 60000);
+      
+      return () => clearInterval(checkInterval);
+    }
+  }, [smartMode, autoRefresh, refreshInterval]);
+
   useEffect(() => {
     initLoad();
   }, []);
@@ -175,6 +338,14 @@ export const GlobalProvider = ({ children }) => {
     loading,
     setLoading,
     refreshKey,
+    autoRefresh,
+    setAutoRefresh,
+    refreshInterval,
+    setRefreshInterval,
+    smartMode,
+    setSmartMode,
+    setAutoRefreshCallback,
+    loadPageSettings,
     handleDateChange,
     handlePrevDay,
     handleNextDay,

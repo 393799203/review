@@ -86,12 +86,47 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     };
 
     const hasIntraday = intradayData && intradayData.length > 0;
-    const intradayTimes = hasIntraday ? intradayData.map(item => item.time.split(' ')[1]) : [];
-    const intradayPrices = hasIntraday ? intradayData.map(item => item.price) : [];
-    const intradayVolumes = hasIntraday ? intradayData.map(item => item.volume) : [];
+    
+    const generateFullTimeSeries = () => {
+      const times = [];
+      for (let hour = 9; hour <= 11; hour++) {
+        for (let minute = 0; minute <= 59; minute++) {
+          if (hour === 9 && minute < 30) continue;
+          if (hour === 11 && minute > 30) break;
+          times.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+        }
+      }
+      for (let hour = 13; hour <= 15; hour++) {
+        for (let minute = 0; minute <= 59; minute++) {
+          if (hour === 15 && minute > 0) break;
+          times.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+        }
+      }
+      return times;
+    };
+    
+    const fullTimeSeries = hasIntraday ? generateFullTimeSeries() : [];
+    
+    const mapDataToFullSeries = (intradayData, fullTimeSeries) => {
+      const dataMap = new Map();
+      intradayData.forEach(item => {
+        const time = item.time.split(' ')[1].substring(0, 5);
+        dataMap.set(time, item);
+      });
+      
+      return fullTimeSeries.map(time => {
+        const data = dataMap.get(time);
+        return data || { time, price: null, volume: 0 };
+      });
+    };
+    
+    const mappedIntradayData = hasIntraday ? mapDataToFullSeries(intradayData, fullTimeSeries) : [];
+    const intradayTimes = fullTimeSeries;
+    const intradayPrices = mappedIntradayData.map(item => item.price);
+    const intradayVolumes = mappedIntradayData.map(item => item.volume);
     
     const intradayChangePercent = hasIntraday && yesterdayClose 
-      ? intradayPrices.map(price => ((price - yesterdayClose) / yesterdayClose * 100))
+      ? intradayPrices.map(price => price ? ((price - yesterdayClose) / yesterdayClose * 100) : null)
       : [];
     
     let yAxisMin = 0;
@@ -161,8 +196,8 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         boundaryGap: false,
         axisLine: { onZero: false },
         splitLine: { show: false },
-        min: 'dataMin',
-        max: 'dataMax',
+        min: 0,
+        max: intradayTimes.length - 1,
         axisLabel: { show: false }
       },
       {
@@ -172,8 +207,8 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         boundaryGap: false,
         axisLine: { onZero: false },
         splitLine: { show: false },
-        min: 'dataMin',
-        max: 'dataMax',
+        min: 0,
+        max: intradayTimes.length - 1,
         axisLabel: { show: false }
       },
       {
