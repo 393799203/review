@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, DatePicker, Button, Switch } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Layout, Menu, DatePicker, Button, Switch, Select, Space, Popover } from 'antd';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import dayjs from 'dayjs';
@@ -12,18 +12,50 @@ const MainLayout = ({ children }) => {
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
   const [showFirstBoard, setShowFirstBoard] = useState(true);
+  const [popoverVisible, setPopoverVisible] = useState(false);
   
   const {
     currentDate,
     latestDate,
     tradingDays,
     loading,
+    autoRefresh,
+    setAutoRefresh,
+    refreshInterval,
+    setRefreshInterval,
+    smartMode,
+    setSmartMode,
+    setAutoRefreshCallback,
+    loadPageSettings,
     handleDateChange,
     handlePrevDay,
     handleNextDay,
     refreshCurrentData,
     refreshWatchlistPrices,
   } = useGlobal();
+
+  useEffect(() => {
+    const pageMap = {
+      '/': 'ladder',
+      '/watchlist': 'watchlist',
+      '/statistics': 'statistics',
+    };
+    
+    const page = pageMap[location.pathname] || 'ladder';
+    loadPageSettings(page);
+    
+    if (location.pathname === '/') {
+      setAutoRefreshCallback(refreshCurrentData);
+    } else if (location.pathname === '/watchlist') {
+      setAutoRefreshCallback(refreshWatchlistPrices);
+    } else if (location.pathname === '/statistics') {
+      setAutoRefreshCallback(() => window.location.reload());
+    }
+    
+    return () => {
+      setAutoRefreshCallback(null);
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -77,36 +109,54 @@ const MainLayout = ({ children }) => {
   const renderHeaderRight = () => {
     const isWatchlistPage = location.pathname === '/watchlist';
     const isStatisticsPage = location.pathname === '/statistics';
+    const isLadderPage = location.pathname === '/';
+    
+    const settingsContent = (
+      <div style={{ width: isMobile ? 200 : 250 }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>刷新时段</div>
+          <Select
+            value={smartMode ? 'trading' : 'all'}
+            onChange={(value) => setSmartMode(value === 'trading')}
+            style={{ width: '100%' }}
+            options={[
+              { value: 'trading', label: '交易时段 (9:15-11:30, 13:00-15:00)' },
+              { value: 'all', label: '全天' },
+            ]}
+          />
+        </div>
+        
+        <div>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>刷新频率</div>
+          <Select
+            value={refreshInterval}
+            onChange={setRefreshInterval}
+            style={{ width: '100%' }}
+            options={[
+              { value: 10, label: '10秒' },
+              { value: 30, label: '30秒' },
+              { value: 60, label: '1分钟' },
+              { value: 300, label: '5分钟' },
+            ]}
+          />
+        </div>
+      </div>
+    );
+    
+    const handleAutoRefreshChange = (checked) => {
+      setAutoRefresh(checked);
+      if (!checked) {
+        setPopoverVisible(false);
+      }
+    };
+    
+    const getRefreshHandler = () => {
+      if (isWatchlistPage) return refreshWatchlistPrices;
+      if (isStatisticsPage) return () => window.location.reload();
+      return refreshCurrentData;
+    };
     
     if (isMobile) {
-      if (isWatchlistPage) {
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Button 
-              type="primary" 
-              icon={<ReloadOutlined />} 
-              size="small"
-              onClick={refreshWatchlistPrices}
-              loading={loading}
-            />
-          </div>
-        );
-      }
-      
-      if (isStatisticsPage) {
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Button 
-              type="primary" 
-              icon={<ReloadOutlined />} 
-              size="small"
-              onClick={() => window.location.reload()}
-              loading={loading}
-            />
-          </div>
-        );
-      }
-      
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isLadderPage && (
@@ -114,8 +164,8 @@ const MainLayout = ({ children }) => {
               checked={showFirstBoard} 
               onChange={setShowFirstBoard} 
               size="small"
-              checkedChildren="首板"
-              unCheckedChildren="首板"
+              checkedChildren="首"
+              unCheckedChildren="首"
             />
           )}
           <Button onClick={handlePrevDay} size="small">前</Button>
@@ -133,33 +183,28 @@ const MainLayout = ({ children }) => {
             type="primary" 
             icon={<ReloadOutlined />} 
             size="small"
-            onClick={refreshCurrentData}
+            onClick={getRefreshHandler()}
             loading={loading}
           />
+          
+          <Popover
+            content={settingsContent}
+            title="自动刷新设置"
+            trigger="click"
+            placement="bottomRight"
+            open={autoRefresh && popoverVisible}
+            onOpenChange={setPopoverVisible}
+          >
+            <Switch
+              checked={autoRefresh}
+              onChange={handleAutoRefreshChange}
+              size="small"
+            />
+          </Popover>
         </div>
       );
     }
-
-    if (isWatchlistPage) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Button type="primary" icon={<ReloadOutlined />} onClick={refreshWatchlistPrices}>
-            更新价格
-          </Button>
-        </div>
-      );
-    }
-
-    if (isStatisticsPage) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Button type="primary" icon={<ReloadOutlined />} onClick={() => window.location.reload()}>
-            刷新数据
-          </Button>
-        </div>
-      );
-    }
-
+    
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {isLadderPage && (
@@ -168,19 +213,41 @@ const MainLayout = ({ children }) => {
             <Switch checked={showFirstBoard} onChange={setShowFirstBoard} />
           </>
         )}
-        <Button onClick={handlePrevDay}>前一天</Button>
-        <DatePicker
-          value={currentDate ? dayjs(currentDate, 'YYYYMMDD') : null}
-          onChange={handleDateChange}
-          format="YYYYMMDD"
-          placeholder="选择日期"
-          disabledDate={disabledDate}
-          placement="bottomLeft"
-        />
-        {!isLatestDate && <Button onClick={handleNextDay}>后一天</Button>}
-        <Button type="primary" icon={<ReloadOutlined />} onClick={refreshCurrentData}>
-          刷新数据
+        
+        {isLadderPage && (
+          <>
+            <Button onClick={handlePrevDay}>前一天</Button>
+            <DatePicker
+              value={currentDate ? dayjs(currentDate, 'YYYYMMDD') : null}
+              onChange={handleDateChange}
+              format="YYYYMMDD"
+              placeholder="选择日期"
+              disabledDate={disabledDate}
+              placement="bottomLeft"
+            />
+            {!isLatestDate && <Button onClick={handleNextDay}>后一天</Button>}
+          </>
+        )}
+        
+        <Button type="primary" icon={<ReloadOutlined />} onClick={getRefreshHandler()}>
+          {isWatchlistPage ? '更新价格' : '刷新数据'}
         </Button>
+        
+        <Popover
+          content={settingsContent}
+          title="自动刷新设置"
+          trigger="click"
+          placement="bottomRight"
+          open={autoRefresh && popoverVisible}
+          onOpenChange={setPopoverVisible}
+        >
+          <Switch
+            checked={autoRefresh}
+            onChange={handleAutoRefreshChange}
+            checkedChildren="自动"
+            unCheckedChildren="手动"
+          />
+        </Popover>
       </div>
     );
   };
@@ -216,7 +283,7 @@ const MainLayout = ({ children }) => {
         >
           <div style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
             <img src="/favicon.svg" alt="logo" style={{ width: 24, height: 24 }} />
-            复盘系统
+            节节高
           </div>
           {renderHeaderRight()}
         </Header>
@@ -298,7 +365,7 @@ const MainLayout = ({ children }) => {
           }}
         >
           <img src="/favicon.svg" alt="logo" style={{ width: 28, height: 28 }} />
-          复盘系统
+          节节高
         </div>
         {menuContent}
       </Sider>
