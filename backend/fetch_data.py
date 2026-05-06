@@ -162,10 +162,10 @@ class LimitUpFetcher:
             # 优先使用同花顺接口获取数据
             ths_data = self.ths_fetcher.get_all_data(date_str)
             
-            # 使用akshare作为备用
+            # 使用akshare作为备用（只有接口调用失败时才使用）
             akshare_data = None
-            if not ths_data.get('continuous_limit_up'):
-                print("\n同花顺数据不完整，使用akshare作为备用...")
+            if ths_data.get('limit_up_pool') is None:
+                print("\n同花顺涨停池接口调用失败，使用akshare作为备用...")
                 akshare_data = self.akshare_fetcher.get_all_data(date_str)
             
             # 处理并保存数据
