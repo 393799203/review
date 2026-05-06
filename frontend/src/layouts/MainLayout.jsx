@@ -176,7 +176,7 @@ const MainLayout = ({ children }) => {
             placeholder="日期"
             disabledDate={disabledDate}
             size="small"
-            style={{ width: 110 }}
+            style={{ width: 100 }}
           />
           {!isLatestDate && <Button onClick={handleNextDay} size="small">后</Button>}
           <Button 
