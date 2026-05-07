@@ -296,8 +296,8 @@ class ThsFetcher:
             import random
             
             data_sources = [
-                ('新浪财经', self._get_kline_sina),
                 ('东方财富', self._get_kline_eastmoney),
+                ('新浪财经', self._get_kline_sina),
                 ('腾讯财经', self._get_kline_tencent),
             ]
             
@@ -472,9 +472,9 @@ class ThsFetcher:
             import random
             
             data_sources = [
+                ('东方财富', self._get_intraday_eastmoney),
                 ('腾讯财经', self._get_intraday_tencent),
                 ('新浪财经', self._get_intraday_sina),
-                ('东方财富', self._get_intraday_eastmoney),
             ]
             
             for source_name, source_func in data_sources:

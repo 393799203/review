@@ -129,23 +129,41 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       ? intradayPrices.map(price => price ? ((price - yesterdayClose) / yesterdayClose * 100) : null)
       : [];
     
+    const getLimitByStockCode = (code) => {
+      if (!code) return 10;
+      const codeStr = code.toString();
+      if (codeStr.startsWith('60') || codeStr.startsWith('00')) return 10;
+      if (codeStr.startsWith('30') || codeStr.startsWith('68')) return 20;
+      if (codeStr.startsWith('920')) return 30;
+      return 10;
+    };
+    
+    const limitPercent = getLimitByStockCode(stockCode);
+    
     let yAxisMin = 0;
     let yAxisMax = 0;
     if (hasIntraday && intradayChangePercent.length > 0) {
-      const minChange = Math.min(...intradayChangePercent);
-      const maxChange = Math.max(...intradayChangePercent);
+      const validChanges = intradayChangePercent.filter(v => v !== null);
+      const minChange = Math.min(...validChanges);
+      const maxChange = Math.max(...validChanges);
       
-      if (minChange === maxChange) {
-        yAxisMin = -10;
-        yAxisMax = 10;
+      if (minChange === maxChange || isNaN(minChange) || isNaN(maxChange)) {
+        yAxisMin = -limitPercent;
+        yAxisMax = limitPercent;
       } else {
-        const range = maxChange - minChange;
-        const padding = Math.max(range * 0.2, 1);
-        yAxisMin = Math.floor(minChange - padding);
-        yAxisMax = Math.ceil(maxChange + padding);
+        const maxAbsChange = Math.max(Math.abs(minChange), Math.abs(maxChange));
+        const padding = Math.max(maxAbsChange * 0.1, limitPercent * 0.1);
         
-        if (yAxisMin > 0) yAxisMin = -Math.ceil(padding);
-        if (yAxisMax < 0) yAxisMax = Math.ceil(padding);
+        const isNearLimitUp = maxChange >= limitPercent * 0.9;
+        const isNearLimitDown = minChange <= -limitPercent * 0.9;
+        
+        if (isNearLimitUp || isNearLimitDown) {
+          yAxisMin = -limitPercent;
+          yAxisMax = limitPercent;
+        } else {
+          yAxisMin = -(maxAbsChange + padding);
+          yAxisMax = maxAbsChange + padding;
+        }
       }
     }
 
@@ -277,7 +295,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         splitArea: { show: true },
         axisLabel: {
           formatter: function(value) {
-            return Math.round(value) + '%';
+            return value.toFixed(2) + '%';
           },
           color: function(value) {
             if (value > 0) return '#f5222d';
@@ -561,6 +579,14 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             const price = intradayPrices[dataIndex];
             const changePercent = intradayChangePercent[dataIndex];
             const volume = intradayVolumes[dataIndex];
+            
+            if (price === null || price === undefined) {
+              return `
+                <div style="font-weight: bold; margin-bottom: 5px;">${time}</div>
+                <div style="color: #999;">无交易数据</div>
+              `;
+            }
+            
             const color = changePercent >= 0 ? '#f5222d' : '#52c41a';
             
             return `
@@ -572,19 +598,19 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             `;
           } else if (klineData[dataIndex]) {
             const data = klineData[dataIndex];
-            const changeColor = data.change_percent >= 0 ? '#f5222d' : '#52c41a';
+            const changeColor = (data.change_percent || 0) >= 0 ? '#f5222d' : '#52c41a';
             const dateStr = data.date.replace(/-/g, '').substring(0, 8);
             
             return `
               <div style="font-weight: bold; margin-bottom: 5px;">${dateStr}</div>
-              <div>开盘: ${data.open.toFixed(2)}</div>
-              <div>收盘: <span style="color: ${changeColor}; font-weight: bold;">${data.close.toFixed(2)}</span></div>
-              <div>最高: ${data.high.toFixed(2)}</div>
-              <div>最低: ${data.low.toFixed(2)}</div>
-              <div>涨跌幅: <span style="color: ${changeColor}; font-weight: bold;">${data.change_percent > 0 ? '+' : ''}${data.change_percent.toFixed(2)}%</span></div>
-              <div>成交量: ${data.volume.toFixed(0)}手</div>
-              <div>成交额: ${(data.amount / 100000000).toFixed(2)}亿</div>
-              <div>换手率: ${data.turnover.toFixed(2)}%</div>
+              <div>开盘: ${(data.open || 0).toFixed(2)}</div>
+              <div>收盘: <span style="color: ${changeColor}; font-weight: bold;">${(data.close || 0).toFixed(2)}</span></div>
+              <div>最高: ${(data.high || 0).toFixed(2)}</div>
+              <div>最低: ${(data.low || 0).toFixed(2)}</div>
+              <div>涨跌幅: <span style="color: ${changeColor}; font-weight: bold;">${(data.change_percent || 0) > 0 ? '+' : ''}${(data.change_percent || 0).toFixed(2)}%</span></div>
+              <div>成交量: ${(data.volume || 0).toFixed(0)}手</div>
+              <div>成交额: ${((data.amount || 0) / 100000000).toFixed(2)}亿</div>
+              <div>换手率: ${(data.turnover || 0).toFixed(2)}%</div>
             `;
           }
           
