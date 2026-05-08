@@ -156,50 +156,52 @@ ${blockCondition}`;
       key: 'stockInfo',
       width: isMobile ? 90 : 100,
       fixed: 'left',
-      render: (_, record) => (
-        <div style={{ lineHeight: '18px' }}>
-          <div 
-            style={{ fontWeight: 'bold', color: '#1890ff', fontSize: isMobile ? 12 : 13, cursor: 'pointer' }}
-            onClick={() => {
-              setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
-              setKlineVisible(true);
-            }}
-          >
-            {record['股票代码']}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      render: (_, record) => {
+        const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
+        return (
+          <div style={{ lineHeight: '18px' }}>
             <div 
-              style={{ fontSize: isMobile ? 11 : 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ fontWeight: 'bold', color: '#1890ff', fontSize: isMobile ? 12 : 13, cursor: 'pointer' }}
               onClick={() => {
-                setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                setSelectedStock({ code: stockCode, name: record['股票简称'] });
                 setKlineVisible(true);
               }}
             >
-              {record['股票简称']}
+              {stockCode}
             </div>
-            <div 
-              style={{ 
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                cursor: 'pointer'
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
-                setAnalysisStock({ code: stockCode, name: record['股票简称'] });
-                setAnalysisVisible(true);
-              }}
-            >
-              <RobotOutlined style={{ fontSize: 9, color: '#fff' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div 
+                style={{ fontSize: isMobile ? 11 : 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+                onClick={() => {
+                  setSelectedStock({ code: stockCode, name: record['股票简称'] });
+                  setKlineVisible(true);
+                }}
+              >
+                {record['股票简称']}
+              </div>
+              <div 
+                style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  cursor: 'pointer'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAnalysisStock({ code: stockCode, name: record['股票简称'] });
+                  setAnalysisVisible(true);
+                }}
+              >
+                <RobotOutlined style={{ fontSize: 9, color: '#fff' }} />
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: '价格信息',
@@ -346,9 +348,9 @@ ${blockCondition}`;
           
           const conceptKey = Object.keys(record).find(k => k.includes('所属概念'));
           const conceptVal = record[conceptKey];
-          
-          const stockCode = record['股票代码'];
-          const isAdded = watchlistCodes.includes(stockCode);
+            
+            const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
+            const isAdded = watchlistCodes.includes(stockCode);
           
           return (
             <Card
@@ -362,17 +364,17 @@ ${blockCondition}`;
                   <div 
                     style={{ fontWeight: 'bold', color: '#1890ff', fontSize: 13, cursor: 'pointer' }}
                     onClick={() => {
-                      setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                      setSelectedStock({ code: stockCode, name: record['股票简称'] });
                       setKlineVisible(true);
                     }}
                   >
-                    {record['股票代码']}
+                    {stockCode}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <div 
                       style={{ fontSize: 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
                       onClick={() => {
-                        setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                        setSelectedStock({ code: stockCode, name: record['股票简称'] });
                         setKlineVisible(true);
                       }}
                     >
@@ -391,7 +393,6 @@ ${blockCondition}`;
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
                         setAnalysisStock({ code: stockCode, name: record['股票简称'] });
                         setAnalysisVisible(true);
                       }}
