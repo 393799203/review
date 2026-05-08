@@ -267,7 +267,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
 
           {analysisData.trading_advice && (
             <Card 
-              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>交易建议</span>}
+              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>买入建议</span>}
               size="small"
               style={{ marginBottom: 12 }}
               bodyStyle={{ padding: '8px 12px' }}
