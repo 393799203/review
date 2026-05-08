@@ -1289,10 +1289,13 @@ def analyze_limit_up_reason(stock_code):
     
     Args:
         stock_code: 股票代码
+        force: 是否强制重新分析（跳过缓存）
         
     Returns:
         分析结果
     """
+    force = request.args.get('force', 'false').lower() == 'true'
+    
     session = get_db_session()
     try:
         # 查询最近一次涨停记录
@@ -1325,11 +1328,14 @@ def analyze_limit_up_reason(stock_code):
             AIAnalysisResult.trade_date == stock_data['trade_date']
         ).first()
         
-        if cached_result:
+        if cached_result and not force:
             print(f"从缓存读取 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']} 的分析结果")
             analysis = json.loads(cached_result.analysis_result)
         else:
-            print(f"缓存未命中,开始分析 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']}")
+            if force and cached_result:
+                print(f"强制重新分析 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']}")
+            else:
+                print(f"缓存未命中,开始分析 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']}")
             
             # 初始化分析器
             analyzer = LimitUpReasonAnalyzer()
@@ -1349,15 +1355,22 @@ def analyze_limit_up_reason(stock_code):
             # 如果分析成功,保存到数据库
             if analysis and analysis.get('recommendation_score', 0) > 0:
                 try:
-                    new_result = AIAnalysisResult(
-                        stock_code=stock_data['stock_code'],
-                        stock_name=stock_data['stock_name'],
-                        trade_date=stock_data['trade_date'],
-                        analysis_result=json.dumps(analysis, ensure_ascii=False)
-                    )
-                    session.add(new_result)
+                    if cached_result:
+                        # 更新现有记录
+                        cached_result.analysis_result = json.dumps(analysis, ensure_ascii=False)
+                        cached_result.updated_at = datetime.now()
+                        print(f"成功更新分析结果到数据库")
+                    else:
+                        # 创建新记录
+                        new_result = AIAnalysisResult(
+                            stock_code=stock_data['stock_code'],
+                            stock_name=stock_data['stock_name'],
+                            trade_date=stock_data['trade_date'],
+                            analysis_result=json.dumps(analysis, ensure_ascii=False)
+                        )
+                        session.add(new_result)
+                        print(f"成功保存分析结果到数据库")
                     session.commit()
-                    print(f"成功保存分析结果到数据库")
                 except Exception as e:
                     print(f"保存分析结果失败: {e}")
                     session.rollback()
