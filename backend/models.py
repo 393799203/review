@@ -162,6 +162,24 @@ class TradeRecord(Base):
     created_at = Column(DateTime, default=datetime.now)
 
 
+class AIAnalysisResult(Base):
+    """AI分析结果缓存表"""
+    __tablename__ = 'ai_analysis_results'
+    __table_args__ = (
+        UniqueConstraint('stock_code', 'trade_date', name='uq_ai_analysis_stock_date'),
+        Index('idx_ai_analysis_date', 'trade_date'),
+        Index('idx_ai_analysis_code', 'stock_code'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    stock_code = Column(String(10), nullable=False)
+    stock_name = Column(String(50), nullable=False)
+    trade_date = Column(Date, nullable=False)
+    analysis_result = Column(Text, nullable=False)  # JSON格式的分析结果
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class DatabaseConfig:
     """数据库配置"""
     

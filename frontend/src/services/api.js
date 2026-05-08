@@ -36,6 +36,10 @@ export const stockApi = {
   getStockKline: (stockCode, days = 60) => api.get(`/stock/kline/${stockCode}?days=${days}`),
 
   getStockIntraday: (stockCode) => api.get(`/stock/intraday/${stockCode}`),
+
+  analyzeStock: (stockCode) => api.get(`/stock/analyze/${stockCode}`, { timeout: 120000 }),
+
+  batchAnalyzeStocks: (stocks) => api.post('/stocks/analyze', { stocks }, { timeout: 120000 }),
 };
 
 export default api;
