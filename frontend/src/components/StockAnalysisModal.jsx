@@ -97,8 +97,17 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
           <Card size="small" style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 2 }}>
+                <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {stockName} ({stockCode})
+                  {analysisData.continuous_days && analysisData.continuous_days > 1 ? (
+                    <Tag color="red" style={{ fontSize: 11, padding: '0 6px', margin: 0 }}>
+                      {analysisData.continuous_days}连板
+                    </Tag>
+                  ) : (
+                    <Tag color="blue" style={{ fontSize: 11, padding: '0 6px', margin: 0 }}>
+                      首板
+                    </Tag>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: '#666' }}>
                   涨停日期: {analysisData.trade_date}
@@ -339,24 +348,40 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
                 </div>
                 
                 <div style={{ 
-                  display: 'flex', 
-                  gap: 12, 
-                  marginBottom: 8,
-                  flexWrap: 'wrap'
+                  display: 'grid', 
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)', 
+                  gap: isMobile ? 6 : 8, 
+                  marginBottom: 8 
                 }}>
                   {analysisData.trading_advice.risk_level && (
-                    <div style={{ flex: isMobile ? '1 1 45%' : '0 1 auto' }}>
+                    <div>
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>风险等级</div>
-                      <Tag color={analysisData.trading_advice.risk_level === '高' ? 'red' : analysisData.trading_advice.risk_level === '中' ? 'orange' : 'green'} style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                      <Tag color={analysisData.trading_advice.risk_level === '高' ? 'red' : analysisData.trading_advice.risk_level === '中' ? 'orange' : 'green'} style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>
                         {analysisData.trading_advice.risk_level}
                       </Tag>
                     </div>
                   )}
                   
                   {analysisData.trading_advice.holding_period && (
-                    <div style={{ flex: isMobile ? '1 1 45%' : '0 1 auto' }}>
+                    <div>
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>持有周期</div>
-                      <Tag color="cyan" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>{analysisData.trading_advice.holding_period}</Tag>
+                      <Tag color="cyan" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.trading_advice.holding_period}</Tag>
                     </div>
                   )}
                 </div>

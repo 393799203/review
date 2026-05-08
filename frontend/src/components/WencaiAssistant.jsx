@@ -3,6 +3,7 @@ import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag, Radio }
 import { SearchOutlined, RobotOutlined, PlusOutlined, CheckOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import StockKlineModal from './StockKlineModal';
+import StockAnalysisModal from './StockAnalysisModal';
 
 const { TextArea } = Input;
 
@@ -15,6 +16,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const [watchlistCodes, setWatchlistCodes] = useState([]);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
+  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [analysisStock, setAnalysisStock] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -164,14 +167,36 @@ ${blockCondition}`;
           >
             {record['股票代码']}
           </div>
-          <div 
-            style={{ fontSize: isMobile ? 11 : 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
-            onClick={() => {
-              setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
-              setKlineVisible(true);
-            }}
-          >
-            {record['股票简称']}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div 
+              style={{ fontSize: isMobile ? 11 : 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+              onClick={() => {
+                setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                setKlineVisible(true);
+              }}
+            >
+              {record['股票简称']}
+            </div>
+            <div 
+              style={{ 
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                cursor: 'pointer'
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
+                setAnalysisStock({ code: stockCode, name: record['股票简称'] });
+                setAnalysisVisible(true);
+              }}
+            >
+              <RobotOutlined style={{ fontSize: 9, color: '#fff' }} />
+            </div>
           </div>
         </div>
       ),
@@ -343,14 +368,36 @@ ${blockCondition}`;
                   >
                     {record['股票代码']}
                   </div>
-                  <div 
-                    style={{ fontSize: 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
-                    onClick={() => {
-                      setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
-                      setKlineVisible(true);
-                    }}
-                  >
-                    {record['股票简称']}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div 
+                      style={{ fontSize: 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelectedStock({ code: record['股票代码'], name: record['股票简称'] });
+                        setKlineVisible(true);
+                      }}
+                    >
+                      {record['股票简称']}
+                    </div>
+                    <div 
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
+                        setAnalysisStock({ code: stockCode, name: record['股票简称'] });
+                        setAnalysisVisible(true);
+                      }}
+                    >
+                      <RobotOutlined style={{ fontSize: 9, color: '#fff' }} />
+                    </div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', marginLeft: 8 }}>
@@ -525,6 +572,16 @@ ${blockCondition}`;
         onClose={() => {
           setKlineVisible(false);
           setSelectedStock(null);
+        }}
+      />
+
+      <StockAnalysisModal
+        visible={analysisVisible}
+        stockCode={analysisStock?.code}
+        stockName={analysisStock?.name}
+        onClose={() => {
+          setAnalysisVisible(false);
+          setAnalysisStock(null);
         }}
       />
     </Modal>

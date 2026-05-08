@@ -1382,6 +1382,7 @@ def analyze_limit_up_reason(stock_code):
                 'stock_name': stock_data['stock_name'],
                 'trade_date': stock_data['trade_date'].strftime('%Y-%m-%d'),
                 'limit_up_reason': stock_data['limit_up_reason'],
+                'continuous_days': stock_data['continuous_days'],
                 'sectors': analysis.get('sectors', []),
                 'speculation_logic': analysis.get('speculation_logic', []),
                 'stock_attribute': analysis.get('stock_attribute', None),
