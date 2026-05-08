@@ -146,7 +146,7 @@ class LimitUpReasonAnalyzer:
   "sectors": [{{"name":"板块","score":0.9}}],
   "speculation_logic": [{{"keyword":"关键词","logic":"逻辑"}}],
   "stock_attribute": {{"type":"类型","market_cap":"市值","investor_type":"资金","trading_style":"风格"}},
-  "market_heat": 8,
+  "market_heat": 5,
   "recommendation_score": 4,
   "recommendation_reason": "推荐原因",
   "analysis_summary": "一句话总结",
@@ -168,7 +168,8 @@ class LimitUpReasonAnalyzer:
 3. 连板越多风险越高,仓位越小
 4. 价格基于涨停价计算
 5. recommendation_reason说明推荐理由
-6. 直接返回JSON"""
+6. market_heat市场热度评分0-10分,综合考虑板块热度、题材热度、资金关注度,7分以上高热度,4-7分中等,4分以下低热度
+7. 直接返回JSON"""
 
             logger.info(f"构造的Prompt长度: {len(prompt)} 字符")
             logger.info(f"开始调用大模型API: {self.api_url}")

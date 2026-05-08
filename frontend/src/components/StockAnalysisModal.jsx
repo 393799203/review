@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Modal, Card, Tag, Spin, Rate, Progress, Divider, Empty, Alert } from 'antd';
-import { StockOutlined, FireOutlined, RobotOutlined, TrophyOutlined, DollarOutlined, WarningOutlined, TagsOutlined } from '@ant-design/icons';
+import { Modal, Card, Tag, Spin, Rate, Progress, Divider, Empty, Alert, Button } from 'antd';
+import { StockOutlined, FireOutlined, RobotOutlined, TrophyOutlined, DollarOutlined, WarningOutlined, TagsOutlined, ReloadOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 
 const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
@@ -24,10 +24,10 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
     }
   }, [visible, stockCode]);
 
-  const loadAnalysisData = async () => {
+  const loadAnalysisData = async (force = false) => {
     try {
       setLoading(true);
-      const response = await stockApi.analyzeStock(stockCode);
+      const response = await stockApi.analyzeStock(stockCode, force);
       
       if (response.data.success) {
         setAnalysisData(response.data.data);
@@ -37,6 +37,10 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReanalyze = () => {
+    loadAnalysisData(true);
   };
 
   const getHeatColor = (heat) => {
@@ -54,9 +58,21 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
   return (
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <RobotOutlined style={{ color: '#1890ff' }} />
-            <span style={{ fontSize: isMobile ? 14 : 16 }}>涨停原因智能分析</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 30 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RobotOutlined style={{ color: '#1890ff' }} />
+              <span style={{ fontSize: isMobile ? 14 : 16 }}>涨停原因智能分析</span>
+            </div>
+            <Button 
+              type="text" 
+              icon={<ReloadOutlined />} 
+              onClick={handleReanalyze}
+              loading={loading}
+              size="small"
+              style={{ color: '#1890ff' }}
+            >
+              {!isMobile && '重新分析'}
+            </Button>
           </div>
         }
         open={visible}
@@ -102,22 +118,54 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
             {analysisData.stock_attribute && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
                 {analysisData.stock_attribute.type && (
-                  <Tag color="purple" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                  <Tag color="purple" style={{ 
+                    fontSize: 11, 
+                    padding: '2px 6px', 
+                    margin: 0,
+                    maxWidth: isMobile ? '100%' : 'auto',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                    lineHeight: '16px'
+                  }}>
                     {analysisData.stock_attribute.type}
                   </Tag>
                 )}
                 {analysisData.stock_attribute.market_cap && (
-                  <Tag color="blue" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                  <Tag color="blue" style={{ 
+                    fontSize: 11, 
+                    padding: '2px 6px', 
+                    margin: 0,
+                    maxWidth: isMobile ? '100%' : 'auto',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                    lineHeight: '16px'
+                  }}>
                     {analysisData.stock_attribute.market_cap}
                   </Tag>
                 )}
                 {analysisData.stock_attribute.investor_type && (
-                  <Tag color={analysisData.stock_attribute.investor_type.includes('机构') ? 'green' : analysisData.stock_attribute.investor_type.includes('游资') ? 'red' : 'default'} style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                  <Tag color={analysisData.stock_attribute.investor_type.includes('机构') ? 'green' : analysisData.stock_attribute.investor_type.includes('游资') ? 'red' : 'default'} style={{ 
+                    fontSize: 11, 
+                    padding: '2px 6px', 
+                    margin: 0,
+                    maxWidth: isMobile ? '100%' : 'auto',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                    lineHeight: '16px'
+                  }}>
                     {analysisData.stock_attribute.investor_type}
                   </Tag>
                 )}
                 {analysisData.stock_attribute.trading_style && (
-                  <Tag color="orange" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                  <Tag color="orange" style={{ 
+                    fontSize: 11, 
+                    padding: '2px 6px', 
+                    margin: 0,
+                    maxWidth: isMobile ? '100%' : 'auto',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                    lineHeight: '16px'
+                  }}>
                     {analysisData.stock_attribute.trading_style}
                   </Tag>
                 )}
@@ -134,7 +182,15 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {analysisData.keywords?.map((keyword, index) => (
-                  <Tag key={index} color="blue" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                  <Tag key={index} color="blue" style={{ 
+                    fontSize: 11, 
+                    padding: '2px 6px', 
+                    margin: 0,
+                    maxWidth: isMobile ? '100%' : 'auto',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                    lineHeight: '16px'
+                  }}>
                     {keyword}
                   </Tag>
                 ))}
@@ -144,7 +200,15 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
               <div style={{ paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {analysisData.speculation_logic.map((logic, index) => (
-                    <Tag key={index} color="orange" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                    <Tag key={index} color="orange" style={{ 
+                      fontSize: 11, 
+                      padding: '2px 6px', 
+                      margin: 0,
+                      maxWidth: isMobile ? '100%' : 'auto',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'normal',
+                      lineHeight: '16px'
+                    }}>
                       {logic.logic}
                     </Tag>
                   ))}
@@ -174,7 +238,15 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
             {analysisData.sectors?.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {analysisData.sectors.map((sector, index) => (
-                  <Tag key={index} color="green" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>
+                  <Tag key={index} color="green" style={{ 
+                    fontSize: 11, 
+                    padding: '2px 6px', 
+                    margin: 0,
+                    maxWidth: isMobile ? '100%' : 'auto',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                    lineHeight: '16px'
+                  }}>
                     {sector.name} ({(sector.score * 100).toFixed(0)}%)
                   </Tag>
                 ))}
@@ -201,35 +273,67 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
                 
                 <div style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', 
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)', 
                   gap: isMobile ? 6 : 8, 
                   marginBottom: 8 
                 }}>
                   {analysisData.trading_advice.buy_price_range && (
                     <div>
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>买入价位</div>
-                      <Tag color="blue" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>{analysisData.trading_advice.buy_price_range}</Tag>
-                    </div>
-                  )}
-                  
-                  {analysisData.trading_advice.stop_loss_price && (
-                    <div>
-                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>止损位</div>
-                      <Tag color="red" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>{analysisData.trading_advice.stop_loss_price}</Tag>
-                    </div>
-                  )}
-                  
-                  {analysisData.trading_advice.take_profit_price && (
-                    <div>
-                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>止盈位</div>
-                      <Tag color="green" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>{analysisData.trading_advice.take_profit_price}</Tag>
+                      <Tag color="blue" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.trading_advice.buy_price_range}</Tag>
                     </div>
                   )}
                   
                   {analysisData.trading_advice.position_ratio && (
                     <div>
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>建议仓位</div>
-                      <Tag color="purple" style={{ fontSize: 11, padding: '2px 6px', margin: 0 }}>{analysisData.trading_advice.position_ratio}</Tag>
+                      <Tag color="purple" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.trading_advice.position_ratio}</Tag>
+                    </div>
+                  )}
+                  
+                  {analysisData.trading_advice.stop_loss_price && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>止损位</div>
+                      <Tag color="red" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.trading_advice.stop_loss_price}</Tag>
+                    </div>
+                  )}
+                  
+                  {analysisData.trading_advice.take_profit_price && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>止盈位</div>
+                      <Tag color="green" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.trading_advice.take_profit_price}</Tag>
                     </div>
                   )}
                 </div>

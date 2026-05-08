@@ -37,7 +37,7 @@ export const stockApi = {
 
   getStockIntraday: (stockCode) => api.get(`/stock/intraday/${stockCode}`),
 
-  analyzeStock: (stockCode) => api.get(`/stock/analyze/${stockCode}`, { timeout: 120000 }),
+  analyzeStock: (stockCode, force = false) => api.get(`/stock/analyze/${stockCode}?force=${force}`, { timeout: 120000 }),
 
   batchAnalyzeStocks: (stocks) => api.post('/stocks/analyze', { stocks }, { timeout: 120000 }),
 };
