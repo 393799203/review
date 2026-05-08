@@ -11,11 +11,13 @@ from sqlalchemy import desc, func
 import sys
 import os
 import threading
+import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult
 from ths_fetcher import ThsFetcher
 from statistics_api import register_statistics_routes
+from limit_up_analyzer import LimitUpReasonAnalyzer
 
 app = Flask(__name__)
 CORS(app)
@@ -1274,6 +1276,162 @@ def get_stock_intraday(stock_code):
             }), 404
             
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/stock/analyze/<stock_code>', methods=['GET'])
+def analyze_limit_up_reason(stock_code):
+    """
+    分析涨停原因，提取炒作逻辑、关联板块和买入推荐指数
+    
+    Args:
+        stock_code: 股票代码
+        
+    Returns:
+        分析结果
+    """
+    session = get_db_session()
+    try:
+        # 查询最近一次涨停记录
+        stock = session.query(LimitUpStock).filter(
+            LimitUpStock.stock_code == stock_code
+        ).order_by(desc(LimitUpStock.trade_date)).first()
+        
+        if not stock:
+            return jsonify({
+                'success': False,
+                'error': '未找到该股票的涨停记录'
+            }), 404
+        
+        # 提取stock数据，避免session关闭后无法访问
+        stock_data = {
+            'stock_code': stock.stock_code,
+            'stock_name': stock.stock_name,
+            'trade_date': stock.trade_date,
+            'limit_up_reason': stock.limit_up_reason,
+            'limit_up_price': stock.limit_up_price,
+            'continuous_days': stock.continuous_days,
+            'limit_up_time': stock.limit_up_time,
+            'seal_amount': stock.seal_amount,
+            'turnover_rate': stock.turnover_rate
+        }
+        
+        # 检查是否已有缓存的分析结果
+        cached_result = session.query(AIAnalysisResult).filter(
+            AIAnalysisResult.stock_code == stock_code,
+            AIAnalysisResult.trade_date == stock_data['trade_date']
+        ).first()
+        
+        if cached_result:
+            print(f"从缓存读取 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']} 的分析结果")
+            analysis = json.loads(cached_result.analysis_result)
+        else:
+            print(f"缓存未命中,开始分析 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']}")
+            
+            # 初始化分析器
+            analyzer = LimitUpReasonAnalyzer()
+            
+            # 使用大模型分析涨停原因
+            analysis = analyzer.analyze_with_llm(
+                stock_data['limit_up_reason'],
+                stock_data['stock_code'],
+                stock_data['stock_name'],
+                stock_data['limit_up_price'],
+                stock_data['continuous_days'],
+                stock_data['limit_up_time'],
+                stock_data['seal_amount'],
+                stock_data['turnover_rate']
+            )
+            
+            # 如果分析成功,保存到数据库
+            if analysis and analysis.get('recommendation_score', 0) > 0:
+                try:
+                    new_result = AIAnalysisResult(
+                        stock_code=stock_data['stock_code'],
+                        stock_name=stock_data['stock_name'],
+                        trade_date=stock_data['trade_date'],
+                        analysis_result=json.dumps(analysis, ensure_ascii=False)
+                    )
+                    session.add(new_result)
+                    session.commit()
+                    print(f"成功保存分析结果到数据库")
+                except Exception as e:
+                    print(f"保存分析结果失败: {e}")
+                    session.rollback()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'stock_code': stock_data['stock_code'],
+                'stock_name': stock_data['stock_name'],
+                'trade_date': stock_data['trade_date'].strftime('%Y-%m-%d'),
+                'limit_up_reason': stock_data['limit_up_reason'],
+                'sectors': analysis.get('sectors', []),
+                'speculation_logic': analysis.get('speculation_logic', []),
+                'stock_attribute': analysis.get('stock_attribute', None),
+                'market_heat': analysis.get('market_heat', 0),
+                'recommendation_score': analysis.get('recommendation_score', 0),
+                'recommendation_reason': analysis.get('recommendation_reason', ''),
+                'analysis_summary': analysis.get('analysis_summary', ''),
+                'keywords': analysis.get('keywords', []),
+                'trading_advice': analysis.get('trading_advice', None)
+            }
+        })
+        
+    except Exception as e:
+        print(f"分析涨停原因失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/stocks/analyze', methods=['POST'])
+def batch_analyze_limit_up_reasons():
+    """
+    批量分析涨停原因
+    
+    Request Body:
+        {
+            "stocks": [
+                {"stock_code": "600000", "limit_up_reason": "..."},
+                ...
+            ]
+        }
+        
+    Returns:
+        批量分析结果
+    """
+    try:
+        data = request.get_json()
+        stocks = data.get('stocks', [])
+        
+        if not stocks:
+            return jsonify({
+                'success': False,
+                'error': '请提供股票数据'
+            }), 400
+        
+        # 初始化分析器
+        analyzer = LimitUpReasonAnalyzer()
+        
+        # 批量分析
+        results = analyzer.batch_analyze(stocks)
+        
+        return jsonify({
+            'success': True,
+            'data': results
+        })
+        
+    except Exception as e:
+        print(f"批量分析涨停原因失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

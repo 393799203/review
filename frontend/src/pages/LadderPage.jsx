@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge } from 'antd';
-import { EditOutlined, DiffOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, RobotOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
 import BlockStrengthModal from '../components/BlockStrengthModal';
 import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
+import StockAnalysisModal from '../components/StockAnalysisModal';
 
 const LadderPage = ({ showFirstBoard }) => {
   const { currentDate, loading, setLoading, refreshKey, autoRefresh } = useGlobal();
@@ -28,6 +29,9 @@ const LadderPage = ({ showFirstBoard }) => {
   const [previousStocks, setPreviousStocks] = useState([]);
   const [diffVisible, setDiffVisible] = useState(false);
   const [diffData, setDiffData] = useState({ added: [], removed: [] });
+  
+  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [analysisStock, setAnalysisStock] = useState(null);
   
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
@@ -425,6 +429,26 @@ const LadderPage = ({ showFirstBoard }) => {
                   {stock.high_days && stock.high_days !== '首板' && (
                     <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.high_days}</Tag>
                   )}
+                  <div 
+                    style={{ 
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      cursor: 'pointer',
+                      marginLeft: 4
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAnalysisStock({ code: stock.code, name: stock.name });
+                      setAnalysisVisible(true);
+                    }}
+                  >
+                    <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
+                  </div>
                 </div>
                 <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
                   涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿
@@ -541,7 +565,28 @@ const LadderPage = ({ showFirstBoard }) => {
                   <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.high_days}</Tag>
                 )}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 'bold', color: '#262626', marginBottom: 4 }}>{stock.name}</div>
+              <div style={{ fontSize: 15, fontWeight: 'bold', color: '#262626', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {stock.name}
+                <div 
+                  style={{ 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    cursor: 'pointer'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAnalysisStock({ code: stock.code, name: stock.name });
+                    setAnalysisVisible(true);
+                  }}
+                >
+                  <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
+                </div>
+              </div>
               <div style={{ fontSize: 11, color: '#666' }}>
                 <strong>涨停:</strong> {stock.limit_up_time || '-'} | <strong>封单:</strong> {(stock.seal_amount_wan / 10000).toFixed(2)}亿
               </div>
@@ -843,6 +888,16 @@ const LadderPage = ({ showFirstBoard }) => {
         onClose={() => {
           setKlineVisible(false);
           setSelectedStock(null);
+        }}
+      />
+      
+      <StockAnalysisModal
+        visible={analysisVisible}
+        stockCode={analysisStock?.code}
+        stockName={analysisStock?.name}
+        onClose={() => {
+          setAnalysisVisible(false);
+          setAnalysisStock(null);
         }}
       />
       
