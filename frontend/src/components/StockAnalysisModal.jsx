@@ -402,6 +402,111 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
             </Card>
           )}
 
+          {analysisData.holding_advice && (
+            <Card 
+              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>持有建议</span>}
+              size="small"
+              style={{ marginBottom: 12 }}
+              bodyStyle={{ padding: '8px 12px' }}
+            >
+              <div>
+                {analysisData.holding_advice.holding_strategy && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>持有策略</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.5 }}>{analysisData.holding_advice.holding_strategy}</div>
+                  </div>
+                )}
+                
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)', 
+                  gap: isMobile ? 6 : 8, 
+                  marginBottom: 8 
+                }}>
+                  {analysisData.holding_advice.target_price && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>目标价位</div>
+                      <Tag color="blue" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.holding_advice.target_price}</Tag>
+                    </div>
+                  )}
+                  
+                  {analysisData.holding_advice.holding_period && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>持有周期</div>
+                      <Tag color="cyan" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.holding_advice.holding_period}</Tag>
+                    </div>
+                  )}
+                  
+                  {analysisData.holding_advice.stop_loss_price && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>止损价位</div>
+                      <Tag color="red" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.holding_advice.stop_loss_price}</Tag>
+                    </div>
+                  )}
+                  
+                  {analysisData.holding_advice.take_profit_price && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 2 }}>止盈价位</div>
+                      <Tag color="green" style={{ 
+                        fontSize: 11, 
+                        padding: '2px 6px', 
+                        margin: 0,
+                        maxWidth: '100%',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        lineHeight: '16px'
+                      }}>{analysisData.holding_advice.take_profit_price}</Tag>
+                    </div>
+                  )}
+                </div>
+                
+                {analysisData.holding_advice.risk_warning && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>风险提示</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.5, color: '#f5222d' }}>{analysisData.holding_advice.risk_warning}</div>
+                  </div>
+                )}
+                
+                {analysisData.holding_advice.key_points && analysisData.holding_advice.key_points.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>关注要点</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {analysisData.holding_advice.key_points.map((point, index) => (
+                        <Tag key={index} color="default" style={{ fontSize: 10, padding: '1px 4px', margin: 0 }}>
+                          {point}
+                        </Tag>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
           <Divider style={{ margin: '8px 0' }} />
 
           <div style={{ 

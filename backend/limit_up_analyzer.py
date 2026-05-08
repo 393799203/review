@@ -31,59 +31,14 @@ class LimitUpReasonAnalyzer:
         """
         self.api_key = api_key or "sk-rjknkdqxefbxebrbfawaokciapqzjejqzqfvlehyhohiknys"
         self.api_url = "https://api.siliconflow.cn/v1/chat/completions"
-        self.model = "Pro/deepseek-ai/DeepSeek-V3.2"
         
-        # 板块关键词映射表（作为备用）
-        self.sector_keywords = {
-            '人工智能': ['AI', '人工智能', 'ChatGPT', '大模型', 'AIGC', '智能体', '机器视觉', '智能驾驶'],
-            '芯片': ['芯片', '半导体', '存储芯片', 'GPU', 'CPU', 'FPGA', '集成电路', '光刻机'],
-            '新能源': ['新能源', '锂电池', '光伏', '风电', '储能', '充电桩', '新能源汽车', '氢能源'],
-            '机器人': ['机器人', '人形机器人', '工业机器人', '服务机器人', '减速器', '伺服电机'],
-            '数据中心': ['数据中心', '算力', '液冷', '服务器', 'IDC', '云计算', '大数据'],
-            '消费电子': ['消费电子', '手机', 'VR', 'AR', 'MR', '智能穿戴', '耳机'],
-            '医药': ['医药', '创新药', '生物制药', '疫苗', '医疗器械', 'CXO'],
-            '军工': ['军工', '国防', '航空航天', '卫星', '导弹'],
-            '汽车': ['汽车', '整车', '零部件', '智能驾驶', '激光雷达'],
-            '金融': ['金融', '银行', '证券', '保险', '互联网金融'],
-        }
+        # 模型降级策略：优先使用V4-Flash，失败后降级到V3.2
+        self.models = [
+            "deepseek-ai/DeepSeek-V4-Flash",
+            "Pro/deepseek-ai/DeepSeek-V3.2"
+        ]
+        self.current_model_index = 0
         
-        # 炒作逻辑映射表（作为备用）
-        self.speculation_logic = {
-            '业绩爆发': '业绩增长',
-            '业绩增长': '业绩增长',
-            '扭亏为盈': '业绩增长',
-            '订单爆发': '订单驱动',
-            '大订单': '订单驱动',
-            '中标': '订单驱动',
-            '技术突破': '技术创新',
-            '新产品': '技术创新',
-            '专利': '技术创新',
-            '政策利好': '政策驱动',
-            '政策支持': '政策驱动',
-            '国家战略': '政策驱动',
-            '产能扩张': '产能扩张',
-            '新产能': '产能扩张',
-            '产能释放': '产能扩张',
-            '并购重组': '资本运作',
-            '重组': '资本运作',
-            '收购': '资本运作',
-            '股权转让': '资本运作',
-            '概念炒作': '概念炒作',
-            '题材': '概念炒作',
-            '热点': '概念炒作',
-        }
-        
-        # 市场热度权重
-        self.market_heat_weights = {
-            'AI': 1.5,
-            '人工智能': 1.5,
-            'ChatGPT': 1.8,
-            '机器人': 1.3,
-            '新能源': 1.2,
-            '芯片': 1.4,
-            '数据中心': 1.3,
-            '算力': 1.4,
-        }
     
     def analyze_with_llm(self, limit_up_reason: str, stock_code: str = None, stock_name: str = None, limit_up_price: float = None, continuous_days: int = None, limit_up_time = None, seal_amount: float = None, turnover_rate: float = None) -> Dict:
         """
@@ -159,6 +114,15 @@ class LimitUpReasonAnalyzer:
     "risk_level": "风险",
     "holding_period": "周期",
     "key_points": ["要点"]
+  }},
+  "holding_advice": {{
+    "holding_strategy": "持有策略",
+    "target_price": "目标价位",
+    "stop_loss_price": "止损价位",
+    "take_profit_price": "止盈价位",
+    "holding_period": "持有周期",
+    "risk_warning": "风险提示",
+    "key_points": ["关注要点"]
   }}
 }}
 
@@ -169,115 +133,150 @@ class LimitUpReasonAnalyzer:
 4. 价格基于涨停价计算
 5. recommendation_reason说明推荐理由
 6. market_heat市场热度评分0-10分,综合考虑板块热度、题材热度、资金关注度,7分以上高热度,4-7分中等,4分以下低热度
-7. 直接返回JSON"""
+7. trading_advice针对未持有该股票的买入建议
+8. holding_advice针对已持有该股票的持有建议,包括目标价位、止损止盈、持有周期等
+9. 直接返回JSON"""
 
             logger.info(f"构造的Prompt长度: {len(prompt)} 字符")
             logger.info(f"开始调用大模型API: {self.api_url}")
-            logger.info(f"使用模型: {self.model}")
             
-            # 调用大模型API
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": self.model,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.7,
-                "max_tokens": 1000
-            }
-            
-            start_time = time.time()
-            logger.info(f"API调用开始时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            response = requests.post(self.api_url, headers=headers, json=data, timeout=120)
-            
-            elapsed_time = time.time() - start_time
-            logger.info(f"API调用耗时: {elapsed_time:.2f}秒")
-            logger.info(f"API响应状态码: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                content = result['choices'][0]['message']['content']
+            # 尝试使用不同的模型
+            last_error = None
+            for model_index in range(len(self.models)):
+                current_model = self.models[model_index]
+                logger.info(f"尝试使用模型: {current_model} (第{model_index + 1}个模型)")
                 
-                logger.info(f"API返回内容长度: {len(content)} 字符")
-                logger.info(f"API返回原始内容:\n{content[:500]}...")  # 只显示前500个字符
-                
-                # 解析JSON结果
-                try:
-                    # 提取JSON部分
-                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group()
-                        logger.info(f"提取的JSON字符串长度: {len(json_str)} 字符")
-                        
-                        analysis = json.loads(json_str)
-                        logger.info(f"解析JSON成功")
-                        
-                        # 确保所有必需字段都存在
-                        if 'recommendation_score' not in analysis:
-                            analysis['recommendation_score'] = 3
-                        if 'recommendation_reason' not in analysis:
-                            analysis['recommendation_reason'] = '综合分析推荐'
-                        if 'analysis_summary' not in analysis:
-                            analysis['analysis_summary'] = '涨停原因分析完成'
-                        if 'trading_advice' not in analysis:
-                            analysis['trading_advice'] = None
-                        if 'stock_attribute' not in analysis:
-                            analysis['stock_attribute'] = None
-                        
-                        analysis['keywords'] = limit_up_reason.split('+')
-                        
-                        logger.info(f"========== 分析完成 {stock_name}({stock_code}) ==========")
-                        
-                        return analysis
-                    else:
-                        logger.error(f"无法从返回内容中提取JSON")
-                        logger.error(f"原始内容: {content}")
-                        return {
-                            'sectors': [],
-                            'speculation_logic': [],
-                            'stock_attribute': None,
-                            'market_heat': 5,
-                            'recommendation_score': 3,
-                            'recommendation_reason': '大模型返回格式错误',
-                            'analysis_summary': '分析失败',
-                            'trading_advice': None,
-                            'keywords': limit_up_reason.split('+')
-                        }
-                except json.JSONDecodeError as e:
-                    logger.error(f"解析大模型返回的JSON失败: {e}")
-                    logger.error(f"原始内容: {content}")
-                    # 返回默认值
-                    return {
-                        'sectors': [],
-                        'speculation_logic': [],
-                        'stock_attribute': None,
-                        'market_heat': 5,
-                        'recommendation_score': 3,
-                        'recommendation_reason': '大模型分析失败，请稍后重试',
-                        'analysis_summary': '分析失败',
-                        'trading_advice': None,
-                        'keywords': limit_up_reason.split('+')
-                    }
-            else:
-                logger.error(f"调用大模型API失败: {response.status_code}")
-                logger.error(f"错误响应: {response.text}")
-                # 返回错误信息
-                return {
-                    'sectors': [],
-                    'speculation_logic': [],
-                    'stock_attribute': None,
-                    'market_heat': 0,
-                    'recommendation_score': 0,
-                    'recommendation_reason': f'API调用失败: {response.status_code}',
-                    'analysis_summary': '分析失败',
-                    'trading_advice': None,
-                    'keywords': limit_up_reason.split('+')
+                # 调用大模型API
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
                 }
+                
+                data = {
+                    "model": current_model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 1000
+                }
+                
+                start_time = time.time()
+                logger.info(f"API调用开始时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # 重试机制
+                max_retries = 3
+                for retry in range(max_retries):
+                    try:
+                        if retry > 0:
+                            # 重试前等待
+                            wait_time = 5 * retry  # 递增等待时间
+                            logger.info(f"等待 {wait_time} 秒后重试...")
+                            time.sleep(wait_time)
+                        
+                        response = requests.post(self.api_url, headers=headers, json=data, timeout=120)
+                        
+                        elapsed_time = time.time() - start_time
+                        logger.info(f"API调用耗时: {elapsed_time:.2f}秒")
+                        logger.info(f"API响应状态码: {response.status_code}")
+                        
+                        if response.status_code == 503:
+                            logger.warning(f"API返回503错误，系统繁忙 (重试 {retry + 1}/{max_retries})")
+                            if retry < max_retries - 1:
+                                continue  # 继续重试
+                            else:
+                                # 最后一次重试也失败了，尝试下一个模型
+                                logger.warning(f"模型 {current_model} 所有重试都失败，尝试下一个模型")
+                                last_error = f"模型 {current_model} 系统繁忙"
+                                break
+                        
+                        # 成功或其他错误，跳出重试循环
+                        break
+                        
+                    except requests.exceptions.Timeout as e:
+                        logger.error(f"API调用超时 (重试 {retry + 1}/{max_retries}): {e}")
+                        if retry < max_retries - 1:
+                            continue
+                        else:
+                            logger.warning(f"模型 {current_model} 超时，尝试下一个模型")
+                            last_error = f"模型 {current_model} 超时"
+                            break
+                    except Exception as e:
+                        logger.error(f"API调用异常: {e}")
+                        last_error = f"模型 {current_model} 异常: {str(e)}"
+                        break
+                
+                # 检查是否成功
+                if response.status_code == 200:
+                    result = response.json()
+                    content = result['choices'][0]['message']['content']
+                    
+                    logger.info(f"API返回内容长度: {len(content)} 字符")
+                    logger.info(f"API返回原始内容:\n{content[:500]}...")  # 只显示前500个字符
+                    
+                    # 解析JSON结果
+                    try:
+                        # 提取JSON部分
+                        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                        if json_match:
+                            json_str = json_match.group()
+                            logger.info(f"提取的JSON字符串长度: {len(json_str)} 字符")
+                            
+                            analysis = json.loads(json_str)
+                            logger.info(f"解析JSON成功")
+                            
+                            # 确保所有必需字段都存在
+                            if 'recommendation_score' not in analysis:
+                                analysis['recommendation_score'] = 3
+                            if 'recommendation_reason' not in analysis:
+                                analysis['recommendation_reason'] = '综合分析推荐'
+                            if 'analysis_summary' not in analysis:
+                                analysis['analysis_summary'] = '涨停原因分析完成'
+                            if 'trading_advice' not in analysis:
+                                analysis['trading_advice'] = None
+                            if 'stock_attribute' not in analysis:
+                                analysis['stock_attribute'] = None
+                            if 'holding_advice' not in analysis:
+                                analysis['holding_advice'] = None
+                            
+                            analysis['keywords'] = limit_up_reason.split('+')
+                            
+                            logger.info(f"========== 分析完成 {stock_name}({stock_code}) ==========")
+                            
+                            return analysis
+                        else:
+                            logger.error(f"无法从返回内容中提取JSON")
+                            logger.error(f"原始内容: {content}")
+                            # 尝试下一个模型
+                            last_error = f"模型 {current_model} 返回格式错误"
+                            continue
+                    except json.JSONDecodeError as e:
+                        logger.error(f"解析大模型返回的JSON失败: {e}")
+                        logger.error(f"原始内容: {content}")
+                        # 尝试下一个模型
+                        last_error = f"模型 {current_model} JSON解析失败"
+                        continue
+                else:
+                    logger.error(f"调用大模型API失败: {response.status_code}")
+                    logger.error(f"错误响应: {response.text}")
+                    # 尝试下一个模型
+                    last_error = f"模型 {current_model} API调用失败: {response.status_code}"
+                    continue
+            
+            # 所有模型都失败了
+            logger.error(f"所有模型都失败: {last_error}")
+            return {
+                'sectors': [],
+                'speculation_logic': [],
+                'stock_attribute': None,
+                'market_heat': 0,
+                'recommendation_score': 0,
+                'recommendation_reason': f'所有模型都失败: {last_error}',
+                'analysis_summary': '分析失败',
+                'trading_advice': None,
+                'holding_advice': None,
+                'keywords': limit_up_reason.split('+')
+            }
                 
         except requests.exceptions.Timeout as e:
             logger.error(f"大模型API超时: {e}")
@@ -292,6 +291,7 @@ class LimitUpReasonAnalyzer:
                 'recommendation_reason': '大模型API超时，请稍后重试',
                 'analysis_summary': '分析超时',
                 'trading_advice': None,
+                'holding_advice': None,
                 'keywords': limit_up_reason.split('+')
             }
         except Exception as e:
@@ -306,311 +306,7 @@ class LimitUpReasonAnalyzer:
                 'recommendation_reason': f'分析失败: {str(e)}',
                 'analysis_summary': '分析失败',
                 'trading_advice': None,
+                'holding_advice': None,
                 'keywords': limit_up_reason.split('+')
             }
     
-    def analyze_reason(self, limit_up_reason: str, stock_code: str = None, continuous_days: int = None) -> Dict:
-        """
-        分析涨停原因，提取炒作逻辑、关联板块和推荐指数
-        
-        Args:
-            limit_up_reason: 涨停原因
-            stock_code: 股票代码（可选）
-            continuous_days: 连板数（可选）
-            
-        Returns:
-            分析结果字典
-        """
-        if not limit_up_reason:
-            return {
-                'sectors': [],
-                'speculation_logic': [],
-                'market_heat': 0,
-                'recommendation_score': 0,
-                'analysis_summary': '无涨停原因'
-            }
-        
-        # 提取关键词
-        keywords = self._extract_keywords(limit_up_reason)
-        
-        # 识别关联板块
-        sectors = self._identify_sectors(keywords)
-        
-        # 识别炒作逻辑
-        logic = self._identify_speculation_logic(keywords)
-        
-        # 计算市场热度
-        market_heat = self._calculate_market_heat(keywords, sectors)
-        
-        # 计算推荐指数
-        recommendation_score = self._calculate_recommendation_score(
-            sectors, logic, market_heat, continuous_days
-        )
-        
-        # 生成推荐原因
-        recommendation_reason = self._generate_recommendation_reason(
-            recommendation_score, sectors, logic, market_heat, continuous_days
-        )
-        
-        # 生成分析摘要
-        analysis_summary = self._generate_analysis_summary(
-            sectors, logic, market_heat, recommendation_score
-        )
-        
-        return {
-            'sectors': sectors,
-            'speculation_logic': logic,
-            'market_heat': market_heat,
-            'recommendation_score': recommendation_score,
-            'recommendation_reason': recommendation_reason,
-            'analysis_summary': analysis_summary,
-            'keywords': keywords
-        }
-    
-    def _extract_keywords(self, reason: str) -> List[str]:
-        """从涨停原因中提取关键词"""
-        # 按+号分割
-        keywords = reason.split('+')
-        
-        # 清理空白字符
-        keywords = [k.strip() for k in keywords if k.strip()]
-        
-        return keywords
-    
-    def _identify_sectors(self, keywords: List[str]) -> List[Dict]:
-        """识别关联板块"""
-        sectors = []
-        sector_scores = defaultdict(float)
-        
-        for keyword in keywords:
-            for sector_name, sector_keywords in self.sector_keywords.items():
-                # 检查关键词是否匹配板块关键词
-                for sk in sector_keywords:
-                    if sk in keyword or keyword in sk:
-                        # 计算匹配度
-                        match_score = len(sk) / max(len(keyword), len(sk))
-                        sector_scores[sector_name] += match_score
-                        break
-        
-        # 排序并返回
-        sorted_sectors = sorted(sector_scores.items(), key=lambda x: x[1], reverse=True)
-        
-        for sector_name, score in sorted_sectors[:3]:  # 只返回前3个板块
-            sectors.append({
-                'name': sector_name,
-                'score': round(score, 2),
-                'keywords': self.sector_keywords.get(sector_name, [])
-            })
-        
-        return sectors
-    
-    def _identify_speculation_logic(self, keywords: List[str]) -> List[Dict]:
-        """识别炒作逻辑"""
-        logic_list = []
-        
-        for keyword in keywords:
-            for logic_key, logic_name in self.speculation_logic.items():
-                if logic_key in keyword:
-                    logic_list.append({
-                        'keyword': keyword,
-                        'logic': logic_name,
-                        'description': f'{keyword} -> {logic_name}'
-                    })
-                    break
-        
-        # 去重
-        seen = set()
-        unique_logic = []
-        for item in logic_list:
-            if item['logic'] not in seen:
-                seen.add(item['logic'])
-                unique_logic.append(item)
-        
-        return unique_logic
-    
-    def _calculate_market_heat(self, keywords: List[str], sectors: List[Dict]) -> float:
-        """计算市场热度"""
-        heat_score = 0.0
-        
-        # 基于关键词计算热度
-        for keyword in keywords:
-            for heat_key, weight in self.market_heat_weights.items():
-                if heat_key in keyword:
-                    heat_score += weight
-                    break
-        
-        # 基于板块计算热度
-        for sector in sectors:
-            if sector['name'] in self.market_heat_weights:
-                heat_score += self.market_heat_weights[sector['name']] * sector['score']
-        
-        # 归一化到0-10
-        heat_score = min(heat_score, 10)
-        
-        return round(heat_score, 2)
-    
-    def _calculate_recommendation_score(
-        self, 
-        sectors: List[Dict], 
-        logic: List[Dict], 
-        market_heat: float,
-        continuous_days: int = None
-    ) -> int:
-        """
-        计算买入推荐指数（1-5星）
-        
-        评分维度：
-        1. 连板数（最重要）：首板4-5星，2连板3-4星，3连板以上2-3星
-        2. 板块强度（0-2分）
-        3. 炒作逻辑清晰度（0-1.5分）
-        4. 市场热度（0-1.5分）
-        """
-        # 根据连板数确定基础推荐指数
-        if continuous_days is None or continuous_days == 1:
-            # 首板：4-5星
-            base_score = 4
-        elif continuous_days == 2:
-            # 2连板：3-4星
-            base_score = 3
-        else:
-            # 3连板以上：2-3星
-            base_score = 2
-        
-        score = 0.0
-        
-        # 板块强度（板块数量和匹配度）
-        if sectors:
-            sector_score = sum(s['score'] for s in sectors[:2])
-            score += min(sector_score, 2)
-        
-        # 炒作逻辑清晰度
-        if logic:
-            logic_score = min(len(logic) * 0.5, 1.5)
-            score += logic_score
-        
-        # 市场热度
-        heat_score = market_heat / 10 * 1.5
-        score += heat_score
-        
-        # 最终推荐指数：基础分数 + 额外分数
-        # 额外分数最多增加1星
-        extra_stars = int(score / 3)  # 每3分增加1星
-        stars = base_score + extra_stars
-        stars = max(1, min(5, stars))
-        
-        return stars
-    
-    def _generate_recommendation_reason(
-        self, 
-        recommendation_score: int,
-        sectors: List[Dict], 
-        logic: List[Dict], 
-        market_heat: float,
-        continuous_days: int = None
-    ) -> str:
-        """生成推荐原因"""
-        reasons = []
-        
-        # 根据连板数给出原因
-        if continuous_days is None or continuous_days == 1:
-            reasons.append("首板涨停，上涨空间较大")
-        elif continuous_days == 2:
-            reasons.append("2连板，需注意高位风险")
-        else:
-            reasons.append(f"{continuous_days}连板，短期涨幅过大，风险较高")
-        
-        # 板块热度
-        if market_heat >= 7:
-            reasons.append("板块热度高，资金关注度高")
-        elif market_heat >= 4:
-            reasons.append("板块热度中等")
-        else:
-            reasons.append("板块热度较低")
-        
-        # 炒作逻辑
-        if logic:
-            logic_names = [l['logic'] for l in logic[:2]]
-            reasons.append(f"炒作逻辑清晰：{'+'.join(logic_names)}")
-        
-        return "；".join(reasons)
-    
-    def _generate_analysis_summary(
-        self, 
-        sectors: List[Dict], 
-        logic: List[Dict], 
-        market_heat: float,
-        recommendation_score: int
-    ) -> str:
-        """生成分析摘要"""
-        parts = []
-        
-        # 板块分析
-        if sectors:
-            sector_names = [s['name'] for s in sectors[:2]]
-            parts.append(f"关联板块：{'+'.join(sector_names)}")
-        
-        # 炒作逻辑
-        if logic:
-            logic_names = [l['logic'] for l in logic[:2]]
-            parts.append(f"炒作逻辑：{'+'.join(logic_names)}")
-        
-        # 市场热度
-        if market_heat > 0:
-            heat_level = "高" if market_heat > 7 else "中" if market_heat > 4 else "低"
-            parts.append(f"市场热度：{heat_level}({market_heat})")
-        
-        # 推荐指数
-        stars = "★" * recommendation_score + "☆" * (5 - recommendation_score)
-        parts.append(f"推荐指数：{stars}")
-        
-        return " | ".join(parts)
-    
-    def batch_analyze(self, stocks_data: List[Dict]) -> List[Dict]:
-        """
-        批量分析多只股票
-        
-        Args:
-            stocks_data: 股票数据列表，每个元素包含stock_code, stock_name, limit_up_reason
-            
-        Returns:
-            分析结果列表
-        """
-        results = []
-        
-        for stock in stocks_data:
-            analysis = self.analyze_reason(
-                stock.get('limit_up_reason', ''),
-                stock.get('stock_code')
-            )
-            
-            results.append({
-                'stock_code': stock.get('stock_code'),
-                'stock_name': stock.get('stock_name'),
-                'limit_up_reason': stock.get('limit_up_reason'),
-                **analysis
-            })
-        
-        return results
-
-
-# 使用示例
-if __name__ == '__main__':
-    analyzer = LimitUpReasonAnalyzer()
-    
-    # 测试用例
-    test_cases = [
-        '存储芯片+AI端侧+业绩爆发',
-        '连接器+数据中心+人形机器人',
-        '数据中心+液冷阀门+出口占比高',
-        '圆柱电池+人形机器人+马来西亚产能',
-        '智算中心+算力租赁',
-    ]
-    
-    for reason in test_cases:
-        result = analyzer.analyze_reason(reason)
-        print(f"\n涨停原因: {reason}")
-        print(f"分析结果: {result['analysis_summary']}")
-        print(f"关联板块: {[s['name'] for s in result['sectors']]}")
-        print(f"炒作逻辑: {[l['logic'] for l in result['speculation_logic']]}")
-        print(f"市场热度: {result['market_heat']}")
-        print(f"推荐指数: {'★' * result['recommendation_score']}{'☆' * (5 - result['recommendation_score'])}")
