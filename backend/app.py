@@ -1391,7 +1391,8 @@ def analyze_limit_up_reason(stock_code):
                 'recommendation_reason': analysis.get('recommendation_reason', ''),
                 'analysis_summary': analysis.get('analysis_summary', ''),
                 'keywords': analysis.get('keywords', []),
-                'trading_advice': analysis.get('trading_advice', None)
+                'trading_advice': analysis.get('trading_advice', None),
+                'holding_advice': analysis.get('holding_advice', None)
             }
         })
         
@@ -1405,51 +1406,6 @@ def analyze_limit_up_reason(stock_code):
         }), 500
     finally:
         session.close()
-
-
-@app.route('/api/stocks/analyze', methods=['POST'])
-def batch_analyze_limit_up_reasons():
-    """
-    批量分析涨停原因
-    
-    Request Body:
-        {
-            "stocks": [
-                {"stock_code": "600000", "limit_up_reason": "..."},
-                ...
-            ]
-        }
-        
-    Returns:
-        批量分析结果
-    """
-    try:
-        data = request.get_json()
-        stocks = data.get('stocks', [])
-        
-        if not stocks:
-            return jsonify({
-                'success': False,
-                'error': '请提供股票数据'
-            }), 400
-        
-        # 初始化分析器
-        analyzer = LimitUpReasonAnalyzer()
-        
-        # 批量分析
-        results = analyzer.batch_analyze(stocks)
-        
-        return jsonify({
-            'success': True,
-            'data': results
-        })
-        
-    except Exception as e:
-        print(f"批量分析涨停原因失败: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 
 if __name__ == '__main__':
