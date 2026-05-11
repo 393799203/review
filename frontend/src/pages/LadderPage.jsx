@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge } from 'antd';
+import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select } from 'antd';
 import { EditOutlined, DiffOutlined, RobotOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
@@ -8,9 +8,11 @@ import BlockStrengthModal from '../components/BlockStrengthModal';
 import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
+import axios from 'axios';
 
-const LadderPage = ({ showFirstBoard }) => {
-  const { currentDate, loading, setLoading, refreshKey, autoRefresh } = useGlobal();
+const LadderPage = () => {
+  const { currentDate, loading, setLoading, refreshKey, autoRefresh, showFirstBoard } = useGlobal();
+  const showFirstBoardProp = showFirstBoard;
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [yesterdayData, setYesterdayData] = useState(null);
@@ -25,13 +27,16 @@ const LadderPage = ({ showFirstBoard }) => {
   const [editingStock, setEditingStock] = useState(null);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
-  
+
   const [previousStocks, setPreviousStocks] = useState([]);
   const [diffVisible, setDiffVisible] = useState(false);
   const [diffData, setDiffData] = useState({ added: [], removed: [] });
-  
+
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [analysisStock, setAnalysisStock] = useState(null);
+
+  const [blockFilterDay, setBlockFilterDay] = useState('today');
+  const [blockStrengthData, setBlockStrengthData] = useState({});
   
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
@@ -54,8 +59,29 @@ const LadderPage = ({ showFirstBoard }) => {
       }
       lastDateRef.current = currentDate;
       loadData(currentDate);
+      loadBlockStrengthData();
     }
   }, [currentDate, refreshKey]);
+
+  const loadBlockStrengthData = async () => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      const response = await axios.get(`${API_BASE}/block-strength/continuous?date=${currentDate}`);
+      if (response.data.success) {
+        setBlockStrengthData(response.data.data);
+        setSelectedBlocks([]);
+      }
+    } catch (error) {
+      console.error('加载板块强度数据失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (currentDate) {
+      loadBlockStrengthData();
+    }
+  }, [blockFilterDay]);
 
   const loadData = async (dateStr) => {
     try {
@@ -81,21 +107,9 @@ const LadderPage = ({ showFirstBoard }) => {
           const previousCodes = new Set(previousStocksRef.current.map(s => s.code));
           const currentCodes = new Set(currentStocks.map(s => s.code));
           
-          console.log('之前的股票代码:', Array.from(previousCodes).slice(0, 10));
-          console.log('当前的股票代码:', Array.from(currentCodes).slice(0, 10));
-          
           const added = currentStocks.filter(s => !previousCodes.has(s.code));
           
           const removed = previousStocksRef.current.filter(s => !currentCodes.has(s.code));
-          
-          console.log('数据对比:', {
-            之前股票数: previousStocksRef.current.length,
-            当前股票数: currentStocks.length,
-            新增: added.length,
-            减少: removed.length,
-            新增股票: added,
-            减少股票: removed
-          });
           
           if (added.length > 0 || removed.length > 0) {
             setDiffData(prev => {
@@ -110,15 +124,7 @@ const LadderPage = ({ showFirstBoard }) => {
                 removed: [...prev.removed, ...newRemoved],
               };
             });
-            console.log('检测到数据变化，已累积对比结果');
-          } else {
-            console.log('数据无变化');
-            if (previousStocksRef.current.length !== currentStocks.length) {
-              console.warn('警告：股票数量变化但未检测到新增或减少，可能是数据格式问题');
-            }
           }
-        } else {
-          console.log('首次加载或日期切换，跳过对比');
         }
         
         setLadderData(data.ladder);
@@ -128,21 +134,6 @@ const LadderPage = ({ showFirstBoard }) => {
         setNextDayDate(data.next_day_date || null);
         previousStocksRef.current = currentStocks;
         setPreviousStocks(currentStocks);
-        
-        const isBroken = data.yesterday && data.ladder && data.ladder.length > 0;
-        if (isBroken) {
-          const todayMaxLevel = Math.max(...data.ladder.map(item => item.level));
-          const expectedLevel = data.yesterday.max_level + 1;
-          const isBrokenDay = todayMaxLevel !== expectedLevel;
-          
-          if (isBrokenDay && data.next_day_blocks && data.next_day_blocks.length > 0) {
-            setSelectedBlocks(data.next_day_blocks.map(b => b.block_name));
-          } else {
-            setSelectedBlocks([]);
-          }
-        } else {
-          setSelectedBlocks([]);
-        }
       } else {
         const errorMsg = response.data.error || '加载数据失败';
         message.error(errorMsg);
@@ -151,7 +142,6 @@ const LadderPage = ({ showFirstBoard }) => {
         setYesterdayData(null);
         setNextDayBlocks([]);
         setNextDayDate(null);
-        setSelectedBlocks([]);
       }
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message || '加载数据失败';
@@ -161,7 +151,6 @@ const LadderPage = ({ showFirstBoard }) => {
       setYesterdayData(null);
       setNextDayBlocks([]);
       setNextDayDate(null);
-      setSelectedBlocks([]);
     } finally {
       setLoading(false);
     }
@@ -343,20 +332,22 @@ const LadderPage = ({ showFirstBoard }) => {
   };
 
   const getBlockRankColor = (blockName) => {
-    if (!blockName || !nextDayBlocks || nextDayBlocks.length === 0) return null;
-    
-    const blockRank = nextDayBlocks.find(b => b.block_name === blockName);
+    if (selectedBlocks.length === 0) return null;
+
+    if (!blockName || !blockStrengthData[blockFilterDay]?.blocks || blockStrengthData[blockFilterDay].blocks.length === 0) return null;
+
+    const blockRank = blockStrengthData[blockFilterDay].blocks.find(b => b.block_name === blockName);
     if (!blockRank) return null;
-    
+
     const colorMap = {
-      1: '#f5222d',  // 第1名 - 红色
-      2: '#fa8c16',  // 第2名 - 橙色
-      3: '#faad14',  // 第3名 - 黄色
-      4: '#52c41a',  // 第4名 - 绿色
-      5: '#1890ff',  // 第5名 - 蓝色
+      1: '#f5222d',
+      2: '#fa8c16',
+      3: '#faad14',
+      4: '#52c41a',
+      5: '#1890ff',
     };
-    
-    return colorMap[blockRank.rank] || '#b37feb';  // 第6名及以后 - 淡紫色
+
+    return colorMap[blockRank.rank] || '#b37feb';
   };
 
   const renderStockCard = (stock) => {
@@ -672,11 +663,14 @@ const LadderPage = ({ showFirstBoard }) => {
   const renderLadder = () => {
     if (!ladderData || ladderData.length === 0) return null;
 
-    const displayLadder = showFirstBoard 
-      ? ladderData 
-      : ladderData.filter(item => item.level !== 1);
+    const displayLadder = ladderData;
 
     return displayLadder.map(item => {
+      // 根据showFirstBoard过滤首板
+      if (!showFirstBoardProp && (item.level === 0 || item.label === '首板')) {
+        return null;
+      }
+
       // 根据选中的板块过滤股票
       const filteredStocks = selectedBlocks.length > 0
         ? item.stocks.filter(stock => selectedBlocks.includes(stock.block_name))
@@ -724,17 +718,16 @@ const LadderPage = ({ showFirstBoard }) => {
 
   const renderLadderTitle = () => {
     const broken = isBrokenBoard();
-    const hasNextDayBlocks = nextDayBlocks && nextDayBlocks.length > 0;
-    
+
     return (
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 8 : 12 }}>
           <h2 style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>🎯 涨停梯队</h2>
           <div style={{ display: 'flex', gap: 8 }}>
             {broken && (
-              <Button 
-                type="primary" 
-                danger 
+              <Button
+                type="primary"
+                danger
                 size="small"
                 onClick={() => setWencaiVisible(true)}
                 style={{ fontSize: isMobile ? 12 : 14 }}
@@ -742,55 +735,71 @@ const LadderPage = ({ showFirstBoard }) => {
                 断板日选股
               </Button>
             )}
-            {hasNextDayBlocks && (
-              <Button 
-                type="primary" 
-                size="small"
-                onClick={() => setBlockStrengthVisible(true)}
-                style={{ fontSize: isMobile ? 12 : 14 }}
-              >
-                次日强势板块
-              </Button>
-            )}
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => setBlockStrengthVisible(true)}
+              style={{ fontSize: isMobile ? 12 : 14 }}
+            >
+              强势板块
+            </Button>
           </div>
         </div>
-        
-        {hasNextDayBlocks && (
-          <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>次日强势板块：</span>
-            <Tag 
-              color={selectedBlocks.length === 0 ? 'blue' : 'default'}
-              style={{ cursor: 'pointer', margin: 0 }}
-              onClick={() => {
-                if (selectedBlocks.length === 0) {
-                  // 当前是"全部"状态，恢复上一次的选择
-                  if (previousSelectedBlocks.length > 0) {
-                    setSelectedBlocks(previousSelectedBlocks);
-                    setPreviousSelectedBlocks([]);
-                  }
+
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>日期筛选：</span>
+          {['yesterday', 'today', 'tomorrow'].map((day) => {
+            const dayLabel = { yesterday: '昨日', today: '今日', tomorrow: '明日' };
+            const dayColor = { yesterday: '#722ed1', today: '#1890ff', tomorrow: '#52c41a' };
+            return (
+              <Tag
+                key={day}
+                color={blockFilterDay === day ? dayColor[day] : 'default'}
+                style={{ cursor: 'pointer', margin: 0, fontWeight: blockFilterDay === day ? 'bold' : 'normal' }}
+                onClick={() => setBlockFilterDay(day)}
+              >
+                {dayLabel[day]}
+              </Tag>
+            );
+          })}
+        </div>
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>板块筛选：</span>
+          <Tag
+            color={selectedBlocks.length === (blockStrengthData[blockFilterDay]?.blocks || []).length && (blockStrengthData[blockFilterDay]?.blocks || []).length > 0 ? 'blue' : 'default'}
+            style={{ cursor: 'pointer', margin: 0 }}
+            onClick={() => {
+              const allBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).map(b => b.block_name);
+              if (allBlocks.length === 0) return;
+              if (selectedBlocks.length === allBlocks.length) {
+                if (previousSelectedBlocks.length > 0) {
+                  setSelectedBlocks(previousSelectedBlocks);
+                  setPreviousSelectedBlocks([]);
                 } else {
-                  // 当前不是"全部"状态，保存当前选择并切换到"全部"
-                  setPreviousSelectedBlocks(selectedBlocks);
                   setSelectedBlocks([]);
                 }
-              }}
-            >
-              全部
-            </Tag>
-            {(isMobile ? nextDayBlocks.slice(0, 5) : nextDayBlocks).map((block) => {
+              } else {
+                setPreviousSelectedBlocks(selectedBlocks);
+                setSelectedBlocks(allBlocks);
+              }
+            }}
+          >
+            全部
+          </Tag>
+          {(isMobile ? (blockStrengthData[blockFilterDay]?.blocks || []).slice(0, 5) : (blockStrengthData[blockFilterDay]?.blocks || [])).map((block) => {
               const colorMap = {
-                1: '#f5222d',  // 第1名 - 红色
-                2: '#fa8c16',  // 第2名 - 橙色
-                3: '#faad14',  // 第3名 - 黄色
-                4: '#52c41a',  // 第4名 - 绿色
-                5: '#1890ff',  // 第5名 - 蓝色
+                1: '#f5222d',
+                2: '#fa8c16',
+                3: '#faad14',
+                4: '#52c41a',
+                5: '#1890ff',
               };
-              
+
               const isSelected = selectedBlocks.includes(block.block_name);
               const tagColor = isSelected ? (colorMap[block.rank] || '#b37feb') : 'default';
-              
+
               return (
-                <Tag 
+                <Tag
                   key={block.block_name}
                   color={tagColor}
                   style={{ cursor: 'pointer', margin: 0 }}
@@ -806,32 +815,29 @@ const LadderPage = ({ showFirstBoard }) => {
                 </Tag>
               );
             })}
-            {isMobile && nextDayBlocks.length > 5 && (
-              <Tag 
-                color={selectedBlocks.some(b => {
-                  const otherBlocks = nextDayBlocks.slice(5);
-                  return otherBlocks.some(ob => ob.block_name === b);
-                }) ? '#b37feb' : 'default'}
-                style={{ cursor: 'pointer', margin: 0 }}
-                onClick={() => {
-                  const otherBlocks = nextDayBlocks.slice(5);
-                  const otherBlockNames = otherBlocks.map(b => b.block_name);
-                  const hasOtherSelected = selectedBlocks.some(b => otherBlockNames.includes(b));
-                  
-                  if (hasOtherSelected) {
-                    // 取消选中所有其他板块
-                    setSelectedBlocks(selectedBlocks.filter(b => !otherBlockNames.includes(b)));
-                  } else {
-                    // 选中所有其他板块
-                    setSelectedBlocks([...selectedBlocks, ...otherBlockNames]);
-                  }
-                }}
-              >
-                其他板块
+          {isMobile && (blockStrengthData[blockFilterDay]?.blocks || []).length > 5 && (
+            <Tag
+              color={selectedBlocks.some(b => {
+                const otherBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).slice(5);
+                return otherBlocks.some(ob => ob.block_name === b);
+              }) ? '#b37feb' : 'default'}
+              style={{ cursor: 'pointer', margin: 0 }}
+              onClick={() => {
+                const otherBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).slice(5);
+                const otherBlockNames = otherBlocks.map(b => b.block_name);
+                const hasOtherSelected = selectedBlocks.some(b => otherBlockNames.includes(b));
+
+                if (hasOtherSelected) {
+                  setSelectedBlocks(selectedBlocks.filter(b => !otherBlockNames.includes(b)));
+                } else {
+                  setSelectedBlocks([...selectedBlocks, ...otherBlockNames]);
+                }
+              }}
+            >
+              其他板块
               </Tag>
             )}
           </div>
-        )}
       </div>
     );
   };
@@ -860,7 +866,7 @@ const LadderPage = ({ showFirstBoard }) => {
         <BlockStrengthModal
           visible={blockStrengthVisible}
           onClose={() => setBlockStrengthVisible(false)}
-          dateStr={nextDayDate || currentDate}
+          date={currentDate}
         />
       )}
       
@@ -960,7 +966,7 @@ const LadderPage = ({ showFirstBoard }) => {
         <div
           style={{
             position: 'fixed',
-            left: 16,
+            right: 16,
             bottom: 16,
             zIndex: 1000,
           }}

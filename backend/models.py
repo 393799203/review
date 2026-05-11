@@ -180,6 +180,32 @@ class AIAnalysisResult(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class User(Base):
+    """用户表"""
+    __tablename__ = 'users'
+    __table_args__ = (
+        UniqueConstraint('username', name='uq_user_username'),
+        UniqueConstraint('email', name='uq_user_email'),
+        Index('idx_users_username', 'username'),
+        Index('idx_users_email', 'email'),
+    )
+    
+    uid = Column(String(36), primary_key=True)
+    username = Column(String(50), nullable=False, unique=True)
+    email = Column(String(100), nullable=False, unique=True)
+    password_hash = Column(String(255), nullable=False)
+    nickname = Column(String(50))
+    avatar = Column(String(255))
+    role = Column(String(20), default='user')  # user:普通用户, admin:管理员, vip:VIP用户
+    is_vip = Column(Integer, default=0)  # 0:非VIP, 1:VIP
+    vip_expire_date = Column(Date)  # VIP到期日期
+    settings = Column(Text)  # JSON格式的用户设置
+    is_active = Column(Integer, default=1)
+    last_login = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class DatabaseConfig:
     """数据库配置"""
     

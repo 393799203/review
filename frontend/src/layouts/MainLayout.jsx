@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, DatePicker, Button, Switch, Select, Space, Popover } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar } from 'antd';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 
 const { Sider, Content, Header } = Layout;
@@ -11,9 +12,10 @@ const MainLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
-  const [showFirstBoard, setShowFirstBoard] = useState(true);
   const [popoverVisible, setPopoverVisible] = useState(false);
-  
+
+  const { user, logout, isAuthenticated } = useAuth();
+
   const {
     currentDate,
     latestDate,
@@ -25,6 +27,8 @@ const MainLayout = ({ children }) => {
     setRefreshInterval,
     smartMode,
     setSmartMode,
+    showFirstBoard,
+    setShowFirstBoard,
     setAutoRefreshCallback,
     loadPageSettings,
     handleDateChange,
@@ -41,10 +45,10 @@ const MainLayout = ({ children }) => {
       '/watchlist': 'watchlist',
       '/statistics': 'statistics',
     };
-    
+
     const page = pageMap[location.pathname] || 'ladder';
     loadPageSettings(page);
-    
+
     if (location.pathname === '/') {
       setAutoRefreshCallback(refreshCurrentData);
     } else if (location.pathname === '/watchlist') {
@@ -52,7 +56,7 @@ const MainLayout = ({ children }) => {
     } else if (location.pathname === '/statistics') {
       setAutoRefreshCallback(refreshStatistics);
     }
-    
+
     return () => {
       setAutoRefreshCallback(null);
     };
@@ -66,13 +70,6 @@ const MainLayout = ({ children }) => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  useEffect(() => {
-    if (currentDate && latestDate) {
-      const isLatest = currentDate === latestDate;
-      setShowFirstBoard(!isLatest);
-    }
-  }, [currentDate, latestDate]);
 
   const menuItems = [
     {
@@ -110,10 +107,21 @@ const MainLayout = ({ children }) => {
   const renderHeaderRight = () => {
     const isWatchlistPage = location.pathname === '/watchlist';
     const isStatisticsPage = location.pathname === '/statistics';
-    const isLadderPage = location.pathname === '/';
-    
+
     const settingsContent = (
       <div style={{ width: isMobile ? 200 : 250 }}>
+        {isLadderPage && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>显示首板</div>
+            <Switch
+              checked={showFirstBoard}
+              onChange={setShowFirstBoard}
+              checkedChildren="开启"
+              unCheckedChildren="关闭"
+            />
+          </div>
+        )}
+
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>刷新时段</div>
           <Select
@@ -126,7 +134,7 @@ const MainLayout = ({ children }) => {
             ]}
           />
         </div>
-        
+
         <div>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>刷新频率</div>
           <Select
@@ -143,32 +151,23 @@ const MainLayout = ({ children }) => {
         </div>
       </div>
     );
-    
+
     const handleAutoRefreshChange = (checked) => {
       setAutoRefresh(checked);
       if (!checked) {
         setPopoverVisible(false);
       }
     };
-    
+
     const getRefreshHandler = () => {
       if (isWatchlistPage) return refreshWatchlistPrices;
       if (isStatisticsPage) return refreshStatistics;
       return refreshCurrentData;
     };
-    
+
     if (isMobile) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {isLadderPage && (
-            <Switch 
-              checked={showFirstBoard} 
-              onChange={setShowFirstBoard} 
-              size="small"
-              checkedChildren="首"
-              unCheckedChildren="首"
-            />
-          )}
           {isLadderPage && (
             <>
               <Button onClick={handlePrevDay} size="small">前</Button>
@@ -182,22 +181,30 @@ const MainLayout = ({ children }) => {
                 style={{ width: 100 }}
               />
               {!isLatestDate && <Button onClick={handleNextDay} size="small">后</Button>}
+              <Switch
+                checked={showFirstBoard}
+                onChange={setShowFirstBoard}
+                size="small"
+                checkedChildren="首"
+                unCheckedChildren="首"
+                style={{ marginLeft: 4 }}
+              />
             </>
           )}
-          <Button 
-            type="primary" 
-            icon={<ReloadOutlined />} 
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
             size="small"
             onClick={getRefreshHandler()}
             loading={loading}
           />
-          
+
           <Popover
             content={settingsContent}
-            title="自动刷新设置"
+            title="设置"
             trigger="click"
             placement="bottomRight"
-            open={autoRefresh && popoverVisible}
+            open={popoverVisible}
             onOpenChange={setPopoverVisible}
           >
             <Switch
@@ -211,16 +218,9 @@ const MainLayout = ({ children }) => {
         </div>
       );
     }
-    
+
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {isLadderPage && (
-          <>
-            <span>显示首板:</span>
-            <Switch checked={showFirstBoard} onChange={setShowFirstBoard} />
-          </>
-        )}
-        
         {isLadderPage && (
           <>
             <Button onClick={handlePrevDay}>前一天</Button>
@@ -233,16 +233,18 @@ const MainLayout = ({ children }) => {
               placement="bottomLeft"
             />
             {!isLatestDate && <Button onClick={handleNextDay}>后一天</Button>}
+            <span style={{ marginLeft: 8 }}>显示首板:</span>
+            <Switch checked={showFirstBoard} onChange={setShowFirstBoard} />
           </>
         )}
-        
+
         <Button type="primary" icon={<ReloadOutlined />} onClick={getRefreshHandler()}>
           {isWatchlistPage ? '更新价格' : '刷新数据'}
         </Button>
-        
+
         <Popover
           content={settingsContent}
-          title="自动刷新设置"
+          title="设置"
           trigger="click"
           placement="bottomRight"
           open={autoRefresh && popoverVisible}
@@ -303,7 +305,7 @@ const MainLayout = ({ children }) => {
             overflow: 'auto',
           }}
         >
-          {typeof children === 'function' ? children({ showFirstBoard }) : children}
+          {children}
         </Content>
         <div
           style={{
@@ -356,25 +358,94 @@ const MainLayout = ({ children }) => {
           top: 0,
           bottom: 0,
           overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              height: 64,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              color: '#fff',
+              fontSize: 18,
+              fontWeight: 'bold',
+              paddingLeft: 20,
+              gap: 8,
+            }}
+          >
+            <img src="/favicon.svg" alt="logo" style={{ width: 28, height: 28 }} />
+            节节高
+          </div>
+          {menuContent}
+        </div>
+
         <div
           style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            color: '#fff',
-            fontSize: 18,
-            fontWeight: 'bold',
-            paddingLeft: 20,
-            gap: 8,
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            width: 200,
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            padding: '12px 16px',
+            background: '#001529',
           }}
         >
-          <img src="/favicon.svg" alt="logo" style={{ width: 28, height: 28 }} />
-          节节高
+          {isAuthenticated && user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Avatar
+                size={32}
+                icon={<UserOutlined />}
+                style={{ backgroundColor: '#1890ff' }}
+              >
+                {user.nickname?.[0] || user.username?.[0] || 'U'}
+              </Avatar>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {user.nickname || user.username}
+                </div>
+                <div style={{
+                  color: 'rgba(255,255,255,0.45)',
+                  fontSize: 11,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {user.email}
+                </div>
+              </div>
+              <Button
+                type="text"
+                icon={<LogoutOutlined />}
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                style={{ color: 'rgba(255,255,255,0.65)' }}
+                size="small"
+              />
+            </div>
+          ) : (
+            <Button
+              type="primary"
+              icon={<LoginOutlined />}
+              onClick={() => navigate('/login')}
+              block
+              size="small"
+            >
+              登录
+            </Button>
+          )}
         </div>
-        {menuContent}
       </Sider>
       <Layout style={{ marginLeft: 200 }}>
         <Header
@@ -407,7 +478,7 @@ const MainLayout = ({ children }) => {
             minHeight: 280,
           }}
         >
-          {typeof children === 'function' ? children({ showFirstBoard }) : children}
+          {children}
         </Content>
       </Layout>
     </Layout>

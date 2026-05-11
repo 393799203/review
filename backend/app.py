@@ -14,7 +14,7 @@ import threading
 import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User
 from ths_fetcher import ThsFetcher
 from statistics_api import register_statistics_routes
 from limit_up_analyzer import LimitUpReasonAnalyzer
@@ -655,6 +655,101 @@ def get_block_strength(date_str):
             }
         })
         
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/block-strength/continuous', methods=['GET'])
+def get_block_strength_continuous():
+    """获取连续三天的板块强度（昨日、今日、明日）"""
+    from trade_calendar import trade_calendar
+
+    session = get_db_session()
+
+    try:
+        # 获取传入的日期参数，默认为数据库最新日期
+        date_str = request.args.get('date')
+        if date_str:
+            try:
+                base_date = datetime.strptime(date_str, '%Y%m%d').date()
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': '日期格式错误，请使用YYYYMMDD格式'
+                }), 400
+        else:
+            # 没有传入日期，使用数据库最新日期
+            latest_block = session.query(Block).order_by(Block.trade_date.desc()).first()
+            if not latest_block:
+                return jsonify({
+                    'success': True,
+                    'data': {}
+                })
+            base_date = latest_block.trade_date
+
+        target_days = []
+
+        # 找前一个交易日作为"昨日"
+        yesterday = None
+        for i in range(1, 31):
+            d = base_date - timedelta(days=i)
+            if trade_calendar.is_trading_day(d):
+                yesterday = d
+                break
+        if yesterday:
+            target_days.append(('yesterday', yesterday))
+
+        # 传入的日期作为"今日"
+        target_days.append(('today', base_date))
+
+        # 找下一个交易日作为"明日"
+        tomorrow = None
+        for i in range(1, 31):
+            d = base_date + timedelta(days=i)
+            if trade_calendar.is_trading_day(d):
+                tomorrow = d
+                break
+        if tomorrow:
+            target_days.append(('tomorrow', tomorrow))
+
+        result_data = {}
+
+        for label, trade_date in target_days:
+            date_str = trade_date.strftime('%Y%m%d')
+            blocks = session.query(Block).filter(
+                Block.trade_date == trade_date
+            ).order_by(Block.limit_up_num.desc()).limit(20).all()
+
+            block_list = []
+            for index, block in enumerate(blocks, 1):
+                block_list.append({
+                    'block_code': block.block_code,
+                    'block_name': block.block_name,
+                    'limit_up_num': block.limit_up_num,
+                    'continuous_plate_num': block.continuous_plate_num,
+                    'change_rate': float(block.change_rate) if block.change_rate else 0,
+                    'high': block.high,
+                    'high_num': block.high_num,
+                    'rank': index,
+                    'high_stock_code': block.high_stock_code,
+                    'high_stock_name': block.high_stock_name,
+                })
+
+            result_data[label] = {
+                'date': date_str,
+                'blocks': block_list
+            }
+
+        return jsonify({
+            'success': True,
+            'data': result_data
+        })
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -1406,6 +1501,258 @@ def analyze_limit_up_reason(stock_code):
         }), 500
     finally:
         session.close()
+
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """用户注册"""
+    import hashlib
+    import uuid as uuid_lib
+    
+    session = get_db_session()
+    try:
+        data = request.json
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        nickname = data.get('nickname', username)
+        
+        if not username or not email or not password:
+            return jsonify({
+                'success': False,
+                'error': '用户名、邮箱和密码不能为空'
+            }), 400
+        
+        existing_user = session.query(User).filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+        
+        if existing_user:
+            return jsonify({
+                'success': False,
+                'error': '用户名或邮箱已存在'
+            }), 400
+        
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        user = User(
+            uid=str(uuid_lib.uuid4()),
+            username=username,
+            email=email,
+            password_hash=password_hash,
+            nickname=nickname
+        )
+        
+        session.add(user)
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '注册成功',
+            'data': {
+                'uid': user.uid,
+                'username': user.username,
+                'email': user.email,
+                'nickname': user.nickname
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """用户登录"""
+    import hashlib
+    import secrets
+    
+    session = get_db_session()
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({
+                'success': False,
+                'error': '用户名和密码不能为空'
+            }), 400
+        
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        user = session.query(User).filter(
+            User.username == username,
+            User.password_hash == password_hash
+        ).first()
+        
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': '用户名或密码错误'
+            }), 401
+        
+        user.last_login = datetime.now()
+        session.commit()
+        
+        token = secrets.token_hex(32)
+        
+        return jsonify({
+            'success': True,
+            'message': '登录成功',
+            'data': {
+                'token': token,
+                'user': {
+                    'uid': user.uid,
+                    'username': user.username,
+                    'email': user.email,
+                    'nickname': user.nickname,
+                    'avatar': user.avatar
+                }
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def get_current_user():
+    """获取当前登录用户信息"""
+    session = get_db_session()
+    try:
+        uid = request.headers.get('X-User-Uid')
+
+        if not uid:
+            return jsonify({
+                'success': False,
+                'error': '未登录',
+                'code': 'UNAUTHORIZED'
+            }), 401
+
+        user = session.query(User).filter(User.uid == uid).first()
+
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': '用户不存在',
+                'code': 'USER_NOT_FOUND'
+            }), 404
+
+        is_vip = False
+        vip_status = 'expired'
+
+        if user.is_vip == 1 and user.vip_expire_date:
+            if user.vip_expire_date >= datetime.now().date():
+                is_vip = True
+                vip_status = 'active'
+            else:
+                vip_status = 'expired'
+
+        settings = {}
+        if user.settings:
+            try:
+                import json
+                settings = json.loads(user.settings)
+            except:
+                settings = {}
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'uid': user.uid,
+                'username': user.username,
+                'email': user.email,
+                'nickname': user.nickname,
+                'avatar': user.avatar,
+                'role': user.role,
+                'isVip': is_vip,
+                'vipStatus': vip_status,
+                'vipExpireDate': user.vip_expire_date.strftime('%Y-%m-%d') if user.vip_expire_date else None,
+                'isActive': bool(user.is_active),
+                'lastLogin': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else None,
+                'createdAt': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
+                'settings': settings
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/auth/settings', methods=['PUT'])
+def update_user_settings():
+    """更新用户设置"""
+    session = get_db_session()
+    try:
+        uid = request.headers.get('X-User-Uid')
+
+        if not uid:
+            return jsonify({
+                'success': False,
+                'error': '未登录',
+                'code': 'UNAUTHORIZED'
+            }), 401
+
+        user = session.query(User).filter(User.uid == uid).first()
+
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': '用户不存在',
+                'code': 'USER_NOT_FOUND'
+            }), 404
+
+        import json
+        data = request.json
+        settings = data.get('settings', {})
+
+        user.settings = json.dumps(settings)
+        user.updated_at = datetime.now()
+        session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '设置更新成功',
+            'data': {
+                'settings': settings
+            }
+        })
+
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """用户登出"""
+    return jsonify({
+        'success': True,
+        'message': '登出成功'
+    })
 
 
 if __name__ == '__main__':

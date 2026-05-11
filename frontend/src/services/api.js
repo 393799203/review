@@ -8,6 +8,47 @@ const api = axios.create({
   timeout: 30000,
 });
 
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (user) {
+      try {
+        const userData = JSON.parse(user);
+        if (userData.uid) {
+          config.headers['X-User-Uid'] = userData.uid;
+        }
+      } catch (e) {
+        console.error('解析用户数据失败:', e);
+      }
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const stockApi = {
   getLatestDate: () => api.get('/latest'),
 
@@ -40,6 +81,16 @@ export const stockApi = {
   analyzeStock: (stockCode, force = false) => api.get(`/stock/analyze/${stockCode}?force=${force}`, { timeout: 120000 }),
 
   batchAnalyzeStocks: (stocks) => api.post('/stocks/analyze', { stocks }, { timeout: 120000 }),
+
+  login: (username, password) => api.post('/auth/login', { username, password }),
+
+  register: (username, email, password, nickname) => api.post('/auth/register', { username, email, password, nickname }),
+
+  getCurrentUser: () => api.get('/auth/me'),
+
+  updateSettings: (settings) => api.put('/auth/settings', { settings }),
+
+  logout: () => api.post('/auth/logout'),
 };
 
 export default api;
