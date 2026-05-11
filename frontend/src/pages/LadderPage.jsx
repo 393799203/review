@@ -722,19 +722,21 @@ const LadderPage = () => {
     return (
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 8 : 12 }}>
-          <h2 style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>🎯 涨停梯队</h2>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>🎯 涨停梯队</h2>
             {broken && (
-              <Button
-                type="primary"
-                danger
-                size="small"
-                onClick={() => setWencaiVisible(true)}
-                style={{ fontSize: isMobile ? 12 : 14 }}
-              >
-                断板日选股
-              </Button>
+              <Tag color="red" style={{ margin: 0 }}>断板日</Tag>
             )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => setWencaiVisible(true)}
+              style={{ fontSize: isMobile ? 12 : 14, background: '#722ed1', borderColor: '#722ed1' }}
+            >
+              问财选股
+            </Button>
             <Button
               type="primary"
               size="small"
@@ -746,98 +748,102 @@ const LadderPage = () => {
           </div>
         </div>
 
-        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>板块日期：</span>
-          {['yesterday', 'today', 'tomorrow'].map((day) => {
-            const dayLabel = { yesterday: '前日', today: '当日', tomorrow: '次日' };
-            const dayColor = { yesterday: '#722ed1', today: '#1890ff', tomorrow: '#52c41a' };
-            return (
-              <Tag
-                key={day}
-                color={blockFilterDay === day ? dayColor[day] : 'default'}
-                style={{ cursor: 'pointer', margin: 0, fontWeight: blockFilterDay === day ? 'bold' : 'normal' }}
-                onClick={() => setBlockFilterDay(day)}
-              >
-                {dayLabel[day]}
-              </Tag>
-            );
-          })}
-        </div>
-        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>强势板块：</span>
-          <Tag
-            color={selectedBlocks.length === (blockStrengthData[blockFilterDay]?.blocks || []).length && (blockStrengthData[blockFilterDay]?.blocks || []).length > 0 ? 'blue' : 'default'}
-            style={{ cursor: 'pointer', margin: 0 }}
-            onClick={() => {
-              const allBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).map(b => b.block_name);
-              if (allBlocks.length === 0) return;
-              if (selectedBlocks.length === allBlocks.length) {
-                if (previousSelectedBlocks.length > 0) {
-                  setSelectedBlocks(previousSelectedBlocks);
-                  setPreviousSelectedBlocks([]);
-                } else {
-                  setSelectedBlocks([]);
-                }
-              } else {
-                setPreviousSelectedBlocks(selectedBlocks);
-                setSelectedBlocks(allBlocks);
-              }
-            }}
-          >
-            全部
-          </Tag>
-          {(isMobile ? (blockStrengthData[blockFilterDay]?.blocks || []).slice(0, 5) : (blockStrengthData[blockFilterDay]?.blocks || [])).map((block) => {
-              const colorMap = {
-                1: '#f5222d',
-                2: '#fa8c16',
-                3: '#faad14',
-                4: '#52c41a',
-                5: '#1890ff',
-              };
-
-              const isSelected = selectedBlocks.includes(block.block_name);
-              const tagColor = isSelected ? (colorMap[block.rank] || '#b37feb') : 'default';
-
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 80, lineHeight: '24px' }}>板块日期：</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {['yesterday', 'today', 'tomorrow'].map((day) => {
+              const dayLabel = { yesterday: '前日', today: '当日', tomorrow: '次日' };
+              const dayColor = { yesterday: '#722ed1', today: '#1890ff', tomorrow: '#52c41a' };
               return (
                 <Tag
-                  key={block.block_name}
-                  color={tagColor}
-                  style={{ cursor: 'pointer', margin: 0 }}
-                  onClick={() => {
-                    if (isSelected) {
-                      setSelectedBlocks(selectedBlocks.filter(b => b !== block.block_name));
-                    } else {
-                      setSelectedBlocks([...selectedBlocks, block.block_name]);
-                    }
-                  }}
+                  key={day}
+                  color={blockFilterDay === day ? dayColor[day] : 'default'}
+                  style={{ cursor: 'pointer', margin: 0, fontWeight: blockFilterDay === day ? 'bold' : 'normal' }}
+                  onClick={() => setBlockFilterDay(day)}
                 >
-                  {block.block_name}
+                  {dayLabel[day]}
                 </Tag>
               );
             })}
-          {isMobile && (blockStrengthData[blockFilterDay]?.blocks || []).length > 5 && (
+          </div>
+        </div>
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 80, lineHeight: '24px' }}>强势板块：</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Tag
-              color={selectedBlocks.some(b => {
-                const otherBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).slice(5);
-                return otherBlocks.some(ob => ob.block_name === b);
-              }) ? '#b37feb' : 'default'}
+              color={selectedBlocks.length === (blockStrengthData[blockFilterDay]?.blocks || []).length && (blockStrengthData[blockFilterDay]?.blocks || []).length > 0 ? 'blue' : 'default'}
               style={{ cursor: 'pointer', margin: 0 }}
               onClick={() => {
-                const otherBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).slice(5);
-                const otherBlockNames = otherBlocks.map(b => b.block_name);
-                const hasOtherSelected = selectedBlocks.some(b => otherBlockNames.includes(b));
-
-                if (hasOtherSelected) {
-                  setSelectedBlocks(selectedBlocks.filter(b => !otherBlockNames.includes(b)));
+                const allBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).map(b => b.block_name);
+                if (allBlocks.length === 0) return;
+                if (selectedBlocks.length === allBlocks.length) {
+                  if (previousSelectedBlocks.length > 0) {
+                    setSelectedBlocks(previousSelectedBlocks);
+                    setPreviousSelectedBlocks([]);
+                  } else {
+                    setSelectedBlocks([]);
+                  }
                 } else {
-                  setSelectedBlocks([...selectedBlocks, ...otherBlockNames]);
+                  setPreviousSelectedBlocks(selectedBlocks);
+                  setSelectedBlocks(allBlocks);
                 }
               }}
             >
-              其他板块
+              全部
+            </Tag>
+            {(isMobile ? (blockStrengthData[blockFilterDay]?.blocks || []).slice(0, 5) : (blockStrengthData[blockFilterDay]?.blocks || [])).map((block) => {
+                const colorMap = {
+                  1: '#f5222d',
+                  2: '#fa8c16',
+                  3: '#faad14',
+                  4: '#52c41a',
+                  5: '#1890ff',
+                };
+
+                const isSelected = selectedBlocks.includes(block.block_name);
+                const tagColor = isSelected ? (colorMap[block.rank] || '#b37feb') : 'default';
+
+                return (
+                  <Tag
+                    key={block.block_name}
+                    color={tagColor}
+                    style={{ cursor: 'pointer', margin: 0 }}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedBlocks(selectedBlocks.filter(b => b !== block.block_name));
+                      } else {
+                        setSelectedBlocks([...selectedBlocks, block.block_name]);
+                      }
+                    }}
+                  >
+                    {block.block_name}
+                  </Tag>
+                );
+              })}
+            {isMobile && (blockStrengthData[blockFilterDay]?.blocks || []).length > 5 && (
+              <Tag
+                color={selectedBlocks.some(b => {
+                  const otherBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).slice(5);
+                  return otherBlocks.some(ob => ob.block_name === b);
+                }) ? '#b37feb' : 'default'}
+                style={{ cursor: 'pointer', margin: 0 }}
+                onClick={() => {
+                  const otherBlocks = (blockStrengthData[blockFilterDay]?.blocks || []).slice(5);
+                  const otherBlockNames = otherBlocks.map(b => b.block_name);
+                  const hasOtherSelected = selectedBlocks.some(b => otherBlockNames.includes(b));
+
+                  if (hasOtherSelected) {
+                    setSelectedBlocks(selectedBlocks.filter(b => !otherBlockNames.includes(b)));
+                  } else {
+                    setSelectedBlocks([...selectedBlocks, ...otherBlockNames]);
+                  }
+                }}
+              >
+                其他板块
               </Tag>
             )}
           </div>
+        </div>
       </div>
     );
   };
