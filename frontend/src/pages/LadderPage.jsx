@@ -764,7 +764,7 @@ const LadderPage = () => {
           })}
         </div>
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>板块筛选：</span>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>强势板块：</span>
           <Tag
             color={selectedBlocks.length === (blockStrengthData[blockFilterDay]?.blocks || []).length && (blockStrengthData[blockFilterDay]?.blocks || []).length > 0 ? 'blue' : 'default'}
             style={{ cursor: 'pointer', margin: 0 }}
