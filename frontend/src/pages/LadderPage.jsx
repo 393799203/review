@@ -749,7 +749,7 @@ const LadderPage = () => {
         </div>
 
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 80, lineHeight: '24px' }}>板块日期：</span>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>板块日期：</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {['yesterday', 'today', 'tomorrow'].map((day) => {
               const dayLabel = { yesterday: '前日', today: '当日', tomorrow: '次日' };
@@ -768,7 +768,7 @@ const LadderPage = () => {
           </div>
         </div>
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 80, lineHeight: '24px' }}>强势板块：</span>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>强势板块：</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Tag
               color={selectedBlocks.length === (blockStrengthData[blockFilterDay]?.blocks || []).length && (blockStrengthData[blockFilterDay]?.blocks || []).length > 0 ? 'blue' : 'default'}
