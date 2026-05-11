@@ -110,18 +110,6 @@ const MainLayout = ({ children }) => {
 
     const settingsContent = (
       <div style={{ width: isMobile ? 200 : 250 }}>
-        {isLadderPage && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>显示首板</div>
-            <Switch
-              checked={showFirstBoard}
-              onChange={setShowFirstBoard}
-              checkedChildren="开启"
-              unCheckedChildren="关闭"
-            />
-          </div>
-        )}
-
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>刷新时段</div>
           <Select
