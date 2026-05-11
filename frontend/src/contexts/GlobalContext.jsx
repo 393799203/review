@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { message } from 'antd';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const GlobalContext = createContext(null);
 
@@ -13,117 +14,120 @@ export const useGlobal = () => {
   return context;
 };
 
-const SETTINGS_KEY = 'stockAppSettings';
-
-const getDefaultSettings = () => ({
-  ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true },
+const DEFAULT_SETTINGS = {
+  ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true, showFirstBoard: true },
   watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-});
-
-const loadAllSettings = () => {
-  try {
-    const saved = localStorage.getItem(SETTINGS_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return { ...getDefaultSettings(), ...parsed };
-    }
-  } catch (error) {
-    console.error('加载设置失败', error);
-  }
-  return getDefaultSettings();
-};
-
-const saveAllSettings = (settings) => {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  } catch (error) {
-    console.error('保存设置失败', error);
-  }
 };
 
 export const GlobalProvider = ({ children }) => {
+  const { settings: userSettings, updateSettings } = useAuth();
   const [currentDate, setCurrentDateState] = useState('');
   const [latestDate, setLatestDate] = useState('');
   const [tradingDays, setTradingDays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  
-  const [allSettings, setAllSettings] = useState(() => loadAllSettings());
+
   const [currentPage, setCurrentPage] = useState('ladder');
-  
-  const [autoRefresh, setAutoRefreshState] = useState(() => {
-    const settings = loadAllSettings();
-    return settings.ladder.autoRefresh;
-  });
-  const [refreshInterval, setRefreshIntervalState] = useState(() => {
-    const settings = loadAllSettings();
-    return settings.ladder.refreshInterval;
-  });
-  const [smartMode, setSmartModeState] = useState(() => {
-    const settings = loadAllSettings();
-    return settings.ladder.smartMode;
-  });
-  
+
+  const [autoRefresh, setAutoRefreshState] = useState(
+    userSettings?.ladder?.autoRefresh ?? false
+  );
+  const [refreshInterval, setRefreshIntervalState] = useState(
+    userSettings?.ladder?.refreshInterval ?? 30
+  );
+  const [smartMode, setSmartModeState] = useState(
+    userSettings?.ladder?.smartMode ?? true
+  );
+  const [showFirstBoard, setShowFirstBoardState] = useState(
+    userSettings?.ladder?.showFirstBoard ?? true
+  );
+
+  useEffect(() => {
+    if (userSettings && userSettings[currentPage]) {
+      setAutoRefreshState(userSettings[currentPage].autoRefresh);
+      setRefreshIntervalState(userSettings[currentPage].refreshInterval);
+      setSmartModeState(userSettings[currentPage].smartMode);
+      if (currentPage === 'ladder') {
+        setShowFirstBoardState(userSettings[currentPage].showFirstBoard ?? true);
+      }
+    }
+  }, [userSettings, currentPage]);
+
   const intervalRef = useRef(null);
   const currentDateRef = useRef('');
-  
+
   const setCurrentDate = (date) => {
     setCurrentDateState(date);
     currentDateRef.current = date;
   };
 
   const loadPageSettings = (page) => {
-    const pageSettings = allSettings[page] || getDefaultSettings()[page];
-    setAutoRefreshState(pageSettings.autoRefresh);
-    setRefreshIntervalState(pageSettings.refreshInterval);
-    setSmartModeState(pageSettings.smartMode);
     setCurrentPage(page);
+    if (userSettings && userSettings[page]) {
+      setAutoRefreshState(userSettings[page].autoRefresh);
+      setRefreshIntervalState(userSettings[page].refreshInterval);
+      setSmartModeState(userSettings[page].smartMode);
+      if (page === 'ladder') {
+        setShowFirstBoardState(userSettings[page].showFirstBoard ?? true);
+      }
+    } else {
+      const defaultPageSettings = DEFAULT_SETTINGS[page];
+      setAutoRefreshState(defaultPageSettings.autoRefresh);
+      setRefreshIntervalState(defaultPageSettings.refreshInterval);
+      setSmartModeState(defaultPageSettings.smartMode);
+      if (page === 'ladder') {
+        setShowFirstBoardState(defaultPageSettings.showFirstBoard);
+      }
+    }
   };
 
   const setAutoRefresh = (value) => {
     setAutoRefreshState(value);
-    setAllSettings(prev => {
-      const newSettings = {
-        ...prev,
-        [currentPage]: {
-          ...prev[currentPage],
-          autoRefresh: value,
-        },
-      };
-      saveAllSettings(newSettings);
-      return newSettings;
-    });
+    const newSettings = {
+      ...userSettings,
+      [currentPage]: {
+        ...(userSettings?.[currentPage] || DEFAULT_SETTINGS[currentPage]),
+        autoRefresh: value,
+      },
+    };
+    updateSettings(newSettings);
   };
 
   const setRefreshInterval = (value) => {
     setRefreshIntervalState(value);
-    setAllSettings(prev => {
-      const newSettings = {
-        ...prev,
-        [currentPage]: {
-          ...prev[currentPage],
-          refreshInterval: value,
-        },
-      };
-      saveAllSettings(newSettings);
-      return newSettings;
-    });
+    const newSettings = {
+      ...userSettings,
+      [currentPage]: {
+        ...(userSettings?.[currentPage] || DEFAULT_SETTINGS[currentPage]),
+        refreshInterval: value,
+      },
+    };
+    updateSettings(newSettings);
   };
 
   const setSmartMode = (value) => {
     setSmartModeState(value);
-    setAllSettings(prev => {
-      const newSettings = {
-        ...prev,
-        [currentPage]: {
-          ...prev[currentPage],
-          smartMode: value,
-        },
-      };
-      saveAllSettings(newSettings);
-      return newSettings;
-    });
+    const newSettings = {
+      ...userSettings,
+      [currentPage]: {
+        ...(userSettings?.[currentPage] || DEFAULT_SETTINGS[currentPage]),
+        smartMode: value,
+      },
+    };
+    updateSettings(newSettings);
+  };
+
+  const setShowFirstBoard = (value) => {
+    setShowFirstBoardState(value);
+    const newSettings = {
+      ...userSettings,
+      ladder: {
+        ...(userSettings?.ladder || DEFAULT_SETTINGS.ladder),
+        showFirstBoard: value,
+      },
+    };
+    updateSettings(newSettings);
   };
 
   const loadTradingDays = async (dateStr) => {
@@ -144,7 +148,6 @@ export const GlobalProvider = ({ children }) => {
       setLoading(true);
       
       const today = dayjs().format('YYYYMMDD');
-      console.log('初始化加载，今天日期:', today);
       
       const response = await stockApi.getAdjacentTradingDays(today);
       
@@ -153,12 +156,6 @@ export const GlobalProvider = ({ children }) => {
         const prevDays = data.prev_days || [];
         const nextDays = data.next_days || [];
         const isTradingDay = data.is_trading_day;
-        
-        console.log('交易日数据:', {
-          isTradingDay,
-          prevDays: prevDays.length,
-          nextDays: nextDays.length
-        });
         
         let allDays;
         if (isTradingDay) {
@@ -176,20 +173,12 @@ export const GlobalProvider = ({ children }) => {
           targetDate = prevDays[prevDays.length - 1];
         }
         
-        console.log('目标日期:', targetDate);
-        
         if (targetDate) {
           setCurrentDate(targetDate);
           setLatestDate(targetDate);
-          console.log('日期初始化完成:', targetDate);
-        } else {
-          console.warn('无法确定目标日期');
         }
-      } else {
-        console.error('获取交易日失败:', response.data.error);
       }
     } catch (error) {
-      console.error('加载数据失败:', error);
       message.error('加载数据失败');
     } finally {
       setLoading(false);
@@ -239,7 +228,6 @@ export const GlobalProvider = ({ children }) => {
   const refreshCurrentData = async () => {
     const date = currentDateRef.current;
     if (!date) {
-      console.log('等待日期初始化...');
       return;
     }
     
@@ -303,6 +291,12 @@ export const GlobalProvider = ({ children }) => {
 
   const isInTradingTime = () => {
     const now = new Date();
+    const today = dayjs().format('YYYYMMDD');
+    
+    if (!tradingDays.includes(today)) {
+      return false;
+    }
+    
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const currentTime = hours * 60 + minutes;
@@ -381,6 +375,8 @@ export const GlobalProvider = ({ children }) => {
     setRefreshInterval,
     smartMode,
     setSmartMode,
+    showFirstBoard,
+    setShowFirstBoard,
     setAutoRefreshCallback,
     loadPageSettings,
     handleDateChange,

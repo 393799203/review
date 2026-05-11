@@ -94,7 +94,7 @@ const EditBlockModal = ({ visible, onClose, stockCode, stockName, currentBlock, 
       cancelText="取消"
       width={isMobile ? '90%' : 400}
       style={{ top: isMobile ? 20 : undefined }}
-      bodyStyle={{ padding: isMobile ? '12px' : '24px' }}
+      styles={{ body: { padding: isMobile ? '12px' : '24px' } }}
     >
       <Spin spinning={loading}>
         <div style={{ marginBottom: isMobile ? 12 : 16 }}>

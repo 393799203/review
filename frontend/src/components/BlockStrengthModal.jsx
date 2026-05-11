@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Modal, Table, message, Spin, Card, Row, Col, Tag } from 'antd';
-import { BarChartOutlined } from '@ant-design/icons';
+import { Modal, Card, Row, Col, Spin, message } from 'antd';
+import { BarChartOutlined, FireOutlined, ThunderboltOutlined, RiseOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
-const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
+const BlockStrengthModal = ({ visible, onClose, date }) => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -18,19 +18,23 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
   }, []);
 
   useEffect(() => {
-    if (visible && dateStr) {
+    if (visible) {
       loadBlockStrength();
     }
-  }, [visible, dateStr]);
+  }, [visible, date]);
 
   const loadBlockStrength = async () => {
     setLoading(true);
     try {
       const isDev = import.meta.env.DEV;
       const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.get(`${API_BASE}/block-strength/${dateStr}`);
-      
+
+      const url = date
+        ? `${API_BASE}/block-strength/continuous?date=${date}`
+        : `${API_BASE}/block-strength/continuous`;
+
+      const response = await axios.get(url);
+
       if (response.data.success) {
         setData(response.data.data);
       } else {
@@ -45,174 +49,160 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
 
   const getRankColor = (index) => {
     const colorMap = {
-      0: '#f5222d',  // 第1名 - 红色
-      1: '#fa8c16',  // 第2名 - 橙色
-      2: '#faad14',  // 第3名 - 黄色
-      3: '#52c41a',  // 第4名 - 绿色
-      4: '#1890ff',  // 第5名 - 蓝色
+      0: '#f5222d',
+      1: '#fa8c16',
+      2: '#faad14',
+      3: '#52c41a',
+      4: '#1890ff',
     };
-    return colorMap[index] || '#b37feb';  // 第6名及以后 - 淡紫色
+    return colorMap[index] || '#b37feb';
   };
 
-  const columns = [
-    {
-      title: '排名',
-      key: 'rank',
-      width: isMobile ? 50 : 60,
-      render: (_, __, index) => (
-        <span style={{ 
-          fontWeight: 'bold',
-          fontSize: isMobile ? 12 : 14
-        }}>
+  const getDayLabel = (label) => {
+    const labelMap = {
+      yesterday: '昨日',
+      today: '今日',
+      tomorrow: '明日',
+    };
+    return labelMap[label] || label;
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    return `${dateStr.slice(4, 6)}/${dateStr.slice(6, 8)}`;
+  };
+
+  const renderBlockItem = (block, index) => {
+    return (
+      <div
+        key={block.block_code}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: isMobile ? '8px 6px' : '6px 8px',
+          borderBottom: '1px solid #f5f5f5',
+          fontSize: isMobile ? 12 : 13,
+        }}
+      >
+        <span
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: getRankColor(index),
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+            fontSize: 11,
+            marginRight: 8,
+            flexShrink: 0,
+          }}
+        >
           {index + 1}
         </span>
-      ),
-    },
-    {
-      title: '板块名称',
-      dataIndex: 'block_name',
-      key: 'block_name',
-      width: isMobile ? 120 : 200,
-      render: (text, _, index) => (
-        <span style={{ 
-          fontWeight: 'bold', 
-          fontSize: isMobile ? 12 : 14,
-          color: getRankColor(index)
-        }}>
-          {text}
+        <span
+          style={{
+            flex: 1,
+            fontWeight: 'bold',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            marginRight: 8,
+          }}
+        >
+          {block.block_name}
         </span>
-      ),
-    },
-    {
-      title: '涨停数量',
-      dataIndex: 'limit_up_num',
-      key: 'limit_up_num',
-      width: isMobile ? 80 : 100,
-      render: (val) => (
-        <span style={{ color: '#f5222d', fontWeight: 'bold', fontSize: isMobile ? 14 : 16 }}>
-          {val}
+        <span style={{ color: '#f5222d', fontWeight: 'bold', marginRight: 8, flexShrink: 0 }}>
+          {block.limit_up_num}涨停
         </span>
-      ),
-    },
-    {
-      title: '连板数量',
-      dataIndex: 'continuous_plate_num',
-      key: 'continuous_plate_num',
-      width: isMobile ? 70 : 100,
-    },
-    {
-      title: '板块涨幅',
-      dataIndex: 'change_rate',
-      key: 'change_rate',
-      width: isMobile ? 80 : 100,
-      render: (val) => (
-        <span style={{ color: val > 0 ? '#f5222d' : val < 0 ? '#52c41a' : '#666', fontSize: isMobile ? 12 : 14 }}>
-          {val ? `${val.toFixed(2)}%` : '-'}
+        <span style={{ color: '#fa8c16', fontWeight: 'bold', marginRight: 8, flexShrink: 0 }}>
+          {block.continuous_plate_num || 0}连板
         </span>
-      ),
-    },
-    {
-      title: '板块高度',
-      dataIndex: 'high',
-      key: 'high',
-      width: isMobile ? 70 : 100,
-      render: (val) => (
-        <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 'bold' }}>{val || '-'}</span>
-      ),
-    },
-  ];
-
-  const renderMobileContent = () => {
-    if (!data || !data.blocks) return null;
-    
-    return (
-      <div>
-        <div style={{ marginBottom: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
-          日期：{data.date}
-        </div>
-        {data.blocks.map((block, index) => (
-          <Card
-            key={block.block_code}
-            size="small"
-            style={{
-              marginBottom: 8,
-              borderLeft: `3px solid ${getRankColor(index)}`,
-            }}
-            styles={{ body: { padding: '8px 12px' } }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: 16,
-                  minWidth: 20
-                }}>
-                  {index + 1}
-                </span>
-                <span style={{ 
-                  fontWeight: 'bold', 
-                  fontSize: 14,
-                  color: getRankColor(index)
-                }}>
-                  {block.block_name}
-                </span>
-              </div>
-              <Tag color="red" style={{ fontSize: 13, fontWeight: 'bold', margin: 0 }}>
-                {block.limit_up_num}只
-              </Tag>
-            </div>
-            <Row gutter={8}>
-              <Col span={8}>
-                <div style={{ fontSize: 11, color: '#999' }}>连板数量</div>
-                <div style={{ fontSize: 13, fontWeight: 'bold' }}>{block.continuous_plate_num || '-'}</div>
-              </Col>
-              <Col span={8}>
-                <div style={{ fontSize: 11, color: '#999' }}>板块涨幅</div>
-                <div style={{ 
-                  fontSize: 13, 
-                  fontWeight: 'bold',
-                  color: block.change_rate > 0 ? '#f5222d' : block.change_rate < 0 ? '#52c41a' : '#666'
-                }}>
-                  {block.change_rate ? `${block.change_rate.toFixed(2)}%` : '-'}
-                </div>
-              </Col>
-              <Col span={8}>
-                <div style={{ fontSize: 11, color: '#999' }}>板块高度</div>
-                <div style={{ fontSize: 13, fontWeight: 'bold' }}>{block.high || '-'}</div>
-              </Col>
-            </Row>
-          </Card>
-        ))}
+        <span
+          style={{
+            color: block.change_rate > 0 ? '#f5222d' : block.change_rate < 0 ? '#52c41a' : '#666',
+            fontWeight: 'bold',
+            flexShrink: 0,
+            minWidth: 50,
+            textAlign: 'right',
+          }}
+        >
+          {block.change_rate ? `${block.change_rate > 0 ? '+' : ''}${block.change_rate.toFixed(1)}%` : '-'}
+        </span>
       </div>
     );
   };
 
-  const renderDesktopContent = () => {
-    if (!data) return null;
-    
-    return (
-      <div>
-        <div style={{ marginBottom: 8, fontSize: 13, color: '#666' }}>
-          日期：{data.date}
-        </div>
-        <Table
-          columns={columns}
-          dataSource={data.blocks}
-          rowKey={(record) => record.block_code}
-          pagination={false}
+  const renderDayColumn = (label, dayData) => {
+    if (!dayData || !dayData.blocks || dayData.blocks.length === 0) {
+      return (
+        <Card
           size="small"
-          style={{ fontSize: 12 }}
-          styles={{
-            body: {
-              fontSize: 12,
-            },
-            header: {
-              fontSize: 12,
-              fontWeight: 'bold',
-            },
+          title={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 'bold' }}>{getDayLabel(label)}</span>
+              <span style={{ fontSize: 11, color: '#666' }}>{dayData?.date || '-'}</span>
+            </div>
+          }
+          styles={{ body: { padding: 0 } }}
+        >
+          <div style={{ textAlign: 'center', color: '#999', padding: '40px 0' }}>
+            暂无数据
+          </div>
+        </Card>
+      );
+    }
+
+    return (
+      <Card
+        size="small"
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 'bold' }}>{getDayLabel(label)}</span>
+            <span style={{ fontSize: 11, color: '#666' }}>{formatDate(dayData.date)}</span>
+          </div>
+        }
+        styles={{ body: { padding: 0 } }}
+      >
+        <div
+          style={{
+            maxHeight: 'none',
+            overflow: 'visible',
           }}
-        />
-      </div>
+        >
+          {dayData.blocks.map((block, index) => renderBlockItem(block, index))}
+        </div>
+      </Card>
+    );
+  };
+
+  const renderContent = () => {
+    if (!data) return null;
+
+    const days = ['yesterday', 'today', 'tomorrow'].filter((day) => data[day]);
+
+    if (isMobile) {
+      return (
+        <div>
+          {days.map((label) => (
+            <div key={label} style={{ marginBottom: 12 }}>
+              {renderDayColumn(label, data[label])}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <Row gutter={[12, 12]}>
+        {days.map((label) => (
+          <Col span={8} key={label}>
+            {renderDayColumn(label, data[label])}
+          </Col>
+        ))}
+      </Row>
     );
   };
 
@@ -221,24 +211,24 @@ const BlockStrengthModal = ({ visible, onClose, dateStr }) => {
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BarChartOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1890ff' }} />
-          <span style={{ fontSize: isMobile ? 14 : 16 }}>次日强势板块</span>
+          <span style={{ fontSize: isMobile ? 14 : 16 }}>强势板块</span>
         </div>
       }
       open={visible}
       onCancel={onClose}
-      width={isMobile ? '95%' : 700}
+      width={isMobile ? '95%' : 1100}
       footer={null}
-      style={{ top: isMobile ? 20 : 10 }}
+      centered
       styles={{
         body: {
-          padding: isMobile ? '8px' : '8px 12px',
-          maxHeight: isMobile ? '70vh' : 'none',
-          overflow: isMobile ? 'auto' : 'visible',
+          padding: isMobile ? '8px' : '12px 16px',
+          maxHeight: isMobile ? '80vh' : '85vh',
+          overflow: 'auto',
         },
       }}
     >
       <Spin spinning={loading}>
-        {isMobile ? renderMobileContent() : renderDesktopContent()}
+        {renderContent()}
       </Spin>
     </Modal>
   );

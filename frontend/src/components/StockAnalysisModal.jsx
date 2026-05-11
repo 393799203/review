@@ -80,10 +80,12 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
         footer={null}
         width={isMobile ? '100%' : 800}
         style={{ top: isMobile ? 0 : 20 }}
-        bodyStyle={{ 
-          maxHeight: isMobile ? 'calc(100vh - 110px)' : '75vh', 
-          overflowY: 'auto', 
-          padding: isMobile ? 6 : 10 
+        styles={{
+          body: {
+            maxHeight: isMobile ? 'calc(100vh - 110px)' : '75vh',
+            overflowY: 'auto',
+            padding: isMobile ? 6 : 10
+          }
         }}
       >
       {loading ? (
@@ -186,7 +188,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
             title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>涨停原因 & 炒作逻辑</span>}
             size="small"
             style={{ marginBottom: 12 }}
-            bodyStyle={{ padding: '8px 12px' }}
+            styles={{ body: { padding: '8px 12px' } }}
           >
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -242,7 +244,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
             }
             size="small"
             style={{ marginBottom: 12 }}
-            bodyStyle={{ padding: '8px 12px' }}
+            styles={{ body: { padding: '8px 12px' } }}
           >
             {analysisData.sectors?.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -270,7 +272,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
               title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>买入建议</span>}
               size="small"
               style={{ marginBottom: 12 }}
-              bodyStyle={{ padding: '8px 12px' }}
+              styles={{ body: { padding: '8px 12px' } }}
             >
               <div>
                 {analysisData.trading_advice.buy_strategy && (
@@ -407,7 +409,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
               title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>持有建议</span>}
               size="small"
               style={{ marginBottom: 12 }}
-              bodyStyle={{ padding: '8px 12px' }}
+              styles={{ body: { padding: '8px 12px' } }}
             >
               <div>
                 {analysisData.holding_advice.holding_strategy && (

@@ -91,3 +91,41 @@ COMMENT ON COLUMN limit_up_stocks.limit_up_reason IS '涨停原因';
 COMMENT ON COLUMN limit_up_stocks.limit_up_time IS '涨停时间';
 COMMENT ON COLUMN limit_up_stocks.seal_amount IS '收盘封单量（元）';
 COMMENT ON COLUMN limit_up_stocks.continuous_days IS '连续涨停天数';
+
+-- 用户表
+CREATE TABLE users (
+    uid VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR(36),
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    nickname VARCHAR(50),
+    avatar VARCHAR(255),
+    role VARCHAR(20) DEFAULT 'user',
+    is_vip INTEGER DEFAULT 0,
+    vip_expire_date DATE,
+    settings TEXT,
+    is_active INTEGER DEFAULT 1,
+    last_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 用户表索引
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+
+-- 用户表注释
+COMMENT ON TABLE users IS '用户表';
+COMMENT ON COLUMN users.uid IS '用户UID';
+COMMENT ON COLUMN users.username IS '用户名';
+COMMENT ON COLUMN users.email IS '邮箱';
+COMMENT ON COLUMN users.password_hash IS '密码哈希';
+COMMENT ON COLUMN users.nickname IS '昵称';
+COMMENT ON COLUMN users.avatar IS '头像URL';
+COMMENT ON COLUMN users.role IS '角色（user:普通用户, admin:管理员, vip:VIP用户）';
+COMMENT ON COLUMN users.is_vip IS '是否为VIP（0:否, 1:是）';
+COMMENT ON COLUMN users.vip_expire_date IS 'VIP到期日期';
+COMMENT ON COLUMN users.settings IS '用户设置JSON';
+COMMENT ON COLUMN users.is_active IS '是否激活（1:激活，0:未激活）';
+COMMENT ON COLUMN users.last_login IS '最后登录时间';
