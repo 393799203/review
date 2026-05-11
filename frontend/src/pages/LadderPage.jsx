@@ -749,7 +749,7 @@ const LadderPage = () => {
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: isMobile ? 12 : 13, color: '#666' }}>板块日期：</span>
           {['yesterday', 'today', 'tomorrow'].map((day) => {
-            const dayLabel = { yesterday: '昨日', today: '今日', tomorrow: '明日' };
+            const dayLabel = { yesterday: '前日', today: '当日', tomorrow: '次日' };
             const dayColor = { yesterday: '#722ed1', today: '#1890ff', tomorrow: '#52c41a' };
             return (
               <Tag

@@ -60,9 +60,9 @@ const BlockStrengthModal = ({ visible, onClose, date }) => {
 
   const getDayLabel = (label) => {
     const labelMap = {
-      yesterday: '昨日',
-      today: '今日',
-      tomorrow: '明日',
+      yesterday: '前日',
+      today: '当日',
+      tomorrow: '次日',
     };
     return labelMap[label] || label;
   };
