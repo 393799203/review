@@ -982,7 +982,7 @@ const LadderPage = () => {
               type="primary"
               shape="circle"
               size="large"
-              icon={<DiffOutlined />}
+              icon={<DiffOutlined style={{ fontSize: 24 }} />}
               onClick={() => setDiffVisible(true)}
               style={{ width: 56, height: 56 }}
             />
