@@ -973,7 +973,7 @@ const LadderPage = () => {
           style={{
             position: 'fixed',
             right: 16,
-            bottom: 16,
+            bottom: 56,
             zIndex: 1000,
           }}
         >
