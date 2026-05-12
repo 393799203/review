@@ -66,8 +66,15 @@ ${blockCondition}`;
       const response = await axios.get(`${API_BASE}/watchlist`);
       
       if (response.data.success) {
-        const codes = response.data.data.map(stock => stock.stock_code);
+        const codes = response.data.data.map(stock => {
+          const code = stock.stock_code || '';
+          const normalizedCode = code.replace(/\.(SH|SZ|BJ)$/, '');
+          return normalizedCode;
+        });
+        console.log('加载自选股 codes:', codes);
         setWatchlistCodes(codes);
+      } else {
+        console.error('获取自选股失败:', response.data.error);
       }
     } catch (error) {
       console.error('加载自选股列表失败:', error);
@@ -114,7 +121,8 @@ ${blockCondition}`;
 
   const handleAddToWatchlist = async (record) => {
     try {
-      const stockCode = record['股票代码'];
+      const stockCodeRaw = record['股票代码'];
+      const stockCode = stockCodeRaw.replace(/\.(SH|SZ|BJ)$/, '');
       const stockName = record['股票简称'];
       const price = record['最新价'];
       
@@ -294,17 +302,23 @@ ${blockCondition}`;
       key: 'action',
       width: isMobile ? 60 : 80,
       fixed: 'right',
-      render: (_, record) => (
-        <Button
-          type="primary"
-          size="small"
-          icon={<PlusOutlined />}
-          onClick={() => handleAddToWatchlist(record)}
-          style={{ fontSize: isMobile ? 11 : 12 }}
-        >
-          {isMobile ? '' : '自选'}
-        </Button>
-      ),
+      render: (_, record) => {
+        const stockCodeRaw = record['股票代码'];
+        const stockCode = stockCodeRaw ? stockCodeRaw.replace(/\.(SH|SZ|BJ)$/, '') : '';
+        const isAdded = watchlistCodes.includes(stockCode);
+        return (
+          <Button
+            type={isAdded ? 'default' : 'primary'}
+            size="small"
+            icon={isAdded ? <CheckOutlined /> : <PlusOutlined />}
+            onClick={() => !isAdded && handleAddToWatchlist(record)}
+            disabled={isAdded}
+            style={{ fontSize: isMobile ? 11 : 12 }}
+          >
+            {isMobile ? '' : (isAdded ? '已添加' : '自选')}
+          </Button>
+        );
+      },
     },
   ];
 
@@ -351,6 +365,7 @@ ${blockCondition}`;
             
             const stockCode = record['股票代码'].replace(/\.(SH|SZ|BJ)$/, '');
             const isAdded = watchlistCodes.includes(stockCode);
+            console.log('股票:', stockCode, 'isAdded:', isAdded, 'watchlistCodes:', watchlistCodes);
           
           return (
             <Card
