@@ -309,4 +309,115 @@ class LimitUpReasonAnalyzer:
                 'holding_advice': None,
                 'keywords': limit_up_reason.split('+')
             }
+
+
+    def analyze_news_impact(self, news_text: str) -> Dict:
+        """
+        使用大模型分析新闻影响，找出相关概念板块和个股
+
+        Args:
+            news_text: 新闻全文
+
+        Returns:
+            分析结果字典，包含板块、逻辑、相关个股等
+        """
+        logger.info(f"========== 开始分析新闻 ==========")
+        logger.info(f"新闻内容: {news_text[:200]}...")
+
+        try:
+            news_content = news_text[:500] if len(news_text) > 500 else news_text
+            
+            prompt = f"""分析财经新闻，找出相关板块和个股。
+
+新闻: {news_content}
+
+返回JSON:
+{{"analysis":"简析(50字内)","related_sectors":[{{"name":"板块","relevance":0.9}}],"related_stocks":[{{"code":"代码","name":"名称","reason":"原因"}}],"market_impact":"影响","investment_suggestion":"建议"}}
+
+要求:最多3个板块,5只个股,直接返回JSON。"""
+
+            logger.info(f"开始调用大模型API分析新闻")
+
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            data = {
+                "model": self.models[0],
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 800
+            }
+
+            start_time = time.time()
+            
+            max_retries = 2
+            for retry in range(max_retries):
+                try:
+                    response = requests.post(self.api_url, headers=headers, json=data, timeout=90)
+                    break
+                except requests.exceptions.Timeout:
+                    if retry < max_retries - 1:
+                        logger.warning(f"API超时，重试第{retry + 1}次...")
+                        time.sleep(2)
+                    else:
+                        raise
+            
+            elapsed_time = time.time() - start_time
+            logger.info(f"新闻分析API调用耗时: {elapsed_time:.2f}秒")
+
+            if response.status_code == 200:
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+
+                logger.info(f"API返回内容: {content[:300]}...")
+
+                try:
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group()
+                        analysis = json.loads(json_str)
+
+                        logger.info(f"========== 新闻分析完成 ==========")
+                        return analysis
+                    else:
+                        logger.error(f"无法从返回内容中提取JSON")
+                        return {
+                            'analysis': '分析失败',
+                            'related_sectors': [],
+                            'related_stocks': [],
+                            'market_impact': '未知',
+                            'investment_suggestion': '请谨慎操作'
+                        }
+                except json.JSONDecodeError as e:
+                    logger.error(f"解析JSON失败: {e}")
+                    return {
+                        'analysis': '解析失败',
+                        'related_sectors': [],
+                        'related_stocks': [],
+                        'market_impact': '未知',
+                        'investment_suggestion': '请谨慎操作'
+                    }
+            else:
+                logger.error(f"API调用失败: {response.status_code}")
+                return {
+                    'analysis': 'API调用失败',
+                    'related_sectors': [],
+                    'related_stocks': [],
+                    'market_impact': '未知',
+                    'investment_suggestion': '请谨慎操作'
+                }
+
+        except Exception as e:
+            logger.error(f"新闻分析失败: {e}", exc_info=True)
+            return {
+                'analysis': f'分析异常: {str(e)}',
+                'related_sectors': [],
+                'related_stocks': [],
+                'market_impact': '未知',
+                'investment_suggestion': '请谨慎操作'
+            }
     
