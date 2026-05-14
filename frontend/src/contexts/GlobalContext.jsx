@@ -344,6 +344,8 @@ export const GlobalProvider = ({ children }) => {
     setShowFirstBoard,
     showAllNews,
     setShowAllNews,
+    settings: userSettings,
+    updateSettings,
     loadPageSettings,
     handleDateChange,
     handlePrevDay,

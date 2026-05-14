@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Button, Collapse, Badge, Tooltip, Empty, Switch } from 'antd';
-import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Tag, Spin, message, Button, Collapse, Badge, Tooltip, Empty, Switch, Slider, Select, Popover } from 'antd';
+import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, SettingOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const { Panel } = Collapse;
 
@@ -15,7 +16,8 @@ export const refreshNewsData = (force = true) => {
 };
 
 const NewsPage = () => {
-  const { showAllNews } = useGlobal();
+  const { showAllNews, settings, updateSettings } = useGlobal();
+  const { user } = useAuth();
   const [newsList, setNewsList] = useState([]);
   const [analyzingId, setAnalyzingId] = useState(null);
   const [analysisCache, setAnalysisCache] = useState({});
@@ -27,14 +29,30 @@ const NewsPage = () => {
   const [loading, setLoading] = useState(true);
   const [latestNews, setLatestNews] = useState(null);
   const [highlightedIds, setHighlightedIds] = useState(new Set());
-  const [countdown, setCountdown] = useState(0);  // 改为0，播报完成后才开始倒计时
+  const [countdown, setCountdown] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);  // 标记是否是初始加载
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // 从用户设置中获取语音设置
+  const [speechEnabled, setSpeechEnabled] = useState(() => {
+    return settings?.news?.speechEnabled ?? true;
+  });
+  
+  const [speechSettings, setSpeechSettings] = useState(() => {
+    return settings?.news?.speechSettings ?? {
+      voice: null,
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0
+    };
+  });
+  
+  const [availableVoices, setAvailableVoices] = useState([]);
   const countdownRef = useRef(null);
   const speechRef = useRef(null);
   const lastSpeakTimeRef = useRef(0);
-  const isPausedRef = useRef(false);  // 使用ref存储暂停状态
+  const isPausedRef = useRef(false);
 
   // 同步isPaused状态到ref
   useEffect(() => {
@@ -65,56 +83,141 @@ const NewsPage = () => {
   };
 
   // 语音朗读消息
-  const speakNews = (news) => {
+  const speakNews = (news, isManual = false) => {
+    // 检查浏览器是否支持语音合成
     if (!('speechSynthesis' in window)) {
-      console.log('浏览器不支持语音合成');
+      message.warning('您的浏览器不支持语音播报功能，建议使用Chrome、Safari等现代浏览器');
       return;
     }
 
-    // 防抖：5秒内不重复播报
-    const now = Date.now();
-    if (now - lastSpeakTimeRef.current < 5000) {
-      console.log('播报防抖：5秒内不重复播报');
+    // 检查语音合成是否可用
+    if (!window.speechSynthesis) {
+      message.error('语音合成服务不可用');
       return;
     }
-    lastSpeakTimeRef.current = now;
 
-    // 停止之前的朗读
-    if (speechRef.current) {
-      window.speechSynthesis.cancel();
+    // 如果播报被禁用且不是手动播报，直接返回
+    if (!speechEnabled && !isManual) {
+      return;
     }
 
-    const text = news.title || news.content;
-    const utterance = new SpeechSynthesisUtterance(text);
+    // 防抖：仅对自动播报生效，手动播报不需要防抖
+    if (!isManual) {
+      const now = Date.now();
+      if (now - lastSpeakTimeRef.current < 5000) {
+        console.log('播报防抖：5秒内不重复播报');
+        return;
+      }
+      lastSpeakTimeRef.current = now;
+    }
+
+    try {
+      // 停止之前的朗读
+      if (speechRef.current) {
+        window.speechSynthesis.cancel();
+      }
+
+      const text = news.title || news.content;
+      
+      // 检查文本是否为空
+      if (!text || text.trim() === '') {
+        message.warning('消息内容为空，无法播报');
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // 应用设置
+      if (speechSettings.voice) {
+        const voice = availableVoices.find(v => v.name === speechSettings.voice);
+        if (voice) {
+          utterance.voice = voice;
+        }
+      } else {
+        // 默认使用中文语音
+        const chineseVoice = availableVoices.find(voice => voice.lang.includes('zh'));
+        if (chineseVoice) {
+          utterance.voice = chineseVoice;
+        }
+      }
+      
+      utterance.rate = speechSettings.rate;
+      utterance.pitch = speechSettings.pitch;
+      utterance.volume = speechSettings.volume;
+      
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        if (isManual) {
+          message.success('开始播报');
+        }
+      };
+      
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        // 语音播报完成后开始5秒倒计时（仅对自动播报）
+        if (!isManual) {
+          startCountdown();
+        }
+      };
+      
+      utterance.onerror = (event) => {
+        console.error('语音播报错误:', event);
+        setIsSpeaking(false);
+        
+        // 根据错误类型显示不同提示
+        if (event.error === 'not-allowed') {
+          message.error('语音播报被浏览器阻止，请检查浏览器权限设置');
+        } else if (event.error === 'no-speech') {
+          message.error('未检测到语音数据');
+        } else if (event.error === 'network') {
+          message.error('网络错误，无法加载语音数据');
+        } else if (event.error === 'canceled') {
+          message.info('播报已取消');
+        } else {
+          message.error(`播报失败: ${event.error || '未知错误'}`);
+        }
+        
+        // 播报出错也启动倒计时（仅对自动播报）
+        if (!isManual) {
+          startCountdown();
+        }
+      };
+      
+      speechRef.current = utterance;
+      
+      // 尝试播放
+      window.speechSynthesis.speak(utterance);
+      
+      // 检查是否真的开始播放（某些浏览器可能静默失败）
+      setTimeout(() => {
+        if (isSpeaking && !window.speechSynthesis.speaking) {
+          message.warning('语音播报可能未正常启动，请检查浏览器设置');
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('语音播报异常:', error);
+      message.error(`播报异常: ${error.message || '未知错误'}`);
+      setIsSpeaking(false);
+    }
+  };
+
+  // 试听语音
+  const testSpeech = () => {
+    const testText = '这是一条测试消息，用于试听语音效果。';
+    const utterance = new SpeechSynthesisUtterance(testText);
     
-    // 设置中文语音
-    const voices = window.speechSynthesis.getVoices();
-    const chineseVoice = voices.find(voice => voice.lang.includes('zh'));
-    if (chineseVoice) {
-      utterance.voice = chineseVoice;
+    if (speechSettings.voice) {
+      const voice = availableVoices.find(v => v.name === speechSettings.voice);
+      if (voice) {
+        utterance.voice = voice;
+      }
     }
     
-    utterance.rate = 1.0; // 语速
-    utterance.pitch = 1.0; // 音调
-    utterance.volume = 1.0; // 音量
+    utterance.rate = speechSettings.rate;
+    utterance.pitch = speechSettings.pitch;
+    utterance.volume = speechSettings.volume;
     
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-    };
-    
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      // 语音播报完成后开始5秒倒计时
-      startCountdown();
-    };
-    
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-      // 播报出错也启动倒计时
-      startCountdown();
-    };
-    
-    speechRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   };
 
@@ -164,9 +267,30 @@ const NewsPage = () => {
   // 预加载语音
   useEffect(() => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.getVoices();
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const chineseVoices = voices.filter(voice => voice.lang.includes('zh'));
+        setAvailableVoices(chineseVoices.length > 0 ? chineseVoices : voices);
+      };
+      
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
     }
   }, []);
+
+  // 保存设置到用户设置
+  useEffect(() => {
+    if (user) {
+      updateSettings({
+        ...settings,
+        news: {
+          ...settings?.news,
+          speechEnabled,
+          speechSettings
+        }
+      });
+    }
+  }, [speechEnabled, speechSettings]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -395,22 +519,28 @@ const NewsPage = () => {
               </div>
             )}
           </div>
-          <div style={{ marginLeft: 12 }}>
-            <Tooltip title="AI分析">
-              <Button
-                type="primary"
-                icon={<RobotOutlined />}
-                onClick={() => analyzeNews(news, !!analysis)}
-                loading={isAnalyzing}
-                style={{
-                  background: analysis ? '#52c41a' : '#722ed1',
-                  borderColor: analysis ? '#52c41a' : '#722ed1'
-                }}
-                size="small"
-              >
-                {isMobile ? '' : (analysis ? '再次分析' : 'AI分析')}
-              </Button>
-            </Tooltip>
+          <div style={{ marginLeft: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Button
+              type="default"
+              icon={<SoundOutlined />}
+              onClick={() => speakNews(news, true)}
+              size="small"
+            >
+              {isMobile ? '' : '播报'}
+            </Button>
+            <Button
+              type="primary"
+              icon={<RobotOutlined />}
+              onClick={() => analyzeNews(news, !!analysis)}
+              loading={isAnalyzing}
+              style={{
+                background: analysis ? '#52c41a' : '#722ed1',
+                borderColor: analysis ? '#52c41a' : '#722ed1'
+              }}
+              size="small"
+            >
+              {isMobile ? '' : (analysis ? '再次分析' : 'AI分析')}
+            </Button>
           </div>
         </div>
 
@@ -628,18 +758,100 @@ const NewsPage = () => {
             title="加红资讯数量"
           />
         </div>
-        {loading && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            color: '#1890ff',
-            fontSize: 14
-          }}>
-            <LoadingOutlined spin />
-            <span>数据同步中...</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {loading && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: '#1890ff',
+              fontSize: 14
+            }}>
+              <LoadingOutlined spin />
+              <span>数据同步中...</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, color: '#666' }}>语音播报</span>
+            <Switch
+              checked={speechEnabled}
+              onChange={setSpeechEnabled}
+              size="small"
+            />
+            <Popover
+              content={
+                <div style={{ width: 300 }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ marginBottom: 8, fontWeight: 'bold' }}>语音设置</div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语音包</div>
+                      <Select
+                        style={{ width: '100%' }}
+                        value={speechSettings.voice}
+                        onChange={(value) => setSpeechSettings({ ...speechSettings, voice: value })}
+                        placeholder="选择语音包"
+                      >
+                        {availableVoices.map(voice => (
+                          <Select.Option key={voice.name} value={voice.name}>
+                            {voice.name} ({voice.lang})
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语速: {speechSettings.rate.toFixed(1)}</div>
+                      <Slider
+                        min={0.5}
+                        max={2}
+                        step={0.1}
+                        value={speechSettings.rate}
+                        onChange={(value) => setSpeechSettings({ ...speechSettings, rate: value })}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音调: {speechSettings.pitch.toFixed(1)}</div>
+                      <Slider
+                        min={0.5}
+                        max={2}
+                        step={0.1}
+                        value={speechSettings.pitch}
+                        onChange={(value) => setSpeechSettings({ ...speechSettings, pitch: value })}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音量: {speechSettings.volume.toFixed(1)}</div>
+                      <Slider
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        value={speechSettings.volume}
+                        onChange={(value) => setSpeechSettings({ ...speechSettings, volume: value })}
+                      />
+                    </div>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<PlayCircleOutlined />}
+                      onClick={testSpeech}
+                      block
+                    >
+                      试听效果
+                    </Button>
+                  </div>
+                </div>
+              }
+              title={null}
+              trigger="click"
+            >
+              <Button
+                type="text"
+                icon={<SettingOutlined />}
+                size="small"
+                style={{ color: '#1890ff' }}
+              />
+            </Popover>
           </div>
-        )}
+        </div>
       </div>
 
       {displayList.length === 0 && !loading ? (
