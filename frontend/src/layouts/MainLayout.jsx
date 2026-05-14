@@ -96,7 +96,7 @@ const MainLayout = ({ children }) => {
     {
       key: '/news',
       icon: <NotificationOutlined />,
-      label: '财联社',
+      label: '财联播报',
     },
     {
       key: '/watchlist',

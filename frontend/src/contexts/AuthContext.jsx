@@ -16,7 +16,19 @@ const DEFAULT_SETTINGS = {
   ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-  news: { autoRefresh: false, refreshInterval: 30, smartMode: false, showAllNews: false },
+  news: { 
+    autoRefresh: false, 
+    refreshInterval: 30, 
+    smartMode: false, 
+    showAllNews: false,
+    speechEnabled: true,
+    speechSettings: {
+      voice: null,
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0
+    }
+  },
 };
 
 export const AuthProvider = ({ children }) => {
