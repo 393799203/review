@@ -33,6 +33,7 @@ const NewsPage = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [speechSupported, setSpeechSupported] = useState(false);  // 是否支持语音播报
   
   // 从用户设置中获取语音设置
   const [speechEnabled, setSpeechEnabled] = useState(() => {
@@ -58,6 +59,77 @@ const NewsPage = () => {
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  // 预加载语音并检测支持情况
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) {
+      // 不支持Web Speech API
+      setSpeechSupported(false);
+      console.log('浏览器不支持Web Speech API');
+      return;
+    }
+
+    let isMounted = true;
+    let checkCount = 0;
+    const maxChecks = 10; // 最多检查10次
+
+    const checkVoices = () => {
+      if (!isMounted) return;
+
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        checkCount++;
+
+        console.log(`检查语音包 (第${checkCount}次):`, voices ? voices.length : 0);
+
+        if (voices && voices.length > 0) {
+          // 有可用的语音包
+          const chineseVoices = voices.filter(voice => voice.lang.includes('zh'));
+          if (isMounted) {
+            setAvailableVoices(chineseVoices.length > 0 ? chineseVoices : voices);
+            setSpeechSupported(true);
+            console.log('✅ 检测到语音包支持，可用语音包数量:', voices.length);
+          }
+          return true;
+        } else if (checkCount < maxChecks) {
+          // 没有检测到语音包，但还有检查次数，延迟后继续检查
+          setTimeout(checkVoices, 500);
+        } else {
+          // 达到最大检查次数，仍然没有语音包
+          if (isMounted) {
+            setSpeechSupported(false);
+            console.log('❌ 未检测到可用的语音包');
+          }
+        }
+      } catch (error) {
+        console.error('检查语音包出错:', error);
+        if (isMounted) {
+          setSpeechSupported(false);
+        }
+      }
+
+      return false;
+    };
+
+    // 立即尝试加载
+    checkVoices();
+
+    // 监听语音包加载事件
+    const handleVoicesChanged = () => {
+      console.log('voiceschanged事件触发');
+      checkVoices();
+    };
+
+    window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+
+    // 清理函数
+    return () => {
+      isMounted = false;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
 
   // 开始倒计时
   const startCountdown = () => {
@@ -520,14 +592,16 @@ const NewsPage = () => {
             )}
           </div>
           <div style={{ marginLeft: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Button
-              type="default"
-              icon={<SoundOutlined />}
-              onClick={() => speakNews(news, true)}
-              size="small"
-            >
-              {isMobile ? '' : '播报'}
-            </Button>
+            {speechSupported && (
+              <Button
+                type="default"
+                icon={<SoundOutlined />}
+                onClick={() => speakNews(news, true)}
+                size="small"
+              >
+                {isMobile ? '' : '播报'}
+              </Button>
+            )}
             <Button
               type="primary"
               icon={<RobotOutlined />}
@@ -771,86 +845,88 @@ const NewsPage = () => {
               <span>数据同步中...</span>
             </div>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14, color: '#666' }}>语音播报</span>
-            <Switch
-              checked={speechEnabled}
-              onChange={setSpeechEnabled}
-              size="small"
-            />
-            <Popover
-              content={
-                <div style={{ width: 300 }}>
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ marginBottom: 8, fontWeight: 'bold' }}>语音设置</div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语音包</div>
-                      <Select
-                        style={{ width: '100%' }}
-                        value={speechSettings.voice}
-                        onChange={(value) => setSpeechSettings({ ...speechSettings, voice: value })}
-                        placeholder="选择语音包"
-                      >
-                        {availableVoices.map(voice => (
-                          <Select.Option key={voice.name} value={voice.name}>
-                            {voice.name} ({voice.lang})
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语速: {speechSettings.rate.toFixed(1)}</div>
-                      <Slider
-                        min={0.5}
-                        max={2}
-                        step={0.1}
-                        value={speechSettings.rate}
-                        onChange={(value) => setSpeechSettings({ ...speechSettings, rate: value })}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音调: {speechSettings.pitch.toFixed(1)}</div>
-                      <Slider
-                        min={0.5}
-                        max={2}
-                        step={0.1}
-                        value={speechSettings.pitch}
-                        onChange={(value) => setSpeechSettings({ ...speechSettings, pitch: value })}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音量: {speechSettings.volume.toFixed(1)}</div>
-                      <Slider
-                        min={0}
-                        max={1}
-                        step={0.1}
-                        value={speechSettings.volume}
-                        onChange={(value) => setSpeechSettings({ ...speechSettings, volume: value })}
-                      />
-                    </div>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<PlayCircleOutlined />}
-                      onClick={testSpeech}
-                      block
-                    >
-                      试听效果
-                    </Button>
-                  </div>
-                </div>
-              }
-              title={null}
-              trigger="click"
-            >
-              <Button
-                type="text"
-                icon={<SettingOutlined />}
+          {speechSupported && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, color: '#666' }}>语音播报</span>
+              <Switch
+                checked={speechEnabled}
+                onChange={setSpeechEnabled}
                 size="small"
-                style={{ color: '#1890ff' }}
               />
-            </Popover>
-          </div>
+              <Popover
+                content={
+                  <div style={{ width: 300 }}>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ marginBottom: 8, fontWeight: 'bold' }}>语音设置</div>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语音包</div>
+                        <Select
+                          style={{ width: '100%' }}
+                          value={speechSettings.voice}
+                          onChange={(value) => setSpeechSettings({ ...speechSettings, voice: value })}
+                          placeholder="选择语音包"
+                        >
+                          {availableVoices.map(voice => (
+                            <Select.Option key={voice.name} value={voice.name}>
+                              {voice.name} ({voice.lang})
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语速: {speechSettings.rate.toFixed(1)}</div>
+                        <Slider
+                          min={0.5}
+                          max={2}
+                          step={0.1}
+                          value={speechSettings.rate}
+                          onChange={(value) => setSpeechSettings({ ...speechSettings, rate: value })}
+                        />
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音调: {speechSettings.pitch.toFixed(1)}</div>
+                        <Slider
+                          min={0.5}
+                          max={2}
+                          step={0.1}
+                          value={speechSettings.pitch}
+                          onChange={(value) => setSpeechSettings({ ...speechSettings, pitch: value })}
+                        />
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音量: {speechSettings.volume.toFixed(1)}</div>
+                        <Slider
+                          min={0}
+                          max={1}
+                          step={0.1}
+                          value={speechSettings.volume}
+                          onChange={(value) => setSpeechSettings({ ...speechSettings, volume: value })}
+                        />
+                      </div>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<PlayCircleOutlined />}
+                        onClick={testSpeech}
+                        block
+                      >
+                        试听效果
+                      </Button>
+                    </div>
+                  </div>
+                }
+                title={null}
+                trigger="click"
+              >
+                <Button
+                  type="text"
+                  icon={<SettingOutlined />}
+                  size="small"
+                  style={{ color: '#1890ff' }}
+                />
+              </Popover>
+            </div>
+          )}
         </div>
       </div>
 
