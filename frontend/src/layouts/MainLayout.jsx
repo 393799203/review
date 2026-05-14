@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
+import { refreshNewsData } from '../pages/NewsPage';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import dayjs from 'dayjs';
 
 const { Sider, Content, Header } = Layout;
@@ -13,6 +15,8 @@ const MainLayout = ({ children }) => {
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
   const [popoverVisible, setPopoverVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState('ladder');
+  const [refreshCallback, setRefreshCallback] = useState(null);
 
   const { user, logout, isAuthenticated } = useAuth();
 
@@ -29,7 +33,8 @@ const MainLayout = ({ children }) => {
     setSmartMode,
     showFirstBoard,
     setShowFirstBoard,
-    setAutoRefreshCallback,
+    showAllNews,
+    setShowAllNews,
     loadPageSettings,
     handleDateChange,
     handlePrevDay,
@@ -39,27 +44,38 @@ const MainLayout = ({ children }) => {
     refreshStatistics,
   } = useGlobal();
 
+  useAutoRefresh({
+    autoRefresh,
+    refreshInterval,
+    smartMode,
+    currentPage,
+    tradingDays,
+    callback: refreshCallback,
+  });
+
   useEffect(() => {
     const pageMap = {
       '/': 'ladder',
       '/watchlist': 'watchlist',
       '/statistics': 'statistics',
+      '/news': 'news',
     };
 
     const page = pageMap[location.pathname] || 'ladder';
+    setCurrentPage(page);
     loadPageSettings(page);
 
     if (location.pathname === '/') {
-      setAutoRefreshCallback(refreshCurrentData);
+      setRefreshCallback(() => refreshCurrentData);
     } else if (location.pathname === '/watchlist') {
-      setAutoRefreshCallback(refreshWatchlistPrices);
+      setRefreshCallback(() => refreshWatchlistPrices);
     } else if (location.pathname === '/statistics') {
-      setAutoRefreshCallback(refreshStatistics);
+      setRefreshCallback(() => refreshStatistics);
+    } else if (location.pathname === '/news') {
+      setRefreshCallback(() => () => refreshNewsData(true));
+    } else {
+      setRefreshCallback(null);
     }
-
-    return () => {
-      setAutoRefreshCallback(null);
-    };
   }, [location.pathname]);
 
   useEffect(() => {
@@ -76,6 +92,11 @@ const MainLayout = ({ children }) => {
       key: '/',
       icon: <StockOutlined />,
       label: '涨停天梯',
+    },
+    {
+      key: '/news',
+      icon: <NotificationOutlined />,
+      label: '财联社',
     },
     {
       key: '/watchlist',
@@ -107,6 +128,7 @@ const MainLayout = ({ children }) => {
   const renderHeaderRight = () => {
     const isWatchlistPage = location.pathname === '/watchlist';
     const isStatisticsPage = location.pathname === '/statistics';
+    const isNewsPage = location.pathname === '/news';
 
     const settingsContent = (
       <div style={{ width: isMobile ? 200 : 250 }}>
@@ -150,6 +172,7 @@ const MainLayout = ({ children }) => {
     const getRefreshHandler = () => {
       if (isWatchlistPage) return refreshWatchlistPrices;
       if (isStatisticsPage) return refreshStatistics;
+      if (isNewsPage) return refreshNewsData;
       return refreshCurrentData;
     };
 
@@ -178,6 +201,15 @@ const MainLayout = ({ children }) => {
                 style={{ marginLeft: 4 }}
               />
             </>
+          )}
+          {isNewsPage && (
+            <Switch
+              checked={showAllNews}
+              onChange={setShowAllNews}
+              size="small"
+              checkedChildren="全"
+              unCheckedChildren="红"
+            />
           )}
           <Button
             type="primary"
@@ -223,6 +255,13 @@ const MainLayout = ({ children }) => {
             {!isLatestDate && <Button onClick={handleNextDay}>后一天</Button>}
             <span style={{ marginLeft: 8 }}>显示首板:</span>
             <Switch checked={showFirstBoard} onChange={setShowFirstBoard} />
+          </>
+        )}
+
+        {isNewsPage && (
+          <>
+            <span>显示全部:</span>
+            <Switch checked={showAllNews} onChange={setShowAllNews} />
           </>
         )}
 
@@ -452,7 +491,6 @@ const MainLayout = ({ children }) => {
           }}
         >
           <div style={{ fontSize: 18, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img src="/favicon.svg" alt="logo" style={{ width: 28, height: 28 }} />
             A股涨停复盘系统
           </div>
           {renderHeaderRight()}

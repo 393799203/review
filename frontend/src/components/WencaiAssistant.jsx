@@ -7,7 +7,7 @@ import StockAnalysisModal from './StockAnalysisModal';
 
 const { TextArea } = Input;
 
-const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDayBlocks = [] }) => {
+const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDayBlocks = [], enableBlur = false }) => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState([]);
@@ -169,7 +169,14 @@ ${blockCondition}`;
         return (
           <div style={{ lineHeight: '18px' }}>
             <div 
-              style={{ fontWeight: 'bold', color: '#1890ff', fontSize: isMobile ? 12 : 13, cursor: 'pointer' }}
+              style={{ 
+                fontWeight: 'bold', 
+                color: '#1890ff', 
+                fontSize: isMobile ? 12 : 13, 
+                cursor: 'pointer',
+                filter: enableBlur ? 'blur(5px)' : 'none',
+                userSelect: enableBlur ? 'none' : 'auto'
+              }}
               onClick={() => {
                 setSelectedStock({ code: stockCode, name: record['股票简称'] });
                 setKlineVisible(true);
@@ -179,7 +186,14 @@ ${blockCondition}`;
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div 
-                style={{ fontSize: isMobile ? 11 : 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+                style={{ 
+                  fontSize: isMobile ? 11 : 12, 
+                  color: '#262626', 
+                  fontWeight: 'bold', 
+                  cursor: 'pointer',
+                  filter: enableBlur ? 'blur(5px)' : 'none',
+                  userSelect: enableBlur ? 'none' : 'auto'
+                }}
                 onClick={() => {
                   setSelectedStock({ code: stockCode, name: record['股票简称'] });
                   setKlineVisible(true);
@@ -377,7 +391,14 @@ ${blockCondition}`;
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
                   <div 
-                    style={{ fontWeight: 'bold', color: '#1890ff', fontSize: 13, cursor: 'pointer' }}
+                    style={{ 
+                      fontWeight: 'bold', 
+                      color: '#1890ff', 
+                      fontSize: 13, 
+                      cursor: 'pointer',
+                      filter: enableBlur ? 'blur(5px)' : 'none',
+                      userSelect: enableBlur ? 'none' : 'auto'
+                    }}
                     onClick={() => {
                       setSelectedStock({ code: stockCode, name: record['股票简称'] });
                       setKlineVisible(true);
@@ -387,7 +408,14 @@ ${blockCondition}`;
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <div 
-                      style={{ fontSize: 12, color: '#262626', fontWeight: 'bold', cursor: 'pointer' }}
+                      style={{ 
+                        fontSize: 12, 
+                        color: '#262626', 
+                        fontWeight: 'bold', 
+                        cursor: 'pointer',
+                        filter: enableBlur ? 'blur(5px)' : 'none',
+                        userSelect: enableBlur ? 'none' : 'auto'
+                      }}
                       onClick={() => {
                         setSelectedStock({ code: stockCode, name: record['股票简称'] });
                         setKlineVisible(true);

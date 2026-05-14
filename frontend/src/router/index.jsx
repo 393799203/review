@@ -6,6 +6,7 @@ import MainLayout from '../layouts/MainLayout';
 import LadderPage from '../pages/LadderPage';
 import WatchlistPage from '../pages/WatchlistPage';
 import StatisticsPage from '../pages/StatisticsPage';
+import NewsPage from '../pages/NewsPage';
 import AuthPage from '../pages/AuthPage';
 
 const ProtectedRoute = ({ children }) => {
@@ -62,6 +63,7 @@ const AppRouter = () => {
                       <Route path="/" element={<LadderPage />} />
                       <Route path="/watchlist" element={<WatchlistPage />} />
                       <Route path="/statistics" element={<StatisticsPage />} />
+                      <Route path="/news" element={<NewsPage />} />
                     </Routes>
                   </MainLayout>
                 </GlobalProvider>

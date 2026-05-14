@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true, showFirstBoard: true },
   watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
+  news: { autoRefresh: false, refreshInterval: 300, smartMode: true, showAllNews: false },
 };
 
 export const GlobalProvider = ({ children }) => {
@@ -42,6 +43,9 @@ export const GlobalProvider = ({ children }) => {
   const [showFirstBoard, setShowFirstBoardState] = useState(
     userSettings?.ladder?.showFirstBoard ?? true
   );
+  const [showAllNews, setShowAllNewsState] = useState(
+    userSettings?.news?.showAllNews ?? false
+  );
 
   useEffect(() => {
     if (userSettings && userSettings[currentPage]) {
@@ -51,10 +55,12 @@ export const GlobalProvider = ({ children }) => {
       if (currentPage === 'ladder') {
         setShowFirstBoardState(userSettings[currentPage].showFirstBoard ?? true);
       }
+      if (currentPage === 'news') {
+        setShowAllNewsState(userSettings[currentPage].showAllNews ?? false);
+      }
     }
   }, [userSettings, currentPage]);
 
-  const intervalRef = useRef(null);
   const currentDateRef = useRef('');
 
   const setCurrentDate = (date) => {
@@ -71,6 +77,9 @@ export const GlobalProvider = ({ children }) => {
       if (page === 'ladder') {
         setShowFirstBoardState(userSettings[page].showFirstBoard ?? true);
       }
+      if (page === 'news') {
+        setShowAllNewsState(userSettings[page].showAllNews ?? false);
+      }
     } else {
       const defaultPageSettings = DEFAULT_SETTINGS[page];
       setAutoRefreshState(defaultPageSettings.autoRefresh);
@@ -78,6 +87,9 @@ export const GlobalProvider = ({ children }) => {
       setSmartModeState(defaultPageSettings.smartMode);
       if (page === 'ladder') {
         setShowFirstBoardState(defaultPageSettings.showFirstBoard);
+      }
+      if (page === 'news') {
+        setShowAllNewsState(defaultPageSettings.showAllNews);
       }
     }
   };
@@ -130,12 +142,34 @@ export const GlobalProvider = ({ children }) => {
     updateSettings(newSettings);
   };
 
+  const setShowAllNews = (value) => {
+    setShowAllNewsState(value);
+    const newSettings = {
+      ...userSettings,
+      news: {
+        ...(userSettings?.news || DEFAULT_SETTINGS.news),
+        showAllNews: value,
+      },
+    };
+    updateSettings(newSettings);
+  };
+
   const loadTradingDays = async (dateStr) => {
     try {
       const response = await stockApi.getAdjacentTradingDays(dateStr);
       if (response.data.success) {
         const data = response.data.data;
-        const allDays = [...(data.prev_days || []), ...(data.next_days || [])];
+        const prevDays = data.prev_days || [];
+        const nextDays = data.next_days || [];
+        const isTradingDay = data.is_trading_day;
+        
+        let allDays;
+        if (isTradingDay) {
+          allDays = [...prevDays, dateStr, ...nextDays];
+        } else {
+          allDays = [...prevDays, ...nextDays];
+        }
+        
         setTradingDays(allDays);
       }
     } catch (error) {
@@ -283,75 +317,6 @@ export const GlobalProvider = ({ children }) => {
     }
   };
 
-  const autoRefreshCallback = useRef(null);
-
-  const setAutoRefreshCallback = (callback) => {
-    autoRefreshCallback.current = callback;
-  };
-
-  const isInTradingTime = () => {
-    const now = new Date();
-    const today = dayjs().format('YYYYMMDD');
-    
-    if (!tradingDays.includes(today)) {
-      return false;
-    }
-    
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const currentTime = hours * 60 + minutes;
-    
-    const morningStart = 9 * 60 + 15;
-    const morningEnd = 11 * 60 + 30;
-    const afternoonStart = 13 * 60;
-    const afternoonEnd = 15 * 60;
-    
-    return (currentTime >= morningStart && currentTime <= morningEnd) ||
-           (currentTime >= afternoonStart && currentTime <= afternoonEnd);
-  };
-
-  useEffect(() => {
-    if (autoRefresh && autoRefreshCallback.current && currentDate) {
-      const shouldRefresh = smartMode ? isInTradingTime() : true;
-      
-      if (shouldRefresh) {
-        intervalRef.current = setInterval(() => {
-          const stillInTime = smartMode ? isInTradingTime() : true;
-          if (stillInTime && autoRefreshCallback.current) {
-            autoRefreshCallback.current();
-          }
-        }, refreshInterval * 1000);
-      }
-    }
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [autoRefresh, refreshInterval, smartMode, currentDate]);
-
-  useEffect(() => {
-    if (smartMode && autoRefresh && currentDate) {
-      const checkInterval = setInterval(() => {
-        const inTime = isInTradingTime();
-        if (!inTime && intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        } else if (inTime && !intervalRef.current && autoRefreshCallback.current) {
-          intervalRef.current = setInterval(() => {
-            if (isInTradingTime() && autoRefreshCallback.current) {
-              autoRefreshCallback.current();
-            }
-          }, refreshInterval * 1000);
-        }
-      }, 60000);
-      
-      return () => clearInterval(checkInterval);
-    }
-  }, [smartMode, autoRefresh, refreshInterval, currentDate]);
-
   useEffect(() => {
     initLoad();
   }, []);
@@ -377,7 +342,8 @@ export const GlobalProvider = ({ children }) => {
     setSmartMode,
     showFirstBoard,
     setShowFirstBoard,
-    setAutoRefreshCallback,
+    showAllNews,
+    setShowAllNews,
     loadPageSettings,
     handleDateChange,
     handlePrevDay,
