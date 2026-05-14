@@ -37,9 +37,11 @@ const LadderPage = () => {
 
   const [blockFilterDay, setBlockFilterDay] = useState('today');
   const [blockStrengthData, setBlockStrengthData] = useState({});
+  const [enableBlur, setEnableBlur] = useState(false); // 模糊开关
   
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
+  const isLoadingFromDBRef = useRef(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -60,8 +62,15 @@ const LadderPage = () => {
       lastDateRef.current = currentDate;
       loadData(currentDate);
       loadBlockStrengthData();
+      loadDiffData();
     }
   }, [currentDate, refreshKey]);
+
+  useEffect(() => {
+    if (!isLoadingFromDBRef.current && (diffData.added.length > 0 || diffData.removed.length > 0)) {
+      saveDiffData(diffData);
+    }
+  }, [diffData]);
 
   const loadBlockStrengthData = async () => {
     try {
@@ -74,6 +83,62 @@ const LadderPage = () => {
       }
     } catch (error) {
       console.error('加载板块强度数据失败:', error);
+    }
+  };
+
+  const loadDiffData = async () => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      const response = await axios.get(`${API_BASE}/stock-diff/load/${currentDate}`);
+      if (response.data.success) {
+        const data = response.data.data;
+        isLoadingFromDBRef.current = true;
+        setDiffData({
+          added: data.added.map(s => ({
+            code: s.code,
+            name: s.name,
+            level: s.level,
+            limitUpTime: s.limitUpTime
+          })),
+          removed: data.removed.map(s => ({
+            code: s.code,
+            name: s.name,
+            level: s.level,
+            limitUpTime: s.limitUpTime
+          }))
+        });
+        setTimeout(() => {
+          isLoadingFromDBRef.current = false;
+        }, 100);
+      }
+    } catch (error) {
+      console.error('加载对比结果失败:', error);
+    }
+  };
+
+  const saveDiffData = async (data) => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      await axios.post(`${API_BASE}/stock-diff/save`, {
+        trade_date: currentDate,
+        added: data.added,
+        removed: data.removed
+      });
+    } catch (error) {
+      console.error('保存对比结果失败:', error);
+    }
+  };
+
+  const clearDiffData = async () => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      await axios.delete(`${API_BASE}/stock-diff/clear/${currentDate}`);
+      setDiffData({ added: [], removed: [] });
+    } catch (error) {
+      console.error('清空对比结果失败:', error);
     }
   };
 
@@ -397,7 +462,14 @@ const LadderPage = () => {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
                 <span 
-                  style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
+                  style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: 14, 
+                    color: '#1890ff', 
+                    cursor: 'pointer',
+                    filter: enableBlur ? 'blur(5px)' : 'none',
+                    userSelect: enableBlur ? 'none' : 'auto'
+                  }}
                   onClick={() => {
                     setSelectedStock({ code: stock.code, name: stock.name });
                     setKlineVisible(true);
@@ -406,7 +478,14 @@ const LadderPage = () => {
                   {stock.code}
                 </span>
                 <span 
-                  style={{ fontWeight: 'bold', fontSize: 14, color: '#262626', cursor: 'pointer' }}
+                  style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: 14, 
+                    color: '#262626', 
+                    cursor: 'pointer',
+                    filter: enableBlur ? 'blur(5px)' : 'none',
+                    userSelect: enableBlur ? 'none' : 'auto'
+                  }}
                   onClick={() => {
                     setSelectedStock({ code: stock.code, name: stock.name });
                     setKlineVisible(true);
@@ -541,7 +620,14 @@ const LadderPage = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <span 
-                  style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
+                  style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: 14, 
+                    color: '#1890ff', 
+                    cursor: 'pointer',
+                    filter: enableBlur ? 'blur(5px)' : 'none',
+                    userSelect: enableBlur ? 'none' : 'auto'
+                  }}
                   onClick={() => {
                     setSelectedStock({ code: stock.code, name: stock.name });
                     setKlineVisible(true);
@@ -557,7 +643,12 @@ const LadderPage = () => {
                 )}
               </div>
               <div style={{ fontSize: 15, fontWeight: 'bold', color: '#262626', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {stock.name}
+                <span style={{
+                  filter: enableBlur ? 'blur(5px)' : 'none',
+                  userSelect: enableBlur ? 'none' : 'auto'
+                }}>
+                  {stock.name}
+                </span>
                 <div 
                   style={{ 
                     display: 'inline-flex',
@@ -730,6 +821,14 @@ const LadderPage = () => {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button
+              type={enableBlur ? "primary" : "default"}
+              size="small"
+              onClick={() => setEnableBlur(!enableBlur)}
+              style={{ fontSize: isMobile ? 12 : 14 }}
+            >
+              {enableBlur ? '取消模糊' : '模糊信息'}
+            </Button>
+            <Button
               type="primary"
               size="small"
               onClick={() => setWencaiVisible(true)}
@@ -865,6 +964,7 @@ const LadderPage = () => {
           dateStr={currentDate}
           type="breakout"
           nextDayBlocks={nextDayBlocks}
+          enableBlur={enableBlur}
         />
       )}
       
@@ -919,7 +1019,7 @@ const LadderPage = () => {
         onCancel={() => setDiffVisible(false)}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={() => setDiffData({ added: [], removed: [] })}>
+            <Button onClick={clearDiffData}>
               清空记录
             </Button>
             <Button type="primary" onClick={() => setDiffVisible(false)}>
@@ -933,12 +1033,12 @@ const LadderPage = () => {
           {diffData.added.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <h4 style={{ color: '#52c41a', marginBottom: 8 }}>
-                新增股票 ({diffData.added.length}只)
+                上板股票 ({diffData.added.length}只)
               </h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {diffData.added.map((stock, index) => (
                   <Tag key={index} color="green">
-                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板)
+                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {stock.limitUpTime || '-'}
                   </Tag>
                 ))}
               </div>
@@ -953,7 +1053,7 @@ const LadderPage = () => {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {diffData.removed.map((stock, index) => (
                   <Tag key={index} color="red">
-                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板)
+                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {stock.limitUpTime || '-'}
                   </Tag>
                 ))}
               </div>
