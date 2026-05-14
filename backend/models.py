@@ -61,8 +61,8 @@ class LimitUpStock(Base):
     )
     
     id = Column(Integer, primary_key=True)
-    stock_code = Column(String(10), nullable=False)
-    stock_name = Column(String(50), nullable=False)
+    stock_code = Column(String(20), nullable=False)
+    stock_name = Column(String(100), nullable=False)
     trade_date = Column(Date, nullable=False)
     limit_up_reason = Column(String(200))
     limit_up_time = Column(Time)
@@ -172,8 +172,8 @@ class AIAnalysisResult(Base):
     )
     
     id = Column(Integer, primary_key=True)
-    stock_code = Column(String(10), nullable=False)
-    stock_name = Column(String(50), nullable=False)
+    stock_code = Column(String(20), nullable=False)
+    stock_name = Column(String(500), nullable=False)
     trade_date = Column(Date, nullable=False)
     analysis_result = Column(Text, nullable=False)  # JSON格式的分析结果
     created_at = Column(DateTime, default=datetime.now)
@@ -202,6 +202,50 @@ class User(Base):
     settings = Column(Text)  # JSON格式的用户设置
     is_active = Column(Integer, default=1)
     last_login = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class StockDiffRecord(Base):
+    """股票对比记录表"""
+    __tablename__ = 'stock_diff_records'
+    __table_args__ = (
+        Index('idx_diff_date', 'trade_date'),
+        Index('idx_diff_type', 'diff_type'),
+        Index('idx_diff_date_type', 'trade_date', 'diff_type'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    trade_date = Column(Date, nullable=False)
+    diff_type = Column(String(10), nullable=False)  # 'added' 或 'removed'
+    stock_code = Column(String(10), nullable=False)
+    stock_name = Column(String(50), nullable=False)
+    level = Column(Integer, default=1)  # 连板数
+    limit_up_time = Column(Time)  # 涨停时间
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class ClsNews(Base):
+    """财联社新闻表"""
+    __tablename__ = 'cls_news'
+    __table_args__ = (
+        Index('idx_cls_news_id', 'news_id', unique=True),
+        Index('idx_cls_news_ctime', 'ctime'),
+        Index('idx_cls_news_important', 'is_important'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    news_id = Column(String(20), nullable=False, unique=True)
+    title = Column(String(500))
+    content = Column(Text)
+    ctime = Column(DateTime, nullable=False)
+    is_important = Column(Integer, default=0)
+    has_stocks = Column(Integer, default=0)
+    confirmed = Column(Integer, default=0)
+    reading_num = Column(Integer, default=0)
+    stock_list = Column(Text)
+    analysis_result = Column(Text)
+    analyzed_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

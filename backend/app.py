@@ -14,7 +14,7 @@ import threading
 import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews
 from ths_fetcher import ThsFetcher
 from statistics_api import register_statistics_routes
 from limit_up_analyzer import LimitUpReasonAnalyzer
@@ -1746,6 +1746,519 @@ def update_user_settings():
         session.close()
 
 
+@app.route('/api/stock-diff/save', methods=['POST'])
+def save_stock_diff():
+    """
+    保存股票对比结果
+    
+    请求体:
+    {
+        "trade_date": "20250512",
+        "added": [
+            {"code": "000001", "name": "平安银行", "level": 1, "limitUpTime": "09:30:00"}
+        ],
+        "removed": [
+            {"code": "000002", "name": "万科A", "level": 2, "limitUpTime": "10:00:00"}
+        ]
+    }
+    """
+    session = get_db_session()
+    try:
+        data = request.json
+        trade_date_str = data.get('trade_date')
+        added_stocks = data.get('added', [])
+        removed_stocks = data.get('removed', [])
+        
+        if not trade_date_str:
+            return jsonify({
+                'success': False,
+                'error': '缺少交易日期参数'
+            }), 400
+        
+        trade_date = datetime.strptime(trade_date_str, '%Y%m%d').date()
+        
+        session.query(StockDiffRecord).filter(
+            StockDiffRecord.trade_date == trade_date
+        ).delete()
+        
+        records = []
+        
+        for stock in added_stocks:
+            record = StockDiffRecord(
+                trade_date=trade_date,
+                diff_type='added',
+                stock_code=stock.get('code', ''),
+                stock_name=stock.get('name', ''),
+                level=stock.get('level', 1),
+                limit_up_time=datetime.strptime(stock.get('limitUpTime'), '%H:%M:%S').time() if stock.get('limitUpTime') else None
+            )
+            records.append(record)
+        
+        for stock in removed_stocks:
+            record = StockDiffRecord(
+                trade_date=trade_date,
+                diff_type='removed',
+                stock_code=stock.get('code', ''),
+                stock_name=stock.get('name', ''),
+                level=stock.get('level', 1),
+                limit_up_time=datetime.strptime(stock.get('limitUpTime'), '%H:%M:%S').time() if stock.get('limitUpTime') else None
+            )
+            records.append(record)
+        
+        if records:
+            session.bulk_save_objects(records)
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'保存成功，共{len(records)}条记录',
+            'data': {
+                'added_count': len(added_stocks),
+                'removed_count': len(removed_stocks)
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        print(f"保存股票对比结果失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/stock-diff/load/<date_str>', methods=['GET'])
+def load_stock_diff(date_str):
+    """
+    加载股票对比结果
+    
+    参数:
+        date_str: 交易日期，格式为YYYYMMDD
+    
+    返回:
+    {
+        "success": true,
+        "data": {
+            "added": [...],
+            "removed": [...]
+        }
+    }
+    """
+    session = get_db_session()
+    try:
+        trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+        
+        records = session.query(StockDiffRecord).filter(
+            StockDiffRecord.trade_date == trade_date
+        ).all()
+        
+        added = []
+        removed = []
+        
+        for record in records:
+            stock_data = {
+                'code': record.stock_code,
+                'name': record.stock_name,
+                'level': record.level,
+                'limitUpTime': record.limit_up_time.strftime('%H:%M:%S') if record.limit_up_time else None
+            }
+            
+            if record.diff_type == 'added':
+                added.append(stock_data)
+            else:
+                removed.append(stock_data)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'added': added,
+                'removed': removed
+            }
+        })
+        
+    except Exception as e:
+        print(f"加载股票对比结果失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/stock-diff/clear/<date_str>', methods=['DELETE'])
+def clear_stock_diff(date_str):
+    """
+    清空指定日期的股票对比结果
+    
+    参数:
+        date_str: 交易日期，格式为YYYYMMDD
+    """
+    session = get_db_session()
+    try:
+        trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+        
+        deleted_count = session.query(StockDiffRecord).filter(
+            StockDiffRecord.trade_date == trade_date
+        ).delete()
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'已清空{deleted_count}条记录'
+        })
+        
+    except Exception as e:
+        session.rollback()
+        print(f"清空股票对比结果失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/news/cls-telegraph', methods=['GET'])
+def get_cls_telegraph():
+    """
+    获取财联社电报数据（加红的关键资讯）
+    
+    参数:
+        force: 是否强制从财联社刷新，默认false
+        last_ctime: 最后一条新闻的时间，用于分页加载历史数据
+        limit: 每次加载数量，默认50
+        load_from_api: 是否从财联社API加载历史数据，默认false
+    
+    返回:
+    {
+        "success": true,
+        "data": [...],
+        "has_more": true/false,
+        "total": 总数据量
+    }
+    """
+    try:
+        force = request.args.get('force', 'false').lower() == 'true'
+        last_ctime_str = request.args.get('last_ctime')
+        limit = request.args.get('limit', 50, type=int)
+        load_from_api = request.args.get('load_from_api', 'false').lower() == 'true'
+        
+        session = get_db_session()
+        try:
+            total_count = session.query(ClsNews).count()
+            
+            if not force and not load_from_api:
+                query = session.query(ClsNews).order_by(ClsNews.ctime.desc())
+                
+                if last_ctime_str:
+                    try:
+                        last_ctime = datetime.strptime(last_ctime_str, '%Y-%m-%d %H:%M:%S')
+                        query = query.filter(ClsNews.ctime < last_ctime)
+                    except ValueError:
+                        pass
+                
+                db_news = query.limit(limit).all()
+                
+                if db_news:
+                    news_list = []
+                    for item in db_news:
+                        stock_list = []
+                        if item.stock_list:
+                            try:
+                                stock_list = json.loads(item.stock_list)
+                            except:
+                                pass
+                        
+                        news_list.append({
+                            'id': item.news_id,
+                            'title': item.title or '',
+                            'content': item.content or '',
+                            'ctime': item.ctime.strftime("%Y-%m-%d %H:%M:%S"),
+                            'level': 'C',
+                            'is_important': item.is_important == 1,
+                            'level_text': '加红' if item.is_important == 1 else '普通',
+                            'has_stocks': item.has_stocks == 1,
+                            'confirmed': item.confirmed == 1,
+                            'reading_num': item.reading_num or 0,
+                            'stock_list': stock_list
+                        })
+                    
+                    has_more = len(db_news) >= limit
+                    
+                    return jsonify({
+                        'success': True,
+                        'data': news_list,
+                        'from_cache': True,
+                        'has_more': has_more,
+                        'total': total_count
+                    })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'data': [],
+                        'from_cache': True,
+                        'has_more': False,
+                        'total': total_count
+                    })
+        finally:
+            session.close()
+        
+        import requests as req_module
+        import time as time_module
+        import re
+        
+        url = "https://www.cls.cn/nodeapi/telegraphList"
+        params = {
+            "app": "CailianpressWeb",
+            "os": "web",
+            "refresh_type": "2" if last_ctime_str and load_from_api else "1",
+            "order": "1",
+            "rn": "50",
+            "sv": "8.4.6"
+        }
+        
+        if last_ctime_str and load_from_api:
+            try:
+                session = get_db_session()
+                try:
+                    last_ctime = datetime.strptime(last_ctime_str, '%Y-%m-%d %H:%M:%S')
+                    last_news = session.query(ClsNews).filter(
+                        ClsNews.ctime == last_ctime
+                    ).first()
+                    
+                    if last_news:
+                        params["last_id"] = last_news.news_id
+                finally:
+                    session.close()
+            except ValueError:
+                pass
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "Referer": "https://www.cls.cn/telegraph"
+        }
+        
+        response = req_module.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': f'请求失败: {response.status_code}'
+            }), 500
+        
+        data = response.json()
+        roll_data = data.get('data', {}).get('roll_data', [])
+        
+        session = get_db_session()
+        news_list = []
+        saved_count = 0
+        
+        try:
+            for item in roll_data:
+                title = item.get('title', '')
+                content = item.get('content', '')
+                stock_list = item.get('stock_list', [])
+                confirmed = item.get('confirmed', 0)
+                reading_num = item.get('reading_num', 0)
+                
+                if not title and not content:
+                    continue
+                
+                has_stocks = len(stock_list) > 0
+                recommend = item.get('recommend', 0)
+                
+                is_important = recommend == 1
+                
+                clean_content = re.sub(r'【[^】]*】', '', content)
+                
+                ctime_timestamp = item.get('ctime', 0)
+                local_time = time_module.localtime(ctime_timestamp)
+                ctime_dt = datetime.fromtimestamp(ctime_timestamp)
+                news_id = str(item.get('id'))
+                
+                existing = session.query(ClsNews).filter(ClsNews.news_id == news_id).first()
+                
+                if existing:
+                    existing.title = title
+                    existing.content = clean_content
+                    existing.is_important = 1 if is_important else 0
+                    existing.has_stocks = 1 if has_stocks else 0
+                    existing.confirmed = 1 if confirmed == 1 else 0
+                    existing.reading_num = reading_num
+                    existing.stock_list = json.dumps([{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list]) if has_stocks else None
+                else:
+                    news_record = ClsNews(
+                        news_id=news_id,
+                        title=title,
+                        content=clean_content,
+                        ctime=ctime_dt,
+                        is_important=1 if is_important else 0,
+                        has_stocks=1 if has_stocks else 0,
+                        confirmed=1 if confirmed == 1 else 0,
+                        reading_num=reading_num,
+                        stock_list=json.dumps([{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list]) if has_stocks else None
+                    )
+                    session.add(news_record)
+                    saved_count += 1
+                
+                news_list.append({
+                    'id': news_id,
+                    'title': title,
+                    'content': clean_content,
+                    'ctime': time_module.strftime("%Y-%m-%d %H:%M:%S", local_time),
+                    'level': item.get('level', 'C'),
+                    'is_important': is_important,
+                    'level_text': '加红' if is_important else '普通',
+                    'has_stocks': has_stocks,
+                    'confirmed': confirmed == 1,
+                    'reading_num': reading_num,
+                    'stock_list': [{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list] if has_stocks else []
+                })
+            
+            session.commit()
+            
+        finally:
+            session.close()
+        
+        news_list.sort(key=lambda x: x['ctime'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'data': news_list,
+            'saved_count': saved_count,
+            'from_cache': False,
+            'has_more': len(news_list) >= limit
+        })
+        
+    except Exception as e:
+        print(f"获取财联社电报失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/news/analyze', methods=['POST'])
+def analyze_news():
+    """
+    AI分析新闻
+    
+    请求体:
+    {
+        "news_id": "xxx",
+        "title": "新闻标题",
+        "content": "新闻内容",
+        "force": false  # 是否强制重新分析
+    }
+    
+    返回:
+    {
+        "success": true,
+        "data": {
+            "analysis": "AI分析结果",
+            "related_stocks": ["股票1", "股票2"]
+        }
+    }
+    """
+    try:
+        data = request.json
+        news_id = data.get('news_id')
+        title = data.get('title', '')
+        content = data.get('content', '')
+        force = data.get('force', False)
+        
+        if not title and not content:
+            return jsonify({
+                'success': False,
+                'error': '缺少标题和内容'
+            }), 400
+        
+        full_text = f"{title} {content}"
+        
+        session = get_db_session()
+        try:
+            news_record = session.query(ClsNews).filter(ClsNews.news_id == str(news_id)).first()
+            
+            if news_record and news_record.analysis_result:
+                try:
+                    analysis_data = json.loads(news_record.analysis_result)
+                    return jsonify({
+                        'success': True,
+                        'data': analysis_data,
+                        'cached': True
+                    })
+                except:
+                    pass
+            
+            existing = session.query(AIAnalysisResult).filter(
+                AIAnalysisResult.stock_code == f"NEWS_{news_id}"
+            ).first()
+            
+            if existing and not force:
+                try:
+                    analysis_data = json.loads(existing.analysis_result)
+                    return jsonify({
+                        'success': True,
+                        'data': analysis_data,
+                        'cached': True
+                    })
+                except:
+                    pass
+        finally:
+            session.close()
+        
+        analyzer = LimitUpReasonAnalyzer()
+        
+        analysis_result = analyzer.analyze_news_impact(full_text)
+        
+        session = get_db_session()
+        try:
+            today = datetime.now().date()
+            
+            existing_result = session.query(AIAnalysisResult).filter(
+                AIAnalysisResult.stock_code == f"NEWS_{news_id}"
+            ).first()
+            
+            if existing_result:
+                existing_result.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
+                existing_result.updated_at = datetime.now()
+            else:
+                new_result = AIAnalysisResult(
+                    stock_code=f"NEWS_{news_id}",
+                    stock_name=title[:50] if title else '未知',
+                    trade_date=today,
+                    analysis_result=json.dumps(analysis_result, ensure_ascii=False)
+                )
+                session.add(new_result)
+            
+            news_record = session.query(ClsNews).filter(ClsNews.news_id == str(news_id)).first()
+            if news_record:
+                news_record.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
+                news_record.analyzed_at = datetime.now()
+            
+            session.commit()
+        finally:
+            session.close()
+        
+        return jsonify({
+            'success': True,
+            'data': analysis_result,
+            'cached': False
+        })
+        
+    except Exception as e:
+        print(f"AI分析新闻失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
     """用户登出"""
@@ -1753,6 +2266,101 @@ def logout():
         'success': True,
         'message': '登出成功'
     })
+
+
+def sync_cls_news():
+    """后台定时同步财联社新闻"""
+    import requests as req_module
+    import time as time_module
+    import re
+    
+    while True:
+        try:
+            time_module.sleep(300)
+            
+            url = "https://www.cls.cn/nodeapi/telegraphList"
+            params = {
+                "app": "CailianpressWeb",
+                "os": "web",
+                "refresh_type": "1",
+                "order": "1",
+                "rn": "50",
+                "sv": "8.4.6"
+            }
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://www.cls.cn/telegraph"
+            }
+            
+            response = req_module.get(url, params=params, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                roll_data = data.get('data', {}).get('roll_data', [])
+                
+                session = get_db_session()
+                try:
+                    new_count = 0
+                    update_count = 0
+                    for item in roll_data:
+                        title = item.get('title', '')
+                        content = item.get('content', '')
+                        stock_list = item.get('stock_list', [])
+                        confirmed = item.get('confirmed', 0)
+                        reading_num = item.get('reading_num', 0)
+                        
+                        if not title and not content:
+                            continue
+                        
+                        has_stocks = len(stock_list) > 0
+                        recommend = item.get('recommend', 0)
+                        is_important = recommend == 1
+                        clean_content = re.sub(r'【[^】]*】', '', content)
+                        
+                        ctime_timestamp = item.get('ctime', 0)
+                        ctime_dt = datetime.fromtimestamp(ctime_timestamp)
+                        news_id = str(item.get('id'))
+                        
+                        existing = session.query(ClsNews).filter(ClsNews.news_id == news_id).first()
+                        
+                        if existing:
+                            if (existing.title != title or 
+                                existing.content != clean_content or
+                                existing.is_important != (1 if is_important else 0) or
+                                existing.has_stocks != (1 if has_stocks else 0) or
+                                existing.confirmed != (1 if confirmed == 1 else 0)):
+                                
+                                existing.title = title
+                                existing.content = clean_content
+                                existing.is_important = 1 if is_important else 0
+                                existing.has_stocks = 1 if has_stocks else 0
+                                existing.confirmed = 1 if confirmed == 1 else 0
+                                existing.reading_num = reading_num
+                                existing.stock_list = json.dumps([{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list]) if has_stocks else None
+                                update_count += 1
+                        else:
+                            news_record = ClsNews(
+                                news_id=news_id,
+                                title=title,
+                                content=clean_content,
+                                ctime=ctime_dt,
+                                is_important=1 if is_important else 0,
+                                has_stocks=1 if has_stocks else 0,
+                                confirmed=1 if confirmed == 1 else 0,
+                                reading_num=reading_num,
+                                stock_list=json.dumps([{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list]) if has_stocks else None
+                            )
+                            session.add(news_record)
+                            new_count += 1
+                    
+                    session.commit()
+                    if new_count > 0 or update_count > 0:
+                        print(f"[财联社同步] 新增 {new_count} 条新闻，更新 {update_count} 条")
+                finally:
+                    session.close()
+        except Exception as e:
+            print(f"[财联社同步] 同步失败: {str(e)}")
 
 
 if __name__ == '__main__':
@@ -1764,6 +2372,12 @@ if __name__ == '__main__':
     print("="*50)
     init_thread = threading.Thread(target=init_ths_session, daemon=True)
     init_thread.start()
+    
+    print("\n" + "="*50)
+    print("启动财联社新闻同步（后台线程，每5分钟）...")
+    print("="*50)
+    sync_thread = threading.Thread(target=sync_cls_news, daemon=True)
+    sync_thread.start()
     
     print("\n启动Web服务器...")
     print("访问地址: http://localhost:5001")
