@@ -848,7 +848,7 @@ const LadderPage = () => {
               onClick={() => setEnableBlur(!enableBlur)}
               style={{ fontSize: isMobile ? 12 : 14 }}
             >
-              {enableBlur ? '取消模糊' : '模糊信息'}
+              {enableBlur ? '清晰' : '模糊'}
             </Button>
             <Button
               type="primary"

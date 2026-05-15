@@ -181,7 +181,13 @@ const BlockStrengthModal = ({ visible, onClose, date }) => {
   const renderContent = () => {
     if (!data) return null;
 
-    const days = ['yesterday', 'today', 'tomorrow'].filter((day) => data[day]);
+    const days = ['yesterday', 'today', 'tomorrow'].filter((day) => {
+      if (!data[day]) return false;
+      if (day === 'tomorrow' && (!data[day].blocks || data[day].blocks.length === 0)) return false;
+      return true;
+    });
+
+    const colSpan = Math.floor(24 / days.length);
 
     if (isMobile) {
       return (
@@ -198,7 +204,7 @@ const BlockStrengthModal = ({ visible, onClose, date }) => {
     return (
       <Row gutter={[12, 12]}>
         {days.map((label) => (
-          <Col span={8} key={label}>
+          <Col span={colSpan} key={label}>
             {renderDayColumn(label, data[label])}
           </Col>
         ))}
