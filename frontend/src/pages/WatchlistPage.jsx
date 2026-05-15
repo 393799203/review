@@ -159,6 +159,13 @@ const WatchlistPage = () => {
           const profitColor = positionProfit !== null ? (positionProfit > 0 ? '#f5222d' : positionProfit < 0 ? '#52c41a' : '#8c8c8c') : '#8c8c8c';
           const profitPercent = positionProfitRatio !== null ? (positionProfitRatio * 100).toFixed(2) : '0.00';
           
+          const addPriceChange = record.add_price && record.current_price 
+            ? ((record.current_price - record.add_price) / record.add_price * 100) 
+            : null;
+          const addPriceChangeColor = addPriceChange !== null 
+            ? (addPriceChange > 0 ? '#f5222d' : addPriceChange < 0 ? '#52c41a' : '#8c8c8c')
+            : '#8c8c8c';
+          
           return (
             <Card
               key={record.id}
@@ -210,6 +217,11 @@ const WatchlistPage = () => {
                       <span>加入: <span style={{ fontWeight: 'bold', color: '#262626' }}>¥{record.add_price ? record.add_price.toFixed(2) : '-'}</span></span>
                     )}
                     <span>现价: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
+                    {addPriceChange !== null && (
+                      <span style={{ fontWeight: 'bold', color: addPriceChangeColor }}>
+                        ({addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(2)}%)
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', marginLeft: 10, minWidth: 85 }}>
@@ -337,20 +349,6 @@ const WatchlistPage = () => {
         render: (value) => value ? `¥${value.toFixed(2)}` : '-',
       },
       {
-        title: '买入价格',
-        dataIndex: 'buy_price',
-        key: 'buy_price',
-        width: 100,
-        render: (value) => value ? `¥${value.toFixed(2)}` : '-',
-      },
-      {
-        title: '买入数量',
-        dataIndex: 'buy_quantity',
-        key: 'buy_quantity',
-        width: 100,
-        render: (value) => value ? `${value}股` : '-',
-      },
-      {
         title: '当前价格',
         dataIndex: 'current_price',
         key: 'current_price',
@@ -359,6 +357,35 @@ const WatchlistPage = () => {
           const color = record.position_status === '持仓' && record.position_profit > 0 ? '#f5222d' : 
                        record.position_status === '持仓' && record.position_profit < 0 ? '#52c41a' : '#262626';
           return value ? <span style={{ color, fontWeight: 'bold' }}>¥{value.toFixed(2)}</span> : '-';
+        },
+      },
+      {
+        title: '较加入价涨跌',
+        key: 'add_price_change',
+        width: 120,
+        render: (_, record) => {
+          if (!record.add_price || !record.current_price) return '-';
+          const changeRatio = ((record.current_price - record.add_price) / record.add_price * 100);
+          const color = changeRatio > 0 ? '#f5222d' : changeRatio < 0 ? '#52c41a' : '#8c8c8c';
+          return (
+            <div style={{ color, fontWeight: 'bold' }}>
+              {changeRatio > 0 ? '+' : ''}{changeRatio.toFixed(2)}%
+            </div>
+          );
+        },
+      },
+      {
+        title: '买入信息',
+        key: 'buy_info',
+        width: 150,
+        render: (_, record) => {
+          if (!record.buy_price) return '-';
+          return (
+            <div>
+              <div style={{ fontWeight: 'bold', color: '#1890ff' }}>¥{record.buy_price.toFixed(2)}</div>
+              {record.buy_quantity && <div style={{ fontSize: 12, color: '#8c8c8c' }}>{record.buy_quantity}股</div>}
+            </div>
+          );
         },
       },
       {
