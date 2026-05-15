@@ -33,7 +33,24 @@ const NewsPage = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [speechSupported, setSpeechSupported] = useState(false);  // 是否支持语音播报
+  const [speechSupported, setSpeechSupported] = useState(false);
+
+  const getBrowserInfo = () => {
+    const ua = navigator.userAgent;
+    let browserName = 'unknown';
+    
+    if (ua.indexOf('Chrome') > -1 && ua.indexOf('Edg') === -1) {
+      browserName = 'chrome';
+    } else if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
+      browserName = 'safari';
+    } else if (ua.indexOf('Firefox') > -1) {
+      browserName = 'firefox';
+    } else if (ua.indexOf('Edg') > -1) {
+      browserName = 'edge';
+    }
+    
+    return browserName;
+  };
   
   // 从用户设置中获取语音设置
   const [speechEnabled, setSpeechEnabled] = useState(() => {
@@ -41,11 +58,37 @@ const NewsPage = () => {
   });
   
   const [speechSettings, setSpeechSettings] = useState(() => {
-    return settings?.news?.speechSettings ?? {
-      voice: null,
-      rate: 1.0,
-      pitch: 1.0,
-      volume: 1.0
+    const savedSettings = settings?.news?.speechSettings;
+    
+    if (!savedSettings) {
+      return {
+        voices: {},
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0
+      };
+    }
+    
+    if (savedSettings.voice && !savedSettings.voices) {
+      console.log('检测到旧的语音设置格式，正在迁移...');
+      const browserName = getBrowserInfo();
+      const migratedSettings = {
+        voices: {
+          [browserName]: savedSettings.voice
+        },
+        rate: savedSettings.rate || 1.0,
+        pitch: savedSettings.pitch || 1.0,
+        volume: savedSettings.volume || 1.0
+      };
+      console.log('语音设置迁移完成:', migratedSettings);
+      return migratedSettings;
+    }
+    
+    return {
+      voices: savedSettings.voices || {},
+      rate: savedSettings.rate || 1.0,
+      pitch: savedSettings.pitch || 1.0,
+      volume: savedSettings.volume || 1.0
     };
   });
   
@@ -199,18 +242,32 @@ const NewsPage = () => {
 
       const utterance = new SpeechSynthesisUtterance(text);
       
-      // 应用设置
-      if (speechSettings.voice) {
-        const voice = availableVoices.find(v => v.name === speechSettings.voice);
-        if (voice) {
-          utterance.voice = voice;
+      const currentBrowser = getBrowserInfo();
+      let selectedVoice = null;
+      
+      if (speechSettings.voices && speechSettings.voices[currentBrowser]) {
+        selectedVoice = availableVoices.find(v => v.name === speechSettings.voices[currentBrowser]);
+        if (selectedVoice) {
+          console.log(`使用${currentBrowser}浏览器保存的语音包:`, selectedVoice.name);
+        } else {
+          console.log(`保存的${currentBrowser}语音包不可用，尝试智能匹配`);
         }
-      } else {
-        // 默认使用中文语音
-        const chineseVoice = availableVoices.find(voice => voice.lang.includes('zh'));
-        if (chineseVoice) {
-          utterance.voice = chineseVoice;
+      }
+      
+      if (!selectedVoice) {
+        selectedVoice = availableVoices.find(voice => voice.lang.includes('zh'));
+        if (selectedVoice) {
+          console.log('使用中文语音包:', selectedVoice.name);
         }
+      }
+      
+      if (!selectedVoice && availableVoices.length > 0) {
+        selectedVoice = availableVoices[0];
+        console.log('使用第一个可用语音包:', selectedVoice.name);
+      }
+      
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
       }
       
       utterance.rate = speechSettings.rate;
@@ -279,11 +336,23 @@ const NewsPage = () => {
     const testText = '这是一条测试消息，用于试听语音效果。';
     const utterance = new SpeechSynthesisUtterance(testText);
     
-    if (speechSettings.voice) {
-      const voice = availableVoices.find(v => v.name === speechSettings.voice);
-      if (voice) {
-        utterance.voice = voice;
-      }
+    const currentBrowser = getBrowserInfo();
+    let selectedVoice = null;
+    
+    if (speechSettings.voices && speechSettings.voices[currentBrowser]) {
+      selectedVoice = availableVoices.find(v => v.name === speechSettings.voices[currentBrowser]);
+    }
+    
+    if (!selectedVoice) {
+      selectedVoice = availableVoices.find(voice => voice.lang.includes('zh'));
+    }
+    
+    if (!selectedVoice && availableVoices.length > 0) {
+      selectedVoice = availableVoices[0];
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     }
     
     utterance.rate = speechSettings.rate;
@@ -689,6 +758,17 @@ const NewsPage = () => {
 
   return (
     <div>
+      {isFirstLoad && loading ? (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px' 
+        }}>
+          <Spin size="large" tip="加载中..." />
+        </div>
+      ) : (
+        <>
       {/* 顶部滚动播报条 */}
       {latestNews && (
         <div 
@@ -823,28 +903,24 @@ const NewsPage = () => {
       </style>
 
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+        <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
           <FireOutlined style={{ color: '#f5222d', marginRight: 8 }} />
           财联社电报
-          <Badge
-            count={importantCount}
-            style={{ marginLeft: 8, backgroundColor: '#f5222d' }}
-            title="加红资讯数量"
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {loading && (
+          {loading && !isFirstLoad && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 6,
               color: '#1890ff',
-              fontSize: 14
+              fontSize: 12,
+              marginLeft: 12
             }}>
               <LoadingOutlined spin />
               <span>数据同步中...</span>
             </div>
           )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {speechSupported && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 14, color: '#666' }}>语音播报</span>
@@ -862,8 +938,17 @@ const NewsPage = () => {
                         <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语音包</div>
                         <Select
                           style={{ width: '100%' }}
-                          value={speechSettings.voice}
-                          onChange={(value) => setSpeechSettings({ ...speechSettings, voice: value })}
+                          value={speechSettings.voices?.[getBrowserInfo()] || undefined}
+                          onChange={(value) => {
+                            const currentBrowser = getBrowserInfo();
+                            setSpeechSettings({ 
+                              ...speechSettings, 
+                              voices: {
+                                ...speechSettings.voices,
+                                [currentBrowser]: value
+                              }
+                            });
+                          }}
                           placeholder="选择语音包"
                         >
                           {availableVoices.map(voice => (
@@ -949,6 +1034,8 @@ const NewsPage = () => {
             </div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

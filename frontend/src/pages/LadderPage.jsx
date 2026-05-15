@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -37,7 +37,8 @@ const LadderPage = () => {
 
   const [blockFilterDay, setBlockFilterDay] = useState('today');
   const [blockStrengthData, setBlockStrengthData] = useState({});
-  const [enableBlur, setEnableBlur] = useState(false); // 模糊开关
+  const [enableBlur, setEnableBlur] = useState(false);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
@@ -65,6 +66,12 @@ const LadderPage = () => {
       loadDiffData();
     }
   }, [currentDate, refreshKey]);
+
+  useEffect(() => {
+    if (nextDayBlocks.length === 0 && blockFilterDay === 'tomorrow') {
+      setBlockFilterDay('today');
+    }
+  }, [nextDayBlocks, blockFilterDay]);
 
   useEffect(() => {
     if (!isLoadingFromDBRef.current && (diffData.added.length > 0 || diffData.removed.length > 0)) {
@@ -218,6 +225,9 @@ const LadderPage = () => {
       setNextDayDate(null);
     } finally {
       setLoading(false);
+      if (isFirstLoad) {
+        setIsFirstLoad(false);
+      }
     }
   };
 
@@ -815,6 +825,18 @@ const LadderPage = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 8 : 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h2 style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>🎯 涨停梯队</h2>
+            {loading && !isFirstLoad && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                color: '#1890ff',
+                fontSize: 12
+              }}>
+                <LoadingOutlined spin />
+                <span>数据同步中...</span>
+              </div>
+            )}
             {broken && (
               <Tag color="red" style={{ margin: 0 }}>断板日</Tag>
             )}
@@ -850,7 +872,7 @@ const LadderPage = () => {
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>板块日期：</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {['yesterday', 'today', 'tomorrow'].map((day) => {
+            {['yesterday', 'today', ...(nextDayBlocks.length > 0 ? ['tomorrow'] : [])].map((day) => {
               const dayLabel = { yesterday: '前日', today: '当日', tomorrow: '次日' };
               const dayColor = { yesterday: '#722ed1', today: '#1890ff', tomorrow: '#52c41a' };
               return (
@@ -949,13 +971,24 @@ const LadderPage = () => {
 
   return (
     <>
-      <Spin spinning={loading}>
-        {renderStatistics()}
-        <div style={{ marginTop: isMobile ? 12 : 24 }}>
-          {renderLadderTitle()}
-          {renderLadder()}
+      {isFirstLoad && loading ? (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px' 
+        }}>
+          <Spin size="large" tip="加载中..." />
         </div>
-      </Spin>
+      ) : (
+        <>
+          {renderStatistics()}
+          <div style={{ marginTop: isMobile ? 12 : 24 }}>
+            {renderLadderTitle()}
+            {renderLadder()}
+          </div>
+        </>
+      )}
       
       {wencaiVisible && (
         <WencaiAssistant
