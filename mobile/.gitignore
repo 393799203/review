@@ -1,0 +1,68 @@
+# React Native
+rn-app/node_modules/
+rn-app/.expo/
+rn-app/dist/
+rn-app/npm-debug.*
+rn-app/*.jks
+rn-app/*.p8
+rn-app/*.p12
+rn-app/*.key
+rn-app*.mobileprovision
+rn-app*.orig.*
+rn-appweb-report/
+
+# macOS
+.DS_Store
+
+# Android
+rn-app/android/app/build/
+rn-app/android/.gradle/
+rn-app/android/build/
+rn-app/android/local.properties
+rn-app/android/.idea/
+rn-app/android/*.iml
+
+# iOS
+rn-app/ios/Pods/
+rn-app/ios/build/
+rn-app/ios/.xcodeproj/xcuserdata/
+rn-app/ios/.xcworkspace/xcuserdata/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Dependency directories
+node_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+#鸿蒙应用
+harmony-app/.idea/
+harmony-app/.hvigor/
+harmony-app/entry/build/
+harmony-app/entry/.preview/
+harmony-app/entry/.test/
+harmony-app/build/
+harmony-app/local.properties
+harmony-app/oh_modules/
+harmony-app/.cxx/

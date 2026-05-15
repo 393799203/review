@@ -164,7 +164,9 @@ const MainLayout = ({ children }) => {
 
     const handleAutoRefreshChange = (checked) => {
       setAutoRefresh(checked);
-      if (!checked) {
+      if (checked) {
+        setPopoverVisible(true);
+      } else {
         setPopoverVisible(false);
       }
     };
@@ -224,7 +226,7 @@ const MainLayout = ({ children }) => {
             title="设置"
             trigger="click"
             placement="bottomRight"
-            open={popoverVisible}
+            open={autoRefresh && popoverVisible}
             onOpenChange={setPopoverVisible}
           >
             <Switch
