@@ -726,9 +726,21 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
             
             <Spin spinning={strategiesLoading} tip="加载策略中...">
               <div style={{ 
-                display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(160px, 1fr))',
-                gap: isMobile ? 8 : 10
+                display: isMobile ? 'flex' : 'grid',
+                gridTemplateColumns: isMobile ? undefined : 'repeat(auto-fill, minmax(160px, 1fr))',
+                gap: isMobile ? 8 : 10,
+                overflowX: isMobile ? 'auto' : 'visible',
+                overflowY: isMobile ? 'hidden' : 'visible',
+                whiteSpace: isMobile ? 'nowrap' : 'normal',
+                WebkitOverflowScrolling: isMobile ? 'touch' : 'auto',
+                scrollbarWidth: isMobile ? 'none' : 'auto',
+                msOverflowStyle: isMobile ? 'none' : 'auto',
+                paddingBottom: isMobile ? 4 : 0,
+                ...(isMobile && {
+                  '&::-webkit-scrollbar': {
+                    display: 'none'
+                  }
+                })
               }}>
                 {userStrategies.map(strategy => {
                 const isActive = queryType === strategy.id;
@@ -750,7 +762,9 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                       boxShadow: isActive 
                         ? '0 4px 12px rgba(102, 126, 234, 0.4)'
                         : '0 1px 3px rgba(0, 0, 0, 0.05)',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      minWidth: isMobile ? 140 : 'auto',
+                      flexShrink: isMobile ? 0 : 1
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive) {
@@ -943,7 +957,9 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                   alignItems: 'center',
                   justifyContent: 'center',
                   outline: 'none',
-                  order: 999
+                  order: 999,
+                  minWidth: isMobile ? 140 : 'auto',
+                  flexShrink: isMobile ? 0 : 1
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = '#1890ff';
