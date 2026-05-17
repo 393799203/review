@@ -90,7 +90,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
       >
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin size="large" tip="正在分析涨停原因..." />
+          <Spin size="large" description="正在分析涨停原因..." />
         </div>
       ) : !analysisData ? (
         <Empty description="暂无分析数据" />

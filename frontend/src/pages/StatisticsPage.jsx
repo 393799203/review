@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Radio, Divider } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, RiseOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, RiseOutlined, LoadingOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import axios from 'axios';
 import { useGlobal } from '../contexts/GlobalContext';
@@ -9,9 +9,10 @@ const StatisticsPage = () => {
   const { refreshKey } = useGlobal();
   const [period, setPeriod] = useState('day');
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState([]);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   useEffect(() => {
     const handleResize = () => {
@@ -43,6 +44,9 @@ const StatisticsPage = () => {
       message.error('加载统计数据失败：' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
+      if (isFirstLoad) {
+        setIsFirstLoad(false);
+      }
     }
   };
 
@@ -357,12 +361,35 @@ const StatisticsPage = () => {
 
   return (
     <div style={{ padding: 0 }}>
-      <Spin spinning={loading}>
+      {isFirstLoad && loading ? (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px' 
+        }}>
+          <Spin size="large" description="加载中..." />
+        </div>
+      ) : (
         <Row gutter={[8, 8]}>
           <Col span={24}>
             <Card size="small">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontSize: 14, fontWeight: 'bold' }}>盈亏统计</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 'bold' }}>盈亏统计</span>
+                  {loading && !isFirstLoad && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: '#1890ff',
+                      fontSize: 12
+                    }}>
+                      <LoadingOutlined spin />
+                      <span>数据同步中...</span>
+                    </div>
+                  )}
+                </div>
                 <Radio.Group value={period} onChange={(e) => setPeriod(e.target.value)} size="small">
                   <Radio.Button value="day">按日</Radio.Button>
                   <Radio.Button value="week">按周</Radio.Button>
@@ -560,7 +587,7 @@ const StatisticsPage = () => {
             </Card>
           </Col>
         </Row>
-      </Spin>
+      )}
     </div>
   );
 };

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip } from 'antd';
-import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined } from '@ant-design/icons';
 import axios from 'axios';
-import { useGlobal } from '../contexts/GlobalContext';
 import { stockApi } from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
 
 const WatchlistPage = () => {
-  const { loading, setLoading } = useGlobal();
   const [watchlist, setWatchlist] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [buyModalVisible, setBuyModalVisible] = useState(false);
@@ -17,6 +15,8 @@ const WatchlistPage = () => {
   const [sellForm] = Form.useForm();
   const [klineVisible, setKlineVisible] = useState(false);
   const [klineStock, setKlineStock] = useState(null);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -48,6 +48,9 @@ const WatchlistPage = () => {
       message.error('加载自选股失败：' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
+      if (isFirstLoad) {
+        setIsFirstLoad(false);
+      }
     }
   };
 
@@ -135,7 +138,7 @@ const WatchlistPage = () => {
   };
 
   const renderMobileContent = () => {
-    if (watchlist.length === 0) {
+    if (watchlist.length === 0 && !loading) {
       return (
         <div style={{ 
           textAlign: 'center', 
@@ -484,7 +487,6 @@ const WatchlistPage = () => {
         columns={columns}
         dataSource={watchlist}
         rowKey="id"
-        loading={loading}
         scroll={{ x: 1300 }}
         pagination={{
           pageSize: 20,
@@ -499,18 +501,39 @@ const WatchlistPage = () => {
 
   return (
     <div style={{ padding: 0 }}>
-      <Card
-        style={{ marginBottom: 8 }}
-        styles={{ body: { padding: isMobile ? '8px' : '12px' } }}
-      >
-        <Spin spinning={loading} description="加载中...">
-          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c' }}>
-            共 {watchlist.length} 只自选股，{watchlist.filter(s => s.position_status === '持仓').length} 只持仓中
+      {isFirstLoad && loading ? (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px' 
+        }}>
+          <Spin size="large" description="加载中..." />
+        </div>
+      ) : (
+        <Card
+          style={{ marginBottom: 8 }}
+          styles={{ body: { padding: isMobile ? '8px' : '12px' } }}
+        >
+          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>共 {watchlist.length} 只自选股，{watchlist.filter(s => s.position_status === '持仓').length} 只持仓中</span>
+            {loading && !isFirstLoad && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                color: '#1890ff',
+                fontSize: 12
+              }}>
+                <LoadingOutlined spin />
+                <span>数据同步中...</span>
+              </div>
+            )}
           </div>
           
           {isMobile ? renderMobileContent() : renderDesktopContent()}
-        </Spin>
-      </Card>
+        </Card>
+      )}
 
       <Modal
         title="买入股票"

@@ -14,7 +14,7 @@ import threading
 import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews, UserWencaiStrategy
 from ths_fetcher import ThsFetcher
 from statistics_api import register_statistics_routes
 from limit_up_analyzer import LimitUpReasonAnalyzer
@@ -608,6 +608,228 @@ def wencai_query():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/api/wencai/strategies', methods=['GET'])
+def get_wencai_strategies():
+    """获取用户的问财策略列表"""
+    session = get_db_session()
+    
+    try:
+        user_uid = request.headers.get('X-User-Uid')
+        
+        if not user_uid:
+            return jsonify({
+                'success': False,
+                'error': '未授权'
+            }), 401
+        
+        strategies = session.query(UserWencaiStrategy).filter(
+            UserWencaiStrategy.user_id == user_uid
+        ).order_by(UserWencaiStrategy.is_default.desc(), UserWencaiStrategy.created_at.asc()).all()
+        
+        result = []
+        for strategy in strategies:
+            result.append({
+                'id': strategy.id,
+                'strategy_name': strategy.strategy_name,
+                'strategy_type': strategy.strategy_type,
+                'query_template': strategy.query_template,
+                'description': strategy.description,
+                'is_default': strategy.is_default,
+                'created_at': strategy.created_at.isoformat() if strategy.created_at else None,
+                'updated_at': strategy.updated_at.isoformat() if strategy.updated_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/wencai/strategies', methods=['POST'])
+def create_wencai_strategy():
+    """创建新的问财策略"""
+    session = get_db_session()
+    
+    try:
+        user_uid = request.headers.get('X-User-Uid')
+        
+        if not user_uid:
+            return jsonify({
+                'success': False,
+                'error': '未授权'
+            }), 401
+        
+        data = request.get_json()
+        strategy_name = data.get('strategy_name')
+        strategy_type = data.get('strategy_type', 'custom')
+        query_template = data.get('query_template')
+        description = data.get('description', '')
+        is_default = data.get('is_default', 0)
+        
+        if not strategy_name or not query_template:
+            return jsonify({
+                'success': False,
+                'error': '策略名称和查询模板不能为空'
+            }), 400
+        
+        if is_default:
+            session.query(UserWencaiStrategy).filter(
+                UserWencaiStrategy.user_id == user_uid,
+                UserWencaiStrategy.is_default == 1
+            ).update({'is_default': 0})
+        
+        strategy = UserWencaiStrategy(
+            user_id=user_uid,
+            strategy_name=strategy_name,
+            strategy_type=strategy_type,
+            query_template=query_template,
+            description=description,
+            is_default=is_default
+        )
+        
+        session.add(strategy)
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': strategy.id,
+                'strategy_name': strategy.strategy_name,
+                'strategy_type': strategy.strategy_type,
+                'query_template': strategy.query_template,
+                'description': strategy.description,
+                'is_default': strategy.is_default
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/wencai/strategies/<int:strategy_id>', methods=['PUT'])
+def update_wencai_strategy(strategy_id):
+    """更新问财策略"""
+    session = get_db_session()
+    
+    try:
+        user_uid = request.headers.get('X-User-Uid')
+        
+        if not user_uid:
+            return jsonify({
+                'success': False,
+                'error': '未授权'
+            }), 401
+        
+        strategy = session.query(UserWencaiStrategy).filter(
+            UserWencaiStrategy.id == strategy_id,
+            UserWencaiStrategy.user_id == user_uid
+        ).first()
+        
+        if not strategy:
+            return jsonify({
+                'success': False,
+                'error': '策略不存在'
+            }), 404
+        
+        data = request.get_json()
+        
+        if 'strategy_name' in data:
+            strategy.strategy_name = data['strategy_name']
+        if 'strategy_type' in data:
+            strategy.strategy_type = data['strategy_type']
+        if 'query_template' in data:
+            strategy.query_template = data['query_template']
+        if 'description' in data:
+            strategy.description = data['description']
+        if 'is_default' in data:
+            if data['is_default']:
+                session.query(UserWencaiStrategy).filter(
+                    UserWencaiStrategy.user_id == user_uid,
+                    UserWencaiStrategy.is_default == 1
+                ).update({'is_default': 0})
+            strategy.is_default = data['is_default']
+        
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': strategy.id,
+                'strategy_name': strategy.strategy_name,
+                'strategy_type': strategy.strategy_type,
+                'query_template': strategy.query_template,
+                'description': strategy.description,
+                'is_default': strategy.is_default
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/wencai/strategies/<int:strategy_id>', methods=['DELETE'])
+def delete_wencai_strategy(strategy_id):
+    """删除问财策略"""
+    session = get_db_session()
+    
+    try:
+        user_uid = request.headers.get('X-User-Uid')
+        
+        if not user_uid:
+            return jsonify({
+                'success': False,
+                'error': '未授权'
+            }), 401
+        
+        strategy = session.query(UserWencaiStrategy).filter(
+            UserWencaiStrategy.id == strategy_id,
+            UserWencaiStrategy.user_id == user_uid
+        ).first()
+        
+        if not strategy:
+            return jsonify({
+                'success': False,
+                'error': '策略不存在'
+            }), 404
+        
+        session.delete(strategy)
+        session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '策略已删除'
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
 
 
 @app.route('/api/block-strength/<date_str>', methods=['GET'])

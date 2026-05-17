@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "股票分析应用模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "股票分析应用入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "股票分析"
+    },
+    {
+      "name": "app_name",
+      "value": "股票分析"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "应用需要访问网络以获取股票数据"
+    }
+  ]
+}
