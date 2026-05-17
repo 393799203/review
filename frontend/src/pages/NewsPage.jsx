@@ -765,7 +765,7 @@ const NewsPage = () => {
           alignItems: 'center', 
           minHeight: '400px' 
         }}>
-          <Spin size="large" tip="加载中..." />
+          <Spin size="large" description="加载中..." />
         </div>
       ) : (
         <>

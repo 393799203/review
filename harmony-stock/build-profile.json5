@@ -1,0 +1,56 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/dingyuebo/.ohos/config/default_harmony-stock_-93doRoAyvIDwXgwXRl-8RpSAbkLNoYVpUFFL5lFn8M=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B6EC57D41D3916D35AC5012F73DFE8AB8C3C9801AFB524A01984A15BC6FC96979F1590D10B176C9",
+          "profile": "/Users/dingyuebo/.ohos/config/default_harmony-stock_-93doRoAyvIDwXgwXRl-8RpSAbkLNoYVpUFFL5lFn8M=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/dingyuebo/.ohos/config/default_harmony-stock_-93doRoAyvIDwXgwXRl-8RpSAbkLNoYVpUFFL5lFn8M=.p12",
+          "storePassword": "0000001B65305D39B0711839CFEB6DD7F5648328E0EBBAF5D9CE76E7CB2815C81676D63959194D5B5CE5C6"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.1.1(24)",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

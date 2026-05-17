@@ -250,6 +250,27 @@ class ClsNews(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class UserWencaiStrategy(Base):
+    """用户问财策略表"""
+    __tablename__ = 'user_wencai_strategies'
+    __table_args__ = (
+        Index('idx_wencai_user_id', 'user_id'),
+        Index('idx_wencai_is_default', 'is_default'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.uid'), nullable=False)
+    strategy_name = Column(String(100), nullable=False)
+    strategy_type = Column(String(50), default='custom')
+    query_template = Column(Text, nullable=False)
+    description = Column(String(500))
+    is_default = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    user = relationship("User", backref="wencai_strategies")
+
+
 class DatabaseConfig:
     """数据库配置"""
     

@@ -11,7 +11,7 @@ import StockAnalysisModal from '../components/StockAnalysisModal';
 import axios from 'axios';
 
 const LadderPage = () => {
-  const { currentDate, loading, setLoading, refreshKey, autoRefresh, showFirstBoard } = useGlobal();
+  const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard } = useGlobal();
   const showFirstBoardProp = showFirstBoard;
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
@@ -39,6 +39,7 @@ const LadderPage = () => {
   const [blockStrengthData, setBlockStrengthData] = useState({});
   const [enableBlur, setEnableBlur] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [loading, setLoading] = useState(true);
   
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
@@ -196,6 +197,22 @@ const LadderPage = () => {
                 removed: [...prev.removed, ...newRemoved],
               };
             });
+            
+            if (!isFirstLoad) {
+              const addedCount = added.length;
+              const removedCount = removed.length;
+              let msg = '';
+              if (addedCount > 0 && removedCount > 0) {
+                msg = `新增 ${addedCount} 只涨停，减少 ${removedCount} 只`;
+              } else if (addedCount > 0) {
+                msg = `新增 ${addedCount} 只涨停`;
+              } else if (removedCount > 0) {
+                msg = `减少 ${removedCount} 只涨停`;
+              }
+              if (msg) {
+                message.success(msg);
+              }
+            }
           }
         }
         
@@ -565,7 +582,7 @@ const LadderPage = () => {
                           <div>上榜天数: {stock.block_info.list_days}</div>
                           {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
                         </div>
-                      ) : ''
+                      ) : null
                     }
                     placement="left"
                   >
@@ -702,7 +719,7 @@ const LadderPage = () => {
                         <div>上榜天数: {stock.block_info.list_days}</div>
                         {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
                       </div>
-                    ) : ''
+                    ) : null
                   }
                   placement="left"
                 >
@@ -740,7 +757,7 @@ const LadderPage = () => {
                     <div style={{ whiteSpace: 'pre-wrap' }}>
                       {filterDisclaimer(stock.detail_reason)}
                     </div>
-                  ) : ''
+                  ) : null
                 } 
                 placement="top"
                 styles={{ root: { maxWidth: '500px' } }}
@@ -978,7 +995,7 @@ const LadderPage = () => {
           alignItems: 'center', 
           minHeight: '400px' 
         }}>
-          <Spin size="large" tip="加载中..." />
+          <Spin size="large" description="加载中..." />
         </div>
       ) : (
         <>

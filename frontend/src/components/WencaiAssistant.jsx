@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag, Radio } from 'antd';
-import { SearchOutlined, RobotOutlined, PlusOutlined, CheckOutlined } from '@ant-design/icons';
+import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag, Form, Popconfirm } from 'antd';
+import { SearchOutlined, RobotOutlined, PlusOutlined, CheckOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import StockKlineModal from './StockKlineModal';
 import StockAnalysisModal from './StockAnalysisModal';
@@ -12,12 +12,18 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
-  const [queryType, setQueryType] = useState('breakthrough');
+  const [queryType, setQueryType] = useState(null);
   const [watchlistCodes, setWatchlistCodes] = useState([]);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [analysisStock, setAnalysisStock] = useState(null);
+  
+  const [userStrategies, setUserStrategies] = useState([]);
+  const [strategiesLoading, setStrategiesLoading] = useState(false);
+  const [showStrategyModal, setShowStrategyModal] = useState(false);
+  const [editingStrategy, setEditingStrategy] = useState(null);
+  const [strategyForm] = Form.useForm();
 
   useEffect(() => {
     const checkMobile = () => {
@@ -31,24 +37,11 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const getQueryByType = (queryType, date) => {
     const dateFormatted = `${date.slice(0, 4)}年${date.slice(4, 6)}月${date.slice(6, 8)}日`;
     
-    const top3Blocks = nextDayBlocks.slice(0, 3).map(b => b.block_name).join('、');
-    const blockCondition = top3Blocks ? `所属板块是 ${top3Blocks}` : '所属概念为近期热门题材';
-    
-    // 默认提示词
-    if (queryType === 'default') {
-      return `${dateFormatted} 涨停 显示涨停原因类别 显示概念
-非ST 非科创板 非北交所
-${dateFormatted} 前60个交易日未创年度新高 放量上涨 站稳前期高点 非连续加速创新高
-近1年涨停次数大于等于2次 近1月涨幅大于等于10%
-${blockCondition}`;
-    }
-    
-    // 新高突破提示词
-    if (queryType === 'breakthrough') {
-      return `${dateFormatted} 涨停 显示涨停原因类别 显示概念
-非ST 非科创板 非北交所 非创业板 
-当天最高价大于等于120日内最高价的90%
-近1年涨停次数大于等于2次 显示近1月涨幅`;
+    const userStrategy = userStrategies.find(s => s.id === queryType);
+    if (userStrategy) {
+      let template = userStrategy.query_template;
+      template = template.replace(/\{date\}/g, dateFormatted);
+      return template;
     }
     
     return '';
@@ -81,13 +74,56 @@ ${blockCondition}`;
     }
   };
 
+  const loadUserStrategies = async () => {
+    try {
+      setStrategiesLoading(true);
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        setStrategiesLoading(false);
+        return;
+      }
+      
+      const user = JSON.parse(userStr);
+      
+      const response = await axios.get(`${API_BASE}/wencai/strategies`, {
+        headers: {
+          'X-User-Uid': user.uid
+        }
+      });
+      
+      if (response.data.success) {
+        const strategies = response.data.data || [];
+        setUserStrategies(strategies);
+        
+        if (strategies.length > 0 && !queryType) {
+          const defaultStrategy = strategies.find(s => s.is_default === 1);
+          setQueryType(defaultStrategy ? defaultStrategy.id : strategies[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('加载用户策略失败:', error);
+    } finally {
+      setStrategiesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (visible) {
       setQuery(getQueryByType(queryType, dateStr));
       setResult([]);
       loadWatchlistCodes();
+      loadUserStrategies();
     }
   }, [visible, dateStr, queryType]);
+
+  useEffect(() => {
+    if (visible && queryType) {
+      setQuery(getQueryByType(queryType, dateStr));
+    }
+  }, [userStrategies]);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -155,6 +191,99 @@ ${blockCondition}`;
       }
     } catch (error) {
       message.error('添加失败：' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleSaveStrategy = async (values) => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        message.error('请先登录');
+        return;
+      }
+      
+      const user = JSON.parse(userStr);
+      
+      if (editingStrategy) {
+        const response = await axios.put(
+          `${API_BASE}/wencai/strategies/${editingStrategy.id}`,
+          values,
+          {
+            headers: {
+              'X-User-Uid': user.uid
+            }
+          }
+        );
+        
+        if (response.data.success) {
+          message.success('策略更新成功');
+          loadUserStrategies();
+          setShowStrategyModal(false);
+          strategyForm.resetFields();
+        } else {
+          message.error(response.data.error || '更新失败');
+        }
+      } else {
+        const response = await axios.post(
+          `${API_BASE}/wencai/strategies`,
+          values,
+          {
+            headers: {
+              'X-User-Uid': user.uid
+            }
+          }
+        );
+        
+        if (response.data.success) {
+          message.success('策略创建成功');
+          loadUserStrategies();
+          setShowStrategyModal(false);
+          strategyForm.resetFields();
+        } else {
+          message.error(response.data.error || '创建失败');
+        }
+      }
+    } catch (error) {
+      message.error('保存失败：' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleDeleteStrategy = async (strategyId) => {
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        message.error('请先登录');
+        return;
+      }
+      
+      const user = JSON.parse(userStr);
+      
+      const response = await axios.delete(
+        `${API_BASE}/wencai/strategies/${strategyId}`,
+        {
+          headers: {
+            'X-User-Uid': user.uid
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        message.success('策略删除成功');
+        loadUserStrategies();
+        if (queryType === strategyId) {
+          setQueryType('breakthrough');
+        }
+      } else {
+        message.error(response.data.error || '删除失败');
+      }
+    } catch (error) {
+      message.error('删除失败：' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -233,7 +362,7 @@ ${blockCondition}`;
         const changeVal = record['最新涨跌幅'];
         const priceVal = record['最新价'];
         
-        if (!changeVal && !priceVal) return '-';
+        if (!changeVal && !priceVal) return <span>-</span>;
         
         const numChange = typeof changeVal === 'string' ? parseFloat(changeVal) : changeVal;
         const color = numChange > 0 ? '#f5222d' : numChange < 0 ? '#52c41a' : '#666';
@@ -256,7 +385,7 @@ ${blockCondition}`;
       render: (_, record) => {
         const key = Object.keys(record).find(k => k.includes('涨停原因类别'));
         const val = record[key];
-        if (!val) return '-';
+        if (!val) return <span>-</span>;
         return (
           <Tooltip title={val}>
             <span style={{ fontSize: isMobile ? 11 : 12 }}>{val}</span>
@@ -285,7 +414,7 @@ ${blockCondition}`;
       render: (_, record) => {
         const key = Object.keys(record).find(k => k.includes('区间涨跌幅'));
         const val = record[key];
-        if (!val) return '-';
+        if (!val) return <span>-</span>;
         const numVal = typeof val === 'string' ? parseFloat(val) : val;
         const color = numVal > 0 ? '#f5222d' : numVal < 0 ? '#52c41a' : '#666';
         return (
@@ -303,7 +432,7 @@ ${blockCondition}`;
       render: (_, record) => {
         const key = Object.keys(record).find(k => k.includes('所属概念'));
         const val = record[key];
-        if (!val) return '-';
+        if (!val) return <span>-</span>;
         return (
           <Tooltip title={val}>
             <span style={{ fontSize: isMobile ? 11 : 12 }}>{val}</span>
@@ -547,88 +676,453 @@ ${blockCondition}`;
   };
 
   return (
-    <Modal
-      title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <RobotOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1890ff' }} />
-          <span style={{ fontSize: isMobile ? 14 : 16 }}>{getTitleByType(type)}</span>
-        </div>
-      }
-      open={visible}
-      onCancel={onClose}
-      width={isMobile ? '95%' : 1100}
-      footer={null}
-      style={{ top: isMobile ? 20 : 10 }}
-      styles={{
-        body: {
-          padding: isMobile ? '8px' : '8px 12px',
-          maxHeight: isMobile ? '75vh' : 'none',
-          overflow: isMobile ? 'auto' : 'visible',
-        },
-      }}
-    >
-      <div style={{ marginBottom: isMobile ? 6 : 8 }}>
+    <>
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <RobotOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1890ff' }} />
+            <span style={{ fontSize: isMobile ? 14 : 16 }}>{getTitleByType(type)}</span>
+          </div>
+        }
+        open={visible}
+        onCancel={onClose}
+        width={isMobile ? '95%' : 1100}
+        footer={null}
+        style={{ top: isMobile ? 20 : 10 }}
+        styles={{
+          body: {
+            padding: isMobile ? '8px' : '8px 12px',
+            maxHeight: isMobile ? '75vh' : 'none',
+            overflow: isMobile ? 'auto' : 'visible',
+          },
+        }}
+      >
         <div style={{ marginBottom: isMobile ? 6 : 8 }}>
-          <Radio.Group 
-            value={queryType} 
-            onChange={(e) => setQueryType(e.target.value)}
-            size={isMobile ? 'small' : 'middle'}
-            style={{ width: '100%' }}
-          >
-            <Radio.Button value="default" style={{ fontSize: isMobile ? 11 : 12 }}>默认策略</Radio.Button>
-            <Radio.Button value="breakthrough" style={{ fontSize: isMobile ? 11 : 12 }}>新高突破</Radio.Button>
-          </Radio.Group>
+          <div style={{ marginBottom: isMobile ? 8 : 12 }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              marginBottom: isMobile ? 8 : 12 
+            }}>
+              <div style={{ 
+                fontSize: isMobile ? 12 : 13, 
+                fontWeight: 600, 
+                color: '#262626',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                <span style={{
+                  display: 'inline-block',
+                  width: 3,
+                  height: 14,
+                  background: 'linear-gradient(180deg, #1890ff 0%, #096dd9 100%)',
+                  borderRadius: 2
+                }}></span>
+                选择策略
+              </div>
+            </div>
+            
+            <Spin spinning={strategiesLoading} tip="加载策略中...">
+              <div style={{ 
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(160px, 1fr))',
+                gap: isMobile ? 8 : 10
+              }}>
+                {userStrategies.map(strategy => {
+                const isActive = queryType === strategy.id;
+                return (
+                  <div
+                    key={strategy.id}
+                    onClick={() => setQueryType(strategy.id)}
+                    style={{
+                      position: 'relative',
+                      padding: isMobile ? '10px 12px' : '12px 14px',
+                      borderRadius: 8,
+                      border: `2px solid ${isActive ? 'transparent' : '#f0f0f0'}`,
+                      background: isActive 
+                        ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                        : '#fafafa',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                      boxShadow: isActive 
+                        ? '0 4px 12px rgba(102, 126, 234, 0.4)'
+                        : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                      overflow: 'hidden'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+                        e.currentTarget.style.borderColor = '#d9d9d9';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                        e.currentTarget.style.borderColor = '#f0f0f0';
+                      }
+                    }}
+                  >
+                    {isActive && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        width: 0,
+                        height: 0,
+                        borderStyle: 'solid',
+                        borderWidth: '0 32px 32px 0',
+                        borderColor: 'transparent rgba(255, 255, 255, 0.3) transparent transparent',
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                    
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div style={{
+                        fontSize: isMobile ? 12 : 13,
+                        fontWeight: 600,
+                        color: isActive ? '#fff' : '#262626',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {strategy.strategy_name}
+                      </div>
+                      
+                      <div style={{
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: 4,
+                         marginLeft: 8
+                       }}
+                       onClick={(e) => e.stopPropagation()}
+                       >
+                         <div
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setEditingStrategy(strategy);
+                             strategyForm.setFieldsValue(strategy);
+                             setShowStrategyModal(true);
+                           }}
+                           style={{
+                             display: 'flex',
+                             alignItems: 'center',
+                             justifyContent: 'center',
+                             width: 22,
+                             height: 22,
+                             borderRadius: 4,
+                             background: isActive ? 'rgba(255, 255, 255, 0.15)' : '#fff',
+                             cursor: 'pointer',
+                             outline: 'none',
+                             boxShadow: 'none'
+                           }}
+                           tabIndex={-1}
+                           onMouseEnter={(e) => {
+                             if (isActive) {
+                               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+                             } else {
+                               e.currentTarget.style.background = '#e6f7ff';
+                               e.currentTarget.style.color = '#1890ff';
+                             }
+                           }}
+                           onMouseLeave={(e) => {
+                             if (isActive) {
+                               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                             } else {
+                               e.currentTarget.style.background = '#fff';
+                               e.currentTarget.style.color = '#595959';
+                             }
+                           }}
+                           onFocus={(e) => {
+                             e.target.style.outline = 'none';
+                             e.target.style.boxShadow = 'none';
+                           }}
+                         >
+                           <EditOutlined style={{ 
+                             fontSize: 11, 
+                             color: isActive ? '#fff' : '#595959',
+                             pointerEvents: 'none'
+                           }} />
+                         </div>
+                        
+                        <Popconfirm
+                          title="确定要删除这个策略吗？"
+                          description="删除后无法恢复"
+                          onConfirm={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStrategy(strategy.id);
+                          }}
+                          okText="确定"
+                          cancelText="取消"
+                          okButtonProps={{ danger: true }}
+                        >
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 22,
+                              height: 22,
+                              borderRadius: 4,
+                              background: isActive ? 'rgba(255, 255, 255, 0.15)' : '#fff',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              boxShadow: 'none'
+                            }}
+                            tabIndex={-1}
+                            onMouseEnter={(e) => {
+                              if (isActive) {
+                                e.currentTarget.style.background = 'rgba(255, 107, 107, 0.3)';
+                              } else {
+                                e.currentTarget.style.background = '#fff1f0';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (isActive) {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                              } else {
+                                e.currentTarget.style.background = '#fff';
+                              }
+                            }}
+                            onFocus={(e) => {
+                              e.target.style.outline = 'none';
+                              e.target.style.boxShadow = 'none';
+                            }}
+                          >
+                            <DeleteOutlined style={{ 
+                              fontSize: 11, 
+                              color: isActive ? '#fff' : '#ff4d4f'
+                            }} />
+                          </div>
+                        </Popconfirm>
+                      </div>
+                    </div>
+                    
+                    {strategy.description && (
+                      <div style={{
+                        fontSize: isMobile ? 10 : 11,
+                        color: isActive ? 'rgba(255, 255, 255, 0.8)' : '#8c8c8c',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginTop: 4
+                      }}>
+                        {strategy.description}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              
+              <div
+                onClick={() => {
+                  setEditingStrategy(null);
+                  strategyForm.resetFields();
+                  setShowStrategyModal(true);
+                }}
+                style={{
+                  position: 'relative',
+                  padding: isMobile ? '10px 12px' : '12px 14px',
+                  borderRadius: 8,
+                  border: '2px dashed #d9d9d9',
+                  background: '#fafafa',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  minHeight: isMobile ? 60 : 68,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  outline: 'none',
+                  order: 999
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#1890ff';
+                  e.currentTarget.style.background = '#e6f7ff';
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#d9d9d9';
+                  e.currentTarget.style.background = '#fafafa';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                  <PlusOutlined style={{ 
+                    fontSize: isMobile ? 18 : 20, 
+                    color: '#8c8c8c'
+                  }} />
+                  <div style={{
+                    fontSize: isMobile ? 11 : 12,
+                    color: '#8c8c8c',
+                    fontWeight: 500
+                  }}>
+                    新增策略
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Spin>
+          </div>
+          
+          <div style={{ 
+            position: 'relative',
+            marginBottom: isMobile ? 8 : 10
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: -8,
+              left: 12,
+              background: '#fff',
+              padding: '0 4px',
+              fontSize: isMobile ? 11 : 12,
+              color: '#8c8c8c',
+              zIndex: 1
+            }}>
+              查询语句
+            </div>
+            <TextArea
+              rows={4}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="输入自然语言查询语句...&#10;支持变量：{date} 会被替换为当前日期"
+              style={{ 
+                fontFamily: 'Consolas, Monaco, "Courier New", monospace', 
+                fontSize: isMobile ? 12 : 13,
+                borderRadius: 8,
+                minHeight: isMobile ? '100px' : '120px',
+                border: '1px solid #e8e8e8',
+                backgroundColor: '#fafafa',
+                padding: isMobile ? '10px 12px' : '12px 14px',
+                transition: 'all 0.3s',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#1890ff';
+                e.target.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.15)';
+                e.target.style.backgroundColor = '#fff';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#e8e8e8';
+                e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.04)';
+                e.target.style.backgroundColor = '#fafafa';
+              }}
+            />
+          </div>
         </div>
-        <TextArea
-          rows={4}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="输入自然语言查询语句..."
-          style={{ 
-            fontFamily: 'monospace', 
-            fontSize: isMobile ? 12 : 13,
-            borderRadius: 4,
-            minHeight: isMobile ? '100px' : '120px'
+
+        <Button
+          type="primary"
+          icon={<SearchOutlined />}
+          onClick={handleSearch}
+          loading={loading}
+          size={isMobile ? 'small' : 'middle'}
+          block
+          style={{ marginBottom: isMobile ? 4 : 6 }}
+        >
+          开始查询
+        </Button>
+
+        <Spin spinning={loading}>
+          {isMobile ? renderMobileContent() : renderDesktopContent()}
+        </Spin>
+
+        <StockKlineModal
+          visible={klineVisible}
+          stockCode={selectedStock?.code}
+          stockName={selectedStock?.name}
+          onClose={() => {
+            setKlineVisible(false);
+            setSelectedStock(null);
           }}
         />
-      </div>
 
-      <Button
-        type="primary"
-        icon={<SearchOutlined />}
-        onClick={handleSearch}
-        loading={loading}
-        size={isMobile ? 'small' : 'middle'}
-        block
-        style={{ marginBottom: isMobile ? 4 : 6 }}
+        <StockAnalysisModal
+          visible={analysisVisible}
+          stockCode={analysisStock?.code}
+          stockName={analysisStock?.name}
+          onClose={() => {
+            setAnalysisVisible(false);
+            setAnalysisStock(null);
+          }}
+        />
+      </Modal>
+
+      <Modal
+        title={editingStrategy ? '编辑策略' : '创建新策略'}
+        open={showStrategyModal}
+        onCancel={() => {
+          setShowStrategyModal(false);
+          strategyForm.resetFields();
+          setEditingStrategy(null);
+        }}
+        footer={null}
+        width={isMobile ? '95%' : 600}
       >
-        开始查询
-      </Button>
-
-      <Spin spinning={loading}>
-        {isMobile ? renderMobileContent() : renderDesktopContent()}
-      </Spin>
-
-      <StockKlineModal
-        visible={klineVisible}
-        stockCode={selectedStock?.code}
-        stockName={selectedStock?.name}
-        onClose={() => {
-          setKlineVisible(false);
-          setSelectedStock(null);
-        }}
-      />
-
-      <StockAnalysisModal
-        visible={analysisVisible}
-        stockCode={analysisStock?.code}
-        stockName={analysisStock?.name}
-        onClose={() => {
-          setAnalysisVisible(false);
-          setAnalysisStock(null);
-        }}
-      />
-    </Modal>
+        <Form
+          form={strategyForm}
+          layout="vertical"
+          onFinish={handleSaveStrategy}
+        >
+          <Form.Item
+            name="strategy_name"
+            label="策略名称"
+            rules={[{ required: true, message: '请输入策略名称' }]}
+          >
+            <Input placeholder="例如：强势股突破策略" />
+          </Form.Item>
+          
+          <Form.Item
+            name="query_template"
+            label="查询模板"
+            rules={[{ required: true, message: '请输入查询模板' }]}
+            extra="支持变量：{date} 会被替换为当前日期，例如：2026年05月15日"
+          >
+            <TextArea 
+              rows={6} 
+              placeholder="{date} 涨停 显示涨停原因类别 显示概念&#10;非ST 非科创板 非北交所&#10;近1年涨停次数大于等于2次"
+              style={{ fontFamily: 'monospace' }}
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="description"
+            label="策略描述"
+          >
+            <Input.TextArea rows={2} placeholder="描述这个策略的选股逻辑" />
+          </Form.Item>
+          
+          <Form.Item>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Button onClick={() => {
+                setShowStrategyModal(false);
+                strategyForm.resetFields();
+                setEditingStrategy(null);
+              }}>
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit" icon={<SaveOutlined />}>
+                保存策略
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 };
 
