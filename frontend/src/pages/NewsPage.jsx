@@ -19,7 +19,7 @@ const NewsPage = () => {
   const { showAllNews, settings, updateSettings } = useGlobal();
   const { user } = useAuth();
   const [newsList, setNewsList] = useState([]);
-  const [analyzingId, setAnalyzingId] = useState(null);
+  const [analyzingIds, setAnalyzingIds] = useState(new Set());
   const [analysisCache, setAnalysisCache] = useState({});
   const [isMobile, setIsMobile] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
@@ -97,6 +97,7 @@ const NewsPage = () => {
   const speechRef = useRef(null);
   const lastSpeakTimeRef = useRef(0);
   const isPausedRef = useRef(false);
+  const speechErrorRef = useRef(false);
 
   // 同步isPaused状态到ref
   useEffect(() => {
@@ -175,14 +176,14 @@ const NewsPage = () => {
   }, []);
 
   // 开始倒计时
-  const startCountdown = () => {
+  const startCountdown = (seconds = 5) => {
     // 清理之前的定时器
     if (countdownRef.current) {
       clearInterval(countdownRef.current);
       countdownRef.current = null;
     }
     
-    setCountdown(5);
+    setCountdown(seconds);
     
     countdownRef.current = setInterval(() => {
       if (!isPausedRef.current) {  // 使用ref而不是state
@@ -250,20 +251,36 @@ const NewsPage = () => {
         if (selectedVoice) {
           console.log(`使用${currentBrowser}浏览器保存的语音包:`, selectedVoice.name);
         } else {
-          console.log(`保存的${currentBrowser}语音包不可用，尝试智能匹配`);
+          console.log(`保存的${currentBrowser}语音包不可用，自动选择本地第一个语音包`);
         }
       }
       
+      // 如果保存的语音包不可用，自动选择本地第一个可用的语音包
+      if (!selectedVoice && availableVoices.length > 0) {
+        selectedVoice = availableVoices[0];
+        console.log('自动选择本地第一个可用语音包:', selectedVoice.name);
+        
+        // 自动更新用户设置为这个语音包
+        const newVoices = { ...speechSettings.voices, [currentBrowser]: selectedVoice.name };
+        setSpeechSettings(prev => ({ ...prev, voices: newVoices }));
+        updateSettings({
+          ...settings,
+          news: {
+            ...settings?.news,
+            speechSettings: {
+              ...speechSettings,
+              voices: newVoices
+            }
+          }
+        });
+      }
+      
+      // 如果还没有选中，尝试智能匹配中文语音包（备用方案）
       if (!selectedVoice) {
         selectedVoice = availableVoices.find(voice => voice.lang.includes('zh'));
         if (selectedVoice) {
           console.log('使用中文语音包:', selectedVoice.name);
         }
-      }
-      
-      if (!selectedVoice && availableVoices.length > 0) {
-        selectedVoice = availableVoices[0];
-        console.log('使用第一个可用语音包:', selectedVoice.name);
       }
       
       if (selectedVoice) {
@@ -284,9 +301,10 @@ const NewsPage = () => {
       utterance.onend = () => {
         setIsSpeaking(false);
         // 语音播报完成后开始5秒倒计时（仅对自动播报）
-        if (!isManual) {
+        if (!isManual && !speechErrorRef.current) {
           startCountdown();
         }
+        speechErrorRef.current = false;
       };
       
       utterance.onerror = (event) => {
@@ -306,9 +324,12 @@ const NewsPage = () => {
           message.error(`播报失败: ${event.error || '未知错误'}`);
         }
         
-        // 播报出错也启动倒计时（仅对自动播报）
+        // 标记发生了错误，防止onend再次触发倒计时
+        speechErrorRef.current = true;
+        
+        // 播报出错启动10秒倒计时（仅对自动播报）
         if (!isManual) {
-          startCountdown();
+          startCountdown(10);
         }
       };
       
@@ -571,7 +592,7 @@ const NewsPage = () => {
     }
 
     try {
-      setAnalyzingId(news.id);
+      setAnalyzingIds(prev => new Set([...prev, news.id]));
       const isDev = import.meta.env.DEV;
       const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
       const response = await axios.post(`${API_BASE}/news/analyze`, {
@@ -594,13 +615,17 @@ const NewsPage = () => {
       console.error('分析失败:', error);
       message.error('分析失败，请稍后重试');
     } finally {
-      setAnalyzingId(null);
+      setAnalyzingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(news.id);
+        return newSet;
+      });
     }
   };
 
   const renderNewsItem = (news) => {
     const analysis = analysisCache[news.id];
-    const isAnalyzing = analyzingId === news.id;
+    const isAnalyzing = analyzingIds.has(news.id);
     const isHighlighted = highlightedIds.has(news.id);
 
     return (

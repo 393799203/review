@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-SERVER_IP="218.244.140.186"
+SERVER_IP="8.217.249.31"
 SERVER_USER="root"
 PROJECT_DIR="/opt/stock-review"
 LOCAL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "=========================================="
-echo "涨停梯队分析系统 - Docker容器化部署"
+echo "云雀AI - Docker容器化部署"
 echo "目标服务器: ${SERVER_IP}"
 echo "=========================================="
 

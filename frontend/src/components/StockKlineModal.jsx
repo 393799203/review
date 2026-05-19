@@ -6,9 +6,11 @@ import { stockApi } from '../services/api';
 const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   const [klineLoading, setKlineLoading] = useState(false);
   const [intradayLoading, setIntradayLoading] = useState(false);
+  const [quoteLoading, setQuoteLoading] = useState(false);
   const [klineData, setKlineData] = useState([]);
   const [intradayData, setIntradayData] = useState([]);
   const [yesterdayClose, setYesterdayClose] = useState(null);
+  const [quoteData, setQuoteData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -27,9 +29,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   }, [visible, stockCode]);
 
   const loadData = async () => {
-    // 先加载K线数据
     loadKlineData();
-    // 再加载分时数据
     loadIntradayData();
   };
 
@@ -55,6 +55,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   const loadIntradayData = async () => {
     try {
       setIntradayLoading(true);
+      setQuoteLoading(true);
       
       const intradayResponse = await stockApi.getStockIntraday(stockCode);
       
@@ -64,12 +65,16 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           setIntradayData(data.intraday);
           setYesterdayClose(data.yesterday_close);
         }
+        if (data && data.quote) {
+          setQuoteData(data.quote);
+        }
       }
       
     } catch (error) {
       console.error('加载分时数据失败：', error.message);
     } finally {
       setIntradayLoading(false);
+      setQuoteLoading(false);
     }
   };
 
@@ -154,15 +159,6 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     }
 
     return {
-      title: {
-        text: `${stockName || stockCode} - 分时图`,
-        left: 'center',
-        top: isMobile ? 5 : 10,
-        textStyle: {
-          fontSize: isMobile ? 14 : 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -193,16 +189,16 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       },
       grid: [
         {
-          left: '10%',
-          right: '8%',
-          top: isMobile ? '18%' : '15%',
-          height: isMobile ? '45%' : '50%'
+          left: '8%',
+          right: '2%',
+          top: isMobile ? '12%' : '8%',
+          height: isMobile ? '50%' : '55%'
         },
         {
-          left: '10%',
-          right: '8%',
-          top: isMobile ? '68%' : '70%',
-          height: isMobile ? '15%' : '12%'
+          left: '8%',
+          right: '2%',
+          top: isMobile ? '70%' : '72%',
+          height: isMobile ? '18%' : '15%'
         }
       ],
       xAxis: [
@@ -355,15 +351,6 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     };
 
     return {
-      title: {
-        text: `${stockName || stockCode} - 日K线`,
-        left: 'center',
-        top: isMobile ? 5 : 10,
-        textStyle: {
-          fontSize: isMobile ? 14 : 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -415,16 +402,16 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       },
       grid: [
         {
-          left: '10%',
-          right: '8%',
-          top: isMobile ? '18%' : '15%',
-          height: isMobile ? '45%' : '50%'
+          left: '8%',
+          right: '3%',
+          top: isMobile ? '12%' : '8%',
+          height: isMobile ? '50%' : '55%'
         },
         {
-          left: '10%',
-          right: '8%',
-          top: isMobile ? '68%' : '70%',
-          height: isMobile ? '15%' : '12%'
+          left: '8%',
+          right: '3%',
+          top: isMobile ? '70%' : '72%',
+          height: isMobile ? '18%' : '15%'
         }
       ],
       xAxis: [
@@ -543,6 +530,195 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     };
   };
 
+  const renderQuotePanel = () => {
+    if (!quoteData) return null;
+    
+    return (
+      <div style={{ 
+        padding: '0 10px', 
+        backgroundColor: '#fafafa', 
+        borderRadius: '4px',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* 五档盘口 - 卖在上买在下 */}
+        <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#333' }}>
+          五档盘口
+        </div>
+        
+        {/* 卖盘 - 从卖5到卖1 */}
+        {[5, 4, 3, 2, 1].map(i => (
+          <div key={`ask${i}`} style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            padding: '3px 6px',
+            backgroundColor: '#f6ffed',
+            marginBottom: '2px',
+            borderRadius: '2px',
+            fontSize: '13px'
+          }}>
+            <span style={{ color: '#999', width: '28px' }}>卖{i}</span>
+            <span style={{ color: '#52c41a', width: '55px', textAlign: 'right' }}>{quoteData[`ask${i}`]?.toFixed(2) || '--'}</span>
+            <span style={{ color: '#666', width: '55px', textAlign: 'right' }}>{quoteData[`ask_vol${i}`]?.toFixed(0) || '--'}</span>
+          </div>
+        ))}
+        
+        {/* 分隔线 */}
+        <div style={{ height: '2px', backgroundColor: '#e8e8e8', margin: '4px 0' }}></div>
+        
+        {/* 买盘 - 从买1到买5 */}
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={`bid${i}`} style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            padding: '3px 6px',
+            backgroundColor: '#fff1f0',
+            marginBottom: '2px',
+            borderRadius: '2px',
+            fontSize: '13px'
+          }}>
+            <span style={{ color: '#999', width: '28px' }}>买{i}</span>
+            <span style={{ color: '#f5222d', width: '55px', textAlign: 'right' }}>{quoteData[`bid${i}`]?.toFixed(2) || '--'}</span>
+            <span style={{ color: '#666', width: '55px', textAlign: 'right' }}>{quoteData[`bid_vol${i}`]?.toFixed(0) || '--'}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderQuoteHeader = () => {
+    if (!quoteData) return null;
+    
+    const price = quoteData.price || 0;
+    const prevClose = quoteData.prev_close || 0;
+    const change = quoteData.change_amount || 0;
+    const changePercent = quoteData.change_percent || 0;
+    const color = change >= 0 ? '#f5222d' : '#52c41a';
+    
+    if (isMobile) {
+      return (
+        <div style={{ 
+          padding: '10px 12px', 
+          backgroundColor: '#fff', 
+          borderBottom: '1px solid #f0f0f0',
+        }}>
+          {/* 第一行：股票名称和代码 */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '16px', color: '#333', fontWeight: '600' }}>{stockName}</span>
+            <span style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace' }}>{stockCode}</span>
+          </div>
+          
+          {/* 第二行：价格信息 */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+            <span style={{ fontSize: '22px', fontWeight: 'bold', color: color, fontFamily: 'monospace' }}>
+              {price.toFixed(2)}
+            </span>
+            <span style={{ fontSize: '14px', color: color }}>
+              {change >= 0 ? '+' : ''}{change.toFixed(2)}
+            </span>
+            <span style={{ 
+              fontSize: '12px', 
+              color: '#fff', 
+              backgroundColor: color,
+              padding: '2px 6px',
+              borderRadius: '3px',
+              fontWeight: '500'
+            }}>
+              {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%
+            </span>
+          </div>
+          
+          {/* 第三行：行情数据 */}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#999' }}>昨收</div>
+              <div style={{ fontSize: '12px', color: '#333' }}>{prevClose.toFixed(2)}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#999' }}>开盘</div>
+              <div style={{ fontSize: '12px', color: '#333' }}>{quoteData.open?.toFixed(2) || '--'}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#999' }}>最高</div>
+              <div style={{ fontSize: '12px', color: '#f5222d' }}>{quoteData.high?.toFixed(2) || '--'}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#999' }}>最低</div>
+              <div style={{ fontSize: '12px', color: '#52c41a' }}>{quoteData.low?.toFixed(2) || '--'}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div style={{ 
+        padding: '12px 16px', 
+        backgroundColor: '#fff', 
+        borderBottom: '1px solid #f0f0f0',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* 左侧：股票信息 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ 
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '16px', color: '#333', fontWeight: '600' }}>{stockName}</span>
+              <span style={{ fontSize: '13px', color: '#888', fontFamily: 'monospace' }}>{stockCode}</span>
+            </div>
+          </div>
+          
+          {/* 中间：价格信息 */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '24px', fontWeight: 'bold', color: color, fontFamily: 'monospace' }}>
+              {price.toFixed(2)}
+            </span>
+            <span style={{ fontSize: '15px', color: color, fontWeight: '500' }}>
+              {change >= 0 ? '+' : ''}{change.toFixed(2)}
+            </span>
+            <span style={{ 
+              fontSize: '13px', 
+              color: '#fff', 
+              backgroundColor: color,
+              padding: '2px 8px',
+              borderRadius: '3px',
+              fontWeight: '500'
+            }}>
+              {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%
+            </span>
+          </div>
+          
+          {/* 右侧：行情数据 */}
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>昨收</div>
+              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{prevClose.toFixed(2)}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>开盘</div>
+              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{quoteData.open?.toFixed(2) || '--'}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>最高</div>
+              <div style={{ fontSize: '14px', color: '#f5222d', fontWeight: '500' }}>{quoteData.high?.toFixed(2) || '--'}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>最低</div>
+              <div style={{ fontSize: '14px', color: '#52c41a', fontWeight: '500' }}>{quoteData.low?.toFixed(2) || '--'}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>成交额</div>
+              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{((quoteData.amount || 0) / 100000000).toFixed(2)}亿</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Modal
       title={null}
@@ -561,30 +737,49 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       }}
     >
       <div>
-        {/* 分时图区域 */}
-        <div style={{ marginBottom: '10px' }}>
-          <Spin spinning={intradayLoading}>
-            {intradayData && intradayData.length > 0 ? (
-              <ReactECharts
-                option={getIntradayOption()}
-                style={{ height: isMobile ? '300px' : '350px', width: '100%' }}
-                notMerge={true}
-                lazyUpdate={true}
-              />
-            ) : (
-              <div style={{ 
-                height: isMobile ? '300px' : '350px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                color: '#999',
-                border: '1px solid #f0f0f0',
-                borderRadius: '4px'
-              }}>
-                {intradayLoading ? '分时数据加载中...' : '暂无分时数据'}
+        {/* 分时图区域 + 五档盘口 */}
+        <div style={{ marginBottom: isMobile ? '2px' : '10px' }}>
+          {/* 实时行情头部 */}
+          {renderQuoteHeader()}
+          
+          <div style={{ display: 'flex' }}>
+            {/* 分时图 */}
+            <div style={{ flex: isMobile ? '1' : '1' }}>
+              <Spin spinning={intradayLoading}>
+                {intradayData && intradayData.length > 0 ? (
+                  <ReactECharts
+                    option={getIntradayOption()}
+                    style={{ height: isMobile ? '300px' : '320px', width: '100%' }}
+                    notMerge={true}
+                    lazyUpdate={true}
+                  />
+                ) : (
+                  <div style={{ 
+                    height: isMobile ? '300px' : '320px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#999',
+                    border: '1px solid #f0f0f0',
+                    borderRadius: '4px'
+                  }}>
+                    {intradayLoading ? '分时数据加载中...' : '暂无分时数据'}
+                  </div>
+                )}
+              </Spin>
+            </div>
+            
+            {/* 五档盘口 */}
+            {!isMobile && (
+              <div style={{ flex: '0 0 180px' }}>
+                <Spin spinning={quoteLoading}>
+                  <div style={{ height: '320px' }}>
+                    {renderQuotePanel()}
+                  </div>
+                </Spin>
               </div>
             )}
-          </Spin>
+          </div>
         </div>
         
         {/* K线图区域 */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Radio, Divider } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, RiseOutlined, LoadingOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
-import axios from 'axios';
+import api from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 
 const StatisticsPage = () => {
@@ -30,10 +30,7 @@ const StatisticsPage = () => {
   const loadStatistics = async () => {
     setLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.get(`${API_BASE}/statistics/profit?period=${period}`);
+      const response = await api.get(`/statistics/profit?period=${period}`);
       
       if (response.data.success) {
         setData(response.data.data || []);
@@ -52,10 +49,7 @@ const StatisticsPage = () => {
 
   const loadTrades = async () => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.get(`${API_BASE}/trade-records`);
+      const response = await api.get('/trade-records');
       
       if (response.data.success) {
         const sellRecords = response.data.data.filter(item => item.operation_type === '卖出' && item.profit !== null);

@@ -15,7 +15,7 @@ import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews, UserWencaiStrategy
-from ths_fetcher import ThsFetcher
+from data_fetcher import DataFetcher
 from statistics_api import register_statistics_routes
 from limit_up_analyzer import LimitUpReasonAnalyzer
 
@@ -24,14 +24,14 @@ CORS(app)
 
 db_config = DatabaseConfig()
 
-ths_fetcher = ThsFetcher()
+data_fetcher = DataFetcher()
 
 
 def init_ths_session():
     """初始化同花顺会话并启动心跳"""
     print("初始化同花顺会话...")
-    if ths_fetcher.init_session():
-        ths_fetcher.start_heartbeat(interval=60)
+    if data_fetcher.init_session():
+        data_fetcher.start_heartbeat(interval=60)
         print("✓ 同花顺会话初始化完成")
     else:
         print("✗ 同花顺会话初始化失败，将在请求时重试")
@@ -57,7 +57,7 @@ def health_check():
     return jsonify({
         'status': 'ok', 
         'message': '服务正常运行',
-        'ths_session_ready': ths_fetcher.is_ready()
+        'ths_session_ready': data_fetcher.is_ready()
     })
 
 
@@ -67,8 +67,8 @@ def ths_status():
     return jsonify({
         'success': True,
         'data': {
-            'session_ready': ths_fetcher.is_ready(),
-            'heartbeat_running': ths_fetcher._heartbeat_running
+            'session_ready': data_fetcher.is_ready(),
+            'heartbeat_running': data_fetcher._heartbeat_running
         }
     })
 
@@ -120,7 +120,7 @@ def get_data_by_date(date_str):
             print(f"日期 {date_str} 没有数据，触发同步...")
             from fetch_data import LimitUpFetcher
             
-            fetcher = LimitUpFetcher(ths_fetcher=ths_fetcher)
+            fetcher = LimitUpFetcher(data_fetcher=data_fetcher)
             success = fetcher.fetch_and_save(date_str)
             
             if success:
@@ -304,7 +304,7 @@ def get_ladder_by_date(date_str):
             print(f"日期 {date_str} 没有数据，触发同步...")
             from fetch_data import LimitUpFetcher
             
-            fetcher = LimitUpFetcher(ths_fetcher=ths_fetcher)
+            fetcher = LimitUpFetcher(data_fetcher=data_fetcher)
             success = fetcher.fetch_and_save(date_str)
             
             if success:
@@ -520,7 +520,7 @@ def refresh_data():
                 'error': '无法获取未来日期的数据'
             }), 200
         
-        fetcher = LimitUpFetcher(ths_fetcher=ths_fetcher)
+        fetcher = LimitUpFetcher(data_fetcher=data_fetcher)
         
         success = fetcher.fetch_and_save(date_str)
         
@@ -1128,17 +1128,28 @@ def get_watchlist():
     session = get_db_session()
     
     try:
-        watchlist = session.query(WatchlistStock).order_by(desc(WatchlistStock.created_at)).all()
+        user_id = request.headers.get('X-User-Uid')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '未提供用户ID'
+            }), 401
+        
+        watchlist = session.query(WatchlistStock).filter(
+            WatchlistStock.user_id == user_id
+        ).order_by(desc(WatchlistStock.created_at)).all()
         
         result = []
         for stock in watchlist:
             stock_total_profit = session.query(func.sum(TradeRecord.profit)).filter(
+                TradeRecord.user_id == user_id,
                 TradeRecord.stock_code == stock.stock_code,
                 TradeRecord.operation_type == '卖出',
                 TradeRecord.profit.isnot(None)
             ).scalar() or 0
             
             buy_records = session.query(TradeRecord).filter(
+                TradeRecord.user_id == user_id,
                 TradeRecord.stock_code == stock.stock_code,
                 TradeRecord.operation_type == '买入',
                 TradeRecord.remaining_quantity > 0
@@ -1148,7 +1159,7 @@ def get_watchlist():
             
             try:
                 stock_code_num = stock.stock_code.split('.')[0]
-                quote = ths_fetcher.get_realtime_quote(stock_code_num)
+                quote = data_fetcher.get_realtime_quote(stock_code_num)
                 current_price = quote['price'] if quote and 'price' in quote else None
             except Exception as e:
                 print(f"更新股票 {stock.stock_code} 价格失败: {e}")
@@ -1215,6 +1226,13 @@ def add_to_watchlist():
     session = get_db_session()
     
     try:
+        user_id = request.headers.get('X-User-Uid')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '未提供用户ID'
+            }), 401
+        
         data = request.json
         stock_code = data.get('stock_code')
         stock_name = data.get('stock_name')
@@ -1233,6 +1251,7 @@ def add_to_watchlist():
         add_date = datetime.strptime(add_date_str, '%Y%m%d').date()
         
         existing = session.query(WatchlistStock).filter(
+            WatchlistStock.user_id == user_id,
             WatchlistStock.stock_code == stock_code
         ).first()
         
@@ -1243,6 +1262,7 @@ def add_to_watchlist():
             }), 400
         
         watchlist_stock = WatchlistStock(
+            user_id=user_id,
             stock_code=stock_code,
             stock_name=stock_name,
             add_date=add_date,
@@ -1276,7 +1296,15 @@ def remove_from_watchlist(stock_code):
     session = get_db_session()
     
     try:
+        user_id = request.headers.get('X-User-Uid')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '未提供用户ID'
+            }), 401
+        
         stock = session.query(WatchlistStock).filter(
+            WatchlistStock.user_id == user_id,
             WatchlistStock.stock_code == stock_code
         ).first()
         
@@ -1287,6 +1315,7 @@ def remove_from_watchlist(stock_code):
             }), 404
         
         buy_records = session.query(TradeRecord).filter(
+            TradeRecord.user_id == user_id,
             TradeRecord.stock_code == stock_code,
             TradeRecord.operation_type == '买入',
             TradeRecord.remaining_quantity > 0
@@ -1329,7 +1358,7 @@ def update_watchlist_prices():
 def get_stock_quote(stock_code):
     """获取单只股票的实时行情"""
     try:
-        quote = ths_fetcher.get_realtime_quote(stock_code)
+        quote = data_fetcher.get_realtime_quote(stock_code)
         
         if quote:
             return jsonify({
@@ -1355,6 +1384,13 @@ def buy_stock():
     session = get_db_session()
     
     try:
+        user_id = request.headers.get('X-User-Uid')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '未提供用户ID'
+            }), 401
+        
         data = request.json
         stock_code = data.get('stock_code')
         buy_price = data.get('buy_price')
@@ -1366,7 +1402,10 @@ def buy_stock():
                 'error': '缺少必要参数'
             }), 400
         
-        stock = session.query(WatchlistStock).filter_by(stock_code=stock_code).first()
+        stock = session.query(WatchlistStock).filter_by(
+            user_id=user_id,
+            stock_code=stock_code
+        ).first()
         
         if not stock:
             return jsonify({
@@ -1375,6 +1414,7 @@ def buy_stock():
             }), 404
         
         trade_record = TradeRecord(
+            user_id=user_id,
             stock_code=stock_code,
             stock_name=stock.stock_name,
             operation_type='买入',
@@ -1409,6 +1449,13 @@ def sell_stock():
     session = get_db_session()
     
     try:
+        user_id = request.headers.get('X-User-Uid')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '未提供用户ID'
+            }), 401
+        
         data = request.json
         stock_code = data.get('stock_code')
         sell_price = data.get('sell_price')
@@ -1420,7 +1467,10 @@ def sell_stock():
                 'error': '缺少必要参数'
             }), 400
         
-        stock = session.query(WatchlistStock).filter_by(stock_code=stock_code).first()
+        stock = session.query(WatchlistStock).filter_by(
+            user_id=user_id,
+            stock_code=stock_code
+        ).first()
         
         if not stock:
             return jsonify({
@@ -1429,6 +1479,7 @@ def sell_stock():
             }), 404
         
         buy_records = session.query(TradeRecord).filter(
+            TradeRecord.user_id == user_id,
             TradeRecord.stock_code == stock_code,
             TradeRecord.operation_type == '买入',
             TradeRecord.remaining_quantity > 0
@@ -1475,6 +1526,7 @@ def sell_stock():
         profit_ratio = (sell_price - avg_buy_price) / avg_buy_price if avg_buy_price > 0 else 0
         
         trade_record = TradeRecord(
+            user_id=user_id,
             stock_code=stock_code,
             stock_name=stock.stock_name,
             operation_type='卖出',
@@ -1512,7 +1564,16 @@ def get_trade_records():
     session = get_db_session()
     
     try:
-        records = session.query(TradeRecord).order_by(TradeRecord.operation_date.desc()).all()
+        user_id = request.headers.get('X-User-Uid')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '未提供用户ID'
+            }), 401
+        
+        records = session.query(TradeRecord).filter(
+            TradeRecord.user_id == user_id
+        ).order_by(TradeRecord.operation_date.desc()).all()
         
         result = []
         for record in records:
@@ -1553,7 +1614,7 @@ def get_stock_kline(stock_code):
         
         stock_code_clean = stock_code.split('.')[0]
         
-        kline_data = ths_fetcher.get_stock_kline(stock_code_clean, days)
+        kline_data = data_fetcher.get_stock_kline(stock_code_clean, days)
         
         if kline_data:
             return jsonify({
@@ -1575,16 +1636,20 @@ def get_stock_kline(stock_code):
 
 @app.route('/api/stock/intraday/<stock_code>', methods=['GET'])
 def get_stock_intraday(stock_code):
-    """获取股票当日分时数据"""
+    """获取股票当日分时数据和实时行情"""
     try:
         stock_code_clean = stock_code.split('.')[0]
         
-        intraday_data = ths_fetcher.get_stock_intraday(stock_code_clean)
+        intraday_data = data_fetcher.get_stock_intraday(stock_code_clean)
+        quote_data = data_fetcher.get_realtime_quote(stock_code_clean)
         
         if intraday_data:
             return jsonify({
                 'success': True,
-                'data': intraday_data
+                'data': {
+                    **intraday_data,
+                    'quote': quote_data
+                }
             })
         else:
             return jsonify({
