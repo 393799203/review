@@ -12,6 +12,7 @@ import time
 import random
 import threading
 import re
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from mootdx.quotes import Quotes
 
@@ -309,11 +310,33 @@ class DataFetcher:
     def get_stock_intraday(self, stock_code: str) -> Optional[Dict]:
         """
         获取股票当日分时数据（使用mootdx）
+        在交易日早上9点之前返回昨天的数据
         """
         try:
+            now = datetime.now()
+            current_time = now.time()
+            market_open_time = datetime.strptime('09:25', '%H:%M').time()
+            
+            date_str = None
+            if current_time < market_open_time:
+                weekday = now.weekday()
+                if weekday == 0:
+                    days_to_subtract = 3
+                elif weekday == 6:
+                    days_to_subtract = 2
+                else:
+                    days_to_subtract = 1
+                
+                yesterday = now - timedelta(days=days_to_subtract)
+                date_str = yesterday.strftime('%Y%m%d')
+                print(f"当前时间 {current_time} 早于开盘时间，获取 {date_str} 的分时数据...")
+            
             print(f"从mootdx获取 {stock_code} 分时数据...")
             
-            minutes = self.mootdx_client.minute(symbol=stock_code)
+            if date_str:
+                minutes = self.mootdx_client.minutes(symbol=stock_code, date=date_str)
+            else:
+                minutes = self.mootdx_client.minute(symbol=stock_code)
             
             if minutes is None or (hasattr(minutes, 'empty') and minutes.empty):
                 print(f"✗ mootdx未返回分时数据")
@@ -338,7 +361,6 @@ class DataFetcher:
                 print(f"✗ mootdx未返回分时数据")
                 return None
             
-            # 补充11:30数据（使用11:29的收盘价）
             if len(intraday_data) >= 120:
                 last_morning = intraday_data[119]
                 intraday_data.insert(120, {
@@ -347,7 +369,6 @@ class DataFetcher:
                     'volume': 0,
                 })
             
-            # 补充15:00数据（使用14:59的收盘价）
             if len(intraday_data) >= 241:
                 last_afternoon = intraday_data[-1]
                 intraday_data.append({
