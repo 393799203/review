@@ -596,6 +596,13 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     const changePercent = quoteData.change_percent || 0;
     const color = change >= 0 ? '#f5222d' : '#52c41a';
     
+    const getPriceColor = (currentPrice) => {
+      if (!currentPrice || !prevClose) return '#333';
+      if (currentPrice > prevClose) return '#f5222d';
+      if (currentPrice < prevClose) return '#52c41a';
+      return '#333';
+    };
+    
     if (isMobile) {
       return (
         <div style={{ 
@@ -637,15 +644,15 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: '9px', color: '#999' }}>开盘</div>
-              <div style={{ fontSize: '11px', color: '#333' }}>{quoteData.open?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '11px', color: getPriceColor(quoteData.open) }}>{quoteData.open?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: '9px', color: '#999' }}>最高</div>
-              <div style={{ fontSize: '11px', color: '#f5222d' }}>{quoteData.high?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '11px', color: getPriceColor(quoteData.high) }}>{quoteData.high?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: '9px', color: '#999' }}>最低</div>
-              <div style={{ fontSize: '11px', color: '#52c41a' }}>{quoteData.low?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '11px', color: getPriceColor(quoteData.low) }}>{quoteData.low?.toFixed(2) || '--'}</div>
             </div>
           </div>
         </div>
@@ -699,15 +706,15 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: '#999' }}>开盘</div>
-              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{quoteData.open?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '14px', color: getPriceColor(quoteData.open), fontWeight: '500' }}>{quoteData.open?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: '#999' }}>最高</div>
-              <div style={{ fontSize: '14px', color: '#f5222d', fontWeight: '500' }}>{quoteData.high?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '14px', color: getPriceColor(quoteData.high), fontWeight: '500' }}>{quoteData.high?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: '#999' }}>最低</div>
-              <div style={{ fontSize: '14px', color: '#52c41a', fontWeight: '500' }}>{quoteData.low?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '14px', color: getPriceColor(quoteData.low), fontWeight: '500' }}>{quoteData.low?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: '#999' }}>成交额</div>

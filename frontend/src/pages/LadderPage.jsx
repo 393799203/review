@@ -854,7 +854,7 @@ const LadderPage = () => {
                 <span>数据同步中...</span>
               </div>
             )}
-            {broken && (
+            {!loading && broken && (
               <Tag color="red" style={{ margin: 0 }}>断板日</Tag>
             )}
           </div>
