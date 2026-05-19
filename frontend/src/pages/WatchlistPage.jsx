@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip } from 'antd';
 import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined } from '@ant-design/icons';
-import axios from 'axios';
-import { stockApi } from '../services/api';
+import api, { stockApi } from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
 
 const WatchlistPage = () => {
@@ -34,10 +33,7 @@ const WatchlistPage = () => {
   const loadWatchlist = async () => {
     setLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.get(`${API_BASE}/watchlist`);
+      const response = await api.get('/watchlist');
       
       if (response.data.success) {
         setWatchlist(response.data.data || []);
@@ -56,10 +52,7 @@ const WatchlistPage = () => {
 
   const handleDelete = async (stockCode) => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.delete(`${API_BASE}/watchlist/${stockCode}`);
+      const response = await api.delete(`/watchlist/${stockCode}`);
       
       if (response.data.success) {
         message.success('删除成功');

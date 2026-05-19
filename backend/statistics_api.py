@@ -18,16 +18,23 @@ def register_statistics_routes(app, get_db_session):
         session = get_db_session()
         
         try:
+            user_id = request.headers.get('X-User-Uid')
+            if not user_id:
+                return jsonify({
+                    'success': False,
+                    'error': '未提供用户ID'
+                }), 401
+            
             period = request.args.get('period', 'day')
             
             if period == 'day':
-                data = get_daily_profit(session)
+                data = get_daily_profit(session, user_id)
             elif period == 'week':
-                data = get_weekly_profit(session)
+                data = get_weekly_profit(session, user_id)
             elif period == 'month':
-                data = get_monthly_profit(session)
+                data = get_monthly_profit(session, user_id)
             else:
-                data = get_daily_profit(session)
+                data = get_daily_profit(session, user_id)
             
             return jsonify({
                 'success': True,
@@ -42,7 +49,7 @@ def register_statistics_routes(app, get_db_session):
         finally:
             session.close()
     
-    def get_daily_profit(session):
+    def get_daily_profit(session, user_id):
         """获取每日盈亏统计"""
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=30)
@@ -54,6 +61,7 @@ def register_statistics_routes(app, get_db_session):
             func.count(TradeRecord.id).label('count')
         ).filter(
             and_(
+                TradeRecord.user_id == user_id,
                 func.date(TradeRecord.operation_date) >= start_date,
                 func.date(TradeRecord.operation_date) <= end_date,
                 TradeRecord.operation_type == '卖出',
@@ -76,7 +84,7 @@ def register_statistics_routes(app, get_db_session):
         
         return data
     
-    def get_weekly_profit(session):
+    def get_weekly_profit(session, user_id):
         """获取每周盈亏统计"""
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=90)
@@ -87,6 +95,7 @@ def register_statistics_routes(app, get_db_session):
             TradeRecord.amount
         ).filter(
             and_(
+                TradeRecord.user_id == user_id,
                 func.date(TradeRecord.operation_date) >= start_date,
                 func.date(TradeRecord.operation_date) <= end_date,
                 TradeRecord.operation_type == '卖出',
@@ -123,7 +132,7 @@ def register_statistics_routes(app, get_db_session):
         
         return data
     
-    def get_monthly_profit(session):
+    def get_monthly_profit(session, user_id):
         """获取每月盈亏统计"""
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=365)
@@ -134,6 +143,7 @@ def register_statistics_routes(app, get_db_session):
             TradeRecord.amount
         ).filter(
             and_(
+                TradeRecord.user_id == user_id,
                 func.date(TradeRecord.operation_date) >= start_date,
                 func.date(TradeRecord.operation_date) <= end_date,
                 TradeRecord.operation_type == '卖出',

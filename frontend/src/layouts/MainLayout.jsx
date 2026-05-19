@@ -321,7 +321,7 @@ const MainLayout = ({ children }) => {
         >
           <div style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
             <img src="/favicon.svg" alt="logo" style={{ width: 22, height: 22 }} />
-            节节高
+            云雀AI
           </div>
           {renderHeaderRight()}
         </Header>
@@ -406,7 +406,7 @@ const MainLayout = ({ children }) => {
             }}
           >
             <img src="/favicon.svg" alt="logo" style={{ width: 28, height: 28 }} />
-            节节高
+            云雀AI
           </div>
           {menuContent}
         </div>

@@ -246,7 +246,7 @@ const AuthPage = () => {
             marginBottom: 8,
             letterSpacing: 4
           }}>
-            节节高
+            云雀AI
           </h1>
           <p style={{
             fontSize: 14,
@@ -293,7 +293,7 @@ const AuthPage = () => {
           color: 'rgba(255, 255, 255, 0.5)',
           fontSize: 12
         }}>
-          © 2024 节节高 All Rights Reserved
+          © 2024 云雀AI All Rights Reserved
         </div>
       </div>
     );
@@ -373,7 +373,7 @@ const AuthPage = () => {
             marginBottom: 16,
             letterSpacing: 6
           }}>
-            节节高
+            云雀AI
           </h1>
           <p style={{
             fontSize: 20,
@@ -444,7 +444,7 @@ const AuthPage = () => {
           color: 'rgba(255, 255, 255, 0.5)',
           fontSize: 12
         }}>
-          © 2024 节节高 All Rights Reserved
+          © 2024 云雀AI All Rights Reserved
         </div>
       </div>
 

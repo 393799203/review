@@ -36,7 +36,7 @@ struct LoginPage {
           }
           .margin({ top: 40 })
 
-          Text('节节高')
+          Text('云雀AI')
             .fontSize(32)
             .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFF')
@@ -113,7 +113,7 @@ struct LoginPage {
         .justifyContent(FlexAlign.Center)
         .padding({ left: 20, right: 20 })
 
-        Text('© 2024 节节高 All Rights Reserved')
+        Text('© 2024 云雀AI All Rights Reserved')
           .fontSize(12)
           .fontColor('rgba(255, 255, 255, 0.5)')
           .margin({ bottom: 40 })

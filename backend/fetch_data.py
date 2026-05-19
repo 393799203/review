@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 涨停数据获取脚本（重构版）
-使用同花顺接口（主）+ akshare接口（备）
+使用同花顺接口
 """
 
 import pandas as pd
@@ -13,17 +13,15 @@ import os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models import DatabaseConfig, LimitUpStock, LadderStats, FetchLog, Block
-from ths_fetcher import ThsFetcher
-from akshare_fetcher import AkshareFetcher
+from data_fetcher import DataFetcher
 
 
 class LimitUpFetcher:
     """涨停数据获取器"""
     
-    def __init__(self, ths_fetcher=None):
+    def __init__(self, data_fetcher=None):
         self.db_config = DatabaseConfig()
-        self.ths_fetcher = ths_fetcher if ths_fetcher else ThsFetcher()
-        self.akshare_fetcher = AkshareFetcher()
+        self.data_fetcher = data_fetcher if data_fetcher else DataFetcher()
     
     def get_db_session(self):
         return self.db_config.create_session()
@@ -159,18 +157,12 @@ class LimitUpFetcher:
             session.commit()
             print(f"✓ 已删除 {date_str} 的旧数据")
             
-            # 优先使用同花顺接口获取数据
-            ths_data = self.ths_fetcher.get_all_data(date_str)
-            
-            # 使用akshare作为备用（只有接口调用失败时才使用）
-            akshare_data = None
-            if ths_data.get('limit_up_pool') is None:
-                print("\n同花顺涨停池接口调用失败，使用akshare作为备用...")
-                akshare_data = self.akshare_fetcher.get_all_data(date_str)
+            # 使用同花顺接口获取数据
+            ths_data = self.data_fetcher.get_all_data(date_str)
             
             # 处理并保存数据
             success = self._process_and_save_data(
-                session, trade_date, ths_data, akshare_data
+                session, trade_date, ths_data
             )
             
             if success:
@@ -216,7 +208,7 @@ class LimitUpFetcher:
         finally:
             session.close()
     
-    def _process_and_save_data(self, session, trade_date, ths_data, akshare_data):
+    def _process_and_save_data(self, session, trade_date, ths_data):
         """处理并保存数据"""
         stocks_data = []
         ladder_stats = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
@@ -310,13 +302,9 @@ class LimitUpFetcher:
                     ths_limit_up_price_dict[stock_code] = stock_info.get('latest', 0)
                     ths_stock_info_dict[stock_code] = stock_info
         
-        # 5. 使用akshare作为备用数据源
+        # 5. 从同花顺涨停池构建股票列表
         limit_up_df = None
-        if akshare_data and akshare_data.get('limit_up_pool') is not None:
-            limit_up_df = akshare_data['limit_up_pool']
-        
-        # 如果没有akshare数据，从同花顺涨停池构建股票列表
-        if limit_up_df is None and ths_data.get('limit_up_pool'):
+        if ths_data.get('limit_up_pool'):
             print("\n从同花顺数据构建股票列表...")
             info_list = ths_data['limit_up_pool'].get('info', [])
             

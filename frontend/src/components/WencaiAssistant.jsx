@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Input, Button, Table, message, Spin, Tooltip, Card, Tag, Form, Popconfirm } from 'antd';
 import { SearchOutlined, RobotOutlined, PlusOutlined, CheckOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../services/api';
 import StockKlineModal from './StockKlineModal';
 import StockAnalysisModal from './StockAnalysisModal';
 
@@ -53,10 +53,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
 
   const loadWatchlistCodes = async () => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.get(`${API_BASE}/watchlist`);
+      const response = await api.get('/watchlist');
       
       if (response.data.success) {
         const codes = response.data.data.map(stock => {
@@ -77,22 +74,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const loadUserStrategies = async () => {
     try {
       setStrategiesLoading(true);
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
       
-      const userStr = localStorage.getItem('user');
-      if (!userStr) {
-        setStrategiesLoading(false);
-        return;
-      }
-      
-      const user = JSON.parse(userStr);
-      
-      const response = await axios.get(`${API_BASE}/wencai/strategies`, {
-        headers: {
-          'X-User-Uid': user.uid
-        }
-      });
+      const response = await api.get('/wencai/strategies');
       
       if (response.data.success) {
         const strategies = response.data.data || [];
@@ -112,10 +95,15 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
 
   useEffect(() => {
     if (visible) {
-      setQuery(getQueryByType(queryType, dateStr));
-      setResult([]);
       loadWatchlistCodes();
       loadUserStrategies();
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible) {
+      setQuery(getQueryByType(queryType, dateStr));
+      setResult([]);
     }
   }, [visible, dateStr, queryType]);
 
@@ -133,10 +121,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
 
     setLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.post(`${API_BASE}/wencai/query`, {
+      const response = await api.post('/wencai/query', {
         query: query
       }, {
         timeout: 60000
@@ -170,10 +155,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
         return;
       }
       
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.post(`${API_BASE}/watchlist`, {
+      const response = await api.post('/watchlist', {
         stock_code: stockCode,
         stock_name: stockName,
         add_date: dateStr,
@@ -196,27 +178,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
 
   const handleSaveStrategy = async (values) => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const userStr = localStorage.getItem('user');
-      if (!userStr) {
-        message.error('请先登录');
-        return;
-      }
-      
-      const user = JSON.parse(userStr);
-      
       if (editingStrategy) {
-        const response = await axios.put(
-          `${API_BASE}/wencai/strategies/${editingStrategy.id}`,
-          values,
-          {
-            headers: {
-              'X-User-Uid': user.uid
-            }
-          }
-        );
+        const response = await api.put(`/wencai/strategies/${editingStrategy.id}`, values);
         
         if (response.data.success) {
           message.success('策略更新成功');
@@ -227,15 +190,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
           message.error(response.data.error || '更新失败');
         }
       } else {
-        const response = await axios.post(
-          `${API_BASE}/wencai/strategies`,
-          values,
-          {
-            headers: {
-              'X-User-Uid': user.uid
-            }
-          }
-        );
+        const response = await api.post('/wencai/strategies', values);
         
         if (response.data.success) {
           message.success('策略创建成功');
@@ -253,25 +208,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
 
   const handleDeleteStrategy = async (strategyId) => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const userStr = localStorage.getItem('user');
-      if (!userStr) {
-        message.error('请先登录');
-        return;
-      }
-      
-      const user = JSON.parse(userStr);
-      
-      const response = await axios.delete(
-        `${API_BASE}/wencai/strategies/${strategyId}`,
-        {
-          headers: {
-            'X-User-Uid': user.uid
-          }
-        }
-      );
+      const response = await api.delete(`/wencai/strategies/${strategyId}`);
       
       if (response.data.success) {
         message.success('策略删除成功');
@@ -724,7 +661,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
               </div>
             </div>
             
-            <Spin spinning={strategiesLoading} tip="加载策略中...">
+            <Spin spinning={strategiesLoading} description="加载策略中...">
               <div style={{ 
                 display: isMobile ? 'flex' : 'grid',
                 gridTemplateColumns: isMobile ? undefined : 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -735,12 +672,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                 WebkitOverflowScrolling: isMobile ? 'touch' : 'auto',
                 scrollbarWidth: isMobile ? 'none' : 'auto',
                 msOverflowStyle: isMobile ? 'none' : 'auto',
-                paddingBottom: isMobile ? 4 : 0,
-                ...(isMobile && {
-                  '&::-webkit-scrollbar': {
-                    display: 'none'
-                  }
-                })
+                paddingBottom: isMobile ? 4 : 0
               }}>
                 {userStrategies.map(strategy => {
                 const isActive = queryType === strategy.id;
@@ -763,8 +695,9 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                         ? '0 4px 12px rgba(102, 126, 234, 0.4)'
                         : '0 1px 3px rgba(0, 0, 0, 0.05)',
                       overflow: 'hidden',
-                      minWidth: isMobile ? 140 : 'auto',
-                      flexShrink: isMobile ? 0 : 1
+                      minWidth: isMobile ? 'calc(50% - 4px)' : 'auto',
+                      flexShrink: isMobile ? 0 : 1,
+                      width: isMobile ? 'calc(50% - 4px)' : 'auto'
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive) {
@@ -958,8 +891,9 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                   justifyContent: 'center',
                   outline: 'none',
                   order: 999,
-                  minWidth: isMobile ? 140 : 'auto',
-                  flexShrink: isMobile ? 0 : 1
+                  minWidth: isMobile ? 'calc(50% - 4px)' : 'auto',
+                  flexShrink: isMobile ? 0 : 1,
+                  width: isMobile ? 'calc(50% - 4px)' : 'auto'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = '#1890ff';
@@ -1020,7 +954,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                 fontFamily: 'Consolas, Monaco, "Courier New", monospace', 
                 fontSize: isMobile ? 12 : 13,
                 borderRadius: 8,
-                minHeight: isMobile ? '100px' : '120px',
+                minHeight: isMobile ? '120px' : '120px',
                 border: '1px solid #e8e8e8',
                 backgroundColor: '#fafafa',
                 padding: isMobile ? '10px 12px' : '12px 14px',

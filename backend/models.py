@@ -124,11 +124,13 @@ class WatchlistStock(Base):
     """自选股表"""
     __tablename__ = 'watchlist_stocks'
     __table_args__ = (
-        UniqueConstraint('stock_code', name='uq_watchlist_stock'),
+        UniqueConstraint('user_id', 'stock_code', name='uq_user_watchlist_stock'),
+        Index('idx_watchlist_user_id', 'user_id'),
         Index('idx_watchlist_created', 'created_at'),
     )
     
     id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.uid'), nullable=False)
     stock_code = Column(String(10), nullable=False)
     stock_name = Column(String(50), nullable=False)
     add_date = Column(Date, nullable=False)
@@ -139,13 +141,20 @@ class WatchlistStock(Base):
     
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    user = relationship("User", backref="watchlist_stocks")
 
 
 class TradeRecord(Base):
     """交易记录表"""
     __tablename__ = 'trade_records'
+    __table_args__ = (
+        Index('idx_trade_records_user_id', 'user_id'),
+        Index('idx_trade_records_date', 'operation_date'),
+    )
     
     id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.uid'), nullable=False)
     stock_code = Column(String(10), nullable=False)
     stock_name = Column(String(50), nullable=False)
     operation_type = Column(String(10), nullable=False)
@@ -160,6 +169,8 @@ class TradeRecord(Base):
     notes = Column(String(200))
     
     created_at = Column(DateTime, default=datetime.now)
+    
+    user = relationship("User", backref="trade_records")
 
 
 class AIAnalysisResult(Base):
