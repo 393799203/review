@@ -599,29 +599,29 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     if (isMobile) {
       return (
         <div style={{ 
-          padding: '10px 12px', 
+          padding: '6px 10px', 
           backgroundColor: '#fff', 
           borderBottom: '1px solid #f0f0f0',
         }}>
           {/* 第一行：股票名称和代码 */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '16px', color: '#333', fontWeight: '600' }}>{stockName}</span>
-            <span style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace' }}>{stockCode}</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '15px', color: '#333', fontWeight: '600' }}>{stockName}</span>
+            <span style={{ fontSize: '11px', color: '#888', fontFamily: 'monospace' }}>{stockCode}</span>
           </div>
           
           {/* 第二行：价格信息 */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-            <span style={{ fontSize: '22px', fontWeight: 'bold', color: color, fontFamily: 'monospace' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '20px', fontWeight: 'bold', color: color, fontFamily: 'monospace' }}>
               {price.toFixed(2)}
             </span>
-            <span style={{ fontSize: '14px', color: color }}>
+            <span style={{ fontSize: '13px', color: color }}>
               {change >= 0 ? '+' : ''}{change.toFixed(2)}
             </span>
             <span style={{ 
-              fontSize: '12px', 
+              fontSize: '11px', 
               color: '#fff', 
               backgroundColor: color,
-              padding: '2px 6px',
+              padding: '1px 5px',
               borderRadius: '3px',
               fontWeight: '500'
             }}>
@@ -630,22 +630,22 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           </div>
           
           {/* 第三行：行情数据 */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '10px', color: '#999' }}>昨收</div>
-              <div style={{ fontSize: '12px', color: '#333' }}>{prevClose.toFixed(2)}</div>
+              <div style={{ fontSize: '9px', color: '#999' }}>昨收</div>
+              <div style={{ fontSize: '11px', color: '#333' }}>{prevClose.toFixed(2)}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '10px', color: '#999' }}>开盘</div>
-              <div style={{ fontSize: '12px', color: '#333' }}>{quoteData.open?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '9px', color: '#999' }}>开盘</div>
+              <div style={{ fontSize: '11px', color: '#333' }}>{quoteData.open?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '10px', color: '#999' }}>最高</div>
-              <div style={{ fontSize: '12px', color: '#f5222d' }}>{quoteData.high?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '9px', color: '#999' }}>最高</div>
+              <div style={{ fontSize: '11px', color: '#f5222d' }}>{quoteData.high?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '10px', color: '#999' }}>最低</div>
-              <div style={{ fontSize: '12px', color: '#52c41a' }}>{quoteData.low?.toFixed(2) || '--'}</div>
+              <div style={{ fontSize: '9px', color: '#999' }}>最低</div>
+              <div style={{ fontSize: '11px', color: '#52c41a' }}>{quoteData.low?.toFixed(2) || '--'}</div>
             </div>
           </div>
         </div>
@@ -738,7 +738,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     >
       <div>
         {/* 分时图区域 + 五档盘口 */}
-        <div style={{ marginBottom: isMobile ? '2px' : '10px' }}>
+        <div style={{ marginBottom: isMobile ? '0px' : '10px' }}>
           {/* 实时行情头部 */}
           {renderQuoteHeader()}
           
@@ -749,13 +749,13 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
                 {intradayData && intradayData.length > 0 ? (
                   <ReactECharts
                     option={getIntradayOption()}
-                    style={{ height: isMobile ? '300px' : '320px', width: '100%' }}
+                    style={{ height: isMobile ? '280px' : '320px', width: '100%' }}
                     notMerge={true}
                     lazyUpdate={true}
                   />
                 ) : (
                   <div style={{ 
-                    height: isMobile ? '300px' : '320px', 
+                    height: isMobile ? '280px' : '320px', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
@@ -783,7 +783,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         </div>
         
         {/* K线图区域 */}
-        <div>
+        <div style={{ marginTop: isMobile ? '-8px' : '0px' }}>
           <Spin spinning={klineLoading}>
             {klineData && klineData.length > 0 ? (
               <ReactECharts
