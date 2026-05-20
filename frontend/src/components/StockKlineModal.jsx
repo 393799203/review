@@ -390,34 +390,6 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
                 }
               }
             ]
-          },
-          markPoint: {
-            symbol: 'pin',
-            symbolSize: 1,
-            data: [
-              {
-                coord: [fullTimes[fullTimes.length - 1], maxChangePercent],
-                label: {
-                  show: true,
-                  position: 'right',
-                  formatter: maxChangePercent > 0 ? '+' + maxChangePercent.toFixed(2) + '%' : maxChangePercent.toFixed(2) + '%',
-                  color: '#f5222d',
-                  fontSize: 12,
-                  fontWeight: 'bold'
-                }
-              },
-              {
-                coord: [fullTimes[fullTimes.length - 1], minChangePercent],
-                label: {
-                  show: true,
-                  position: 'right',
-                  formatter: minChangePercent > 0 ? '+' + minChangePercent.toFixed(2) + '%' : minChangePercent.toFixed(2) + '%',
-                  color: '#52c41a',
-                  fontSize: 12,
-                  fontWeight: 'bold'
-                }
-              }
-            ]
           }
         },
         {
@@ -809,27 +781,27 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           {/* 第三行：行情数据 */}
           <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '9px', color: '#999' }}>昨收</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>昨收</div>
               <div style={{ fontSize: '11px', color: '#333' }}>{prevClose.toFixed(2)}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '9px', color: '#999' }}>开盘</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>开盘</div>
               <div style={{ fontSize: '11px', color: getPriceColor(quoteData.open) }}>{quoteData.open?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '9px', color: '#999' }}>最高</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>最高</div>
               <div style={{ fontSize: '11px', color: getPriceColor(quoteData.high) }}>{quoteData.high?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '9px', color: '#999' }}>最低</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>最低</div>
               <div style={{ fontSize: '11px', color: getPriceColor(quoteData.low) }}>{quoteData.low?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '9px', color: '#999' }}>换手率</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>换手率</div>
               <div style={{ fontSize: '11px', color: '#333' }}>{turnover ? `${turnover.toFixed(2)}%` : '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '9px', color: '#999' }}>波动率</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>波动率</div>
               <div style={{ fontSize: '11px', color: '#333' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
             </div>
           </div>
@@ -898,31 +870,31 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           {/* 右侧：行情数据 */}
           <div style={{ display: 'flex', gap: '16px' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>昨收</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>昨收</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{prevClose.toFixed(2)}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>开盘</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>开盘</div>
               <div style={{ fontSize: '14px', color: getPriceColor(quoteData.open), fontWeight: '500' }}>{quoteData.open?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>最高</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>最高</div>
               <div style={{ fontSize: '14px', color: getPriceColor(quoteData.high), fontWeight: '500' }}>{quoteData.high?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>最低</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>最低</div>
               <div style={{ fontSize: '14px', color: getPriceColor(quoteData.low), fontWeight: '500' }}>{quoteData.low?.toFixed(2) || '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>成交额</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>成交额</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{((quoteData.amount || 0) / 100000000).toFixed(2)}亿</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>换手率</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>换手率</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{turnover ? `${turnover.toFixed(2)}%` : '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', color: '#999' }}>波动率</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>波动率</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
             </div>
           </div>
