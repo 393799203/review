@@ -253,7 +253,7 @@ const ReportPage = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div>
               <div 
-                style={{ fontWeight: 500, cursor: 'pointer', color: '#1890ff' }}
+                style={{ fontWeight: 500, cursor: 'pointer', color: '#333' }}
                 onClick={() => {
                   setSelectedStock({ code: record.stockCode, name: record.stockName });
                   setKlineVisible(true);
@@ -409,8 +409,16 @@ const ReportPage = () => {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
           <div style={{ flex: 1 }}>
+            <div 
+              onClick={() => handleStockClick(report.stockCode, report.stockName)}
+              style={{ fontSize: isMobile ? 14 : 16, fontWeight: 500, marginBottom: 6, color: '#333', cursor: 'pointer' }}
+            >
+              {report.stockName || '--'}
+              <span style={{ fontSize: 12, color: '#999', marginLeft: 8, fontWeight: 'normal' }}>{report.stockCode || '--'}</span>
+              <span style={{ fontSize: 12, color: '#999', marginLeft: 12, fontWeight: 'normal' }}>{report.publishDate ? report.publishDate.substring(0, 10) : '--'}</span>
+            </div>
+            
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: '#999' }}>{report.publishDate ? report.publishDate.substring(0, 10) : '--'}</span>
               <Tag color="blue" style={{ margin: 0 }}>{report.orgSName || '--'}</Tag>
               {report.indvInduName && (
                 <Tag color="cyan" style={{ margin: 0 }}>
@@ -420,14 +428,6 @@ const ReportPage = () => {
               <Tag color={getRatingColor(report.emRatingName)} style={{ margin: 0 }}>
                 {report.emRatingName || '--'}
               </Tag>
-            </div>
-            
-            <div 
-              onClick={() => handleStockClick(report.stockCode, report.stockName)}
-              style={{ fontSize: isMobile ? 14 : 16, fontWeight: 500, marginBottom: 6, color: '#1890ff', cursor: 'pointer' }}
-            >
-              {report.stockName || '--'}
-              <span style={{ fontSize: 12, color: '#999', marginLeft: 8, fontWeight: 'normal' }}>{report.stockCode || '--'}</span>
             </div>
             
             <a 
@@ -579,7 +579,7 @@ const ReportPage = () => {
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontWeight: 500, marginBottom: 8 }}>{currentReport.title}</div>
             <div 
-              style={{ fontSize: 12, color: '#1890ff', cursor: 'pointer' }}
+              style={{ fontSize: 12, color: '#333', cursor: 'pointer' }}
               onClick={() => {
                 setSelectedStock({ code: currentReport.stockCode, name: currentReport.stockName });
                 setKlineVisible(true);
