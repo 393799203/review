@@ -213,7 +213,11 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       tooltip: {
         trigger: 'axis',
         axisPointer: {
-          type: 'cross'
+          type: 'line',
+          lineStyle: {
+            color: 'rgba(0, 0, 0, 0)',
+            width: 0
+          }
         },
         formatter: function(params) {
           if (!params || params.length === 0) return '';
@@ -257,23 +261,18 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           type: 'category',
           data: fullTimes,
           boundaryGap: false,
-          axisLine: { onZero: false },
+          axisLine: { show: false },
           splitLine: { show: false },
           min: 'dataMin',
           max: 'dataMax',
-          axisLabel: {
-            interval: 59,
-            formatter: function(value) {
-              return value;
-            }
-          }
+          axisLabel: { show: false }
         },
         {
           type: 'category',
           gridIndex: 1,
           data: fullTimes,
           boundaryGap: false,
-          axisLine: { onZero: false },
+          axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: { show: false },
@@ -561,23 +560,18 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           type: 'category',
           data: dates,
           boundaryGap: false,
-          axisLine: { onZero: false },
+          axisLine: { show: false },
           splitLine: { show: false },
           min: 'dataMin',
           max: 'dataMax',
-          axisLabel: {
-            show: true,
-            formatter: function(value) {
-              return value.replace(/-/g, '').substring(0, 8);
-            }
-          }
+          axisLabel: { show: false }
         },
         {
           type: 'category',
           gridIndex: 1,
           data: dates,
           boundaryGap: false,
-          axisLine: { onZero: false },
+          axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: { show: false },
