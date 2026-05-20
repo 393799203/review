@@ -13,11 +13,11 @@ export const useAuth = () => {
 };
 
 const DEFAULT_SETTINGS = {
-  ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-  watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
+  ladder: { autoRefresh: true, refreshInterval: 30, smartMode: true },
+  watchlist: { autoRefresh: true, refreshInterval: 30, smartMode: true },
   statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   news: { 
-    autoRefresh: false, 
+    autoRefresh: true, 
     refreshInterval: 30, 
     smartMode: false, 
     showAllNews: false,
@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
       volume: 1.0
     }
   },
+  reports: { autoRefresh: true, refreshInterval: 300, smartMode: false },
 };
 
 export const AuthProvider = ({ children }) => {

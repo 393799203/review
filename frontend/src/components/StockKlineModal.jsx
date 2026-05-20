@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Spin, message } from 'antd';
+import { Modal, Spin, message, Button } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { stockApi } from '../services/api';
+import api from '../services/api';
 
 const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   const [klineLoading, setKlineLoading] = useState(false);
@@ -12,6 +14,8 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   const [yesterdayClose, setYesterdayClose] = useState(null);
   const [quoteData, setQuoteData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -25,6 +29,9 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   useEffect(() => {
     if (visible && stockCode) {
       loadData();
+    }
+    if (!visible) {
+      setIsInWatchlist(false);
     }
   }, [visible, stockCode]);
 
@@ -68,6 +75,9 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         if (data && data.quote) {
           setQuoteData(data.quote);
         }
+        if (data && data.is_in_watchlist !== undefined) {
+          setIsInWatchlist(data.is_in_watchlist);
+        }
       }
       
     } catch (error) {
@@ -75,6 +85,46 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     } finally {
       setIntradayLoading(false);
       setQuoteLoading(false);
+    }
+  };
+
+  const handleAddToWatchlist = async () => {
+    try {
+      setAdding(true);
+      const today = new Date();
+      const addDate = today.getFullYear().toString() + 
+                      (today.getMonth() + 1).toString().padStart(2, '0') + 
+                      today.getDate().toString().padStart(2, '0');
+      
+      let addPrice = null;
+      try {
+        const quoteResponse = await api.get(`/stock/quote/${stockCode}`);
+        if (quoteResponse.data.success && quoteResponse.data.data) {
+          addPrice = quoteResponse.data.data.price;
+        }
+      } catch (error) {
+        console.warn('获取股票价格失败，将不设置加入价格:', error);
+      }
+      
+      const response = await api.post('/watchlist', {
+        stock_code: stockCode,
+        stock_name: stockName,
+        add_date: addDate,
+        add_price: addPrice,
+        add_reason: '手动添加',
+        add_type: 'manual'
+      });
+      
+      if (response.data.success) {
+        message.success(`${stockName} 已添加到自选`);
+        setIsInWatchlist(true);
+      } else {
+        message.error(response.data.error || '添加失败');
+      }
+    } catch (error) {
+      message.error('添加失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -609,9 +659,29 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           borderBottom: '1px solid #f0f0f0',
         }}>
           {/* 第一行：股票名称和代码 */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
             <span style={{ fontSize: '15px', color: '#333', fontWeight: '600' }}>{stockName}</span>
             <span style={{ fontSize: '11px', color: '#888', fontFamily: 'monospace' }}>{stockCode}</span>
+            {!quoteLoading && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                size="small"
+                onClick={handleAddToWatchlist}
+                loading={adding}
+                disabled={isInWatchlist}
+                style={{ 
+                  background: isInWatchlist ? '#d9d9d9' : '#1890ff', 
+                  borderColor: isInWatchlist ? '#d9d9d9' : '#1890ff',
+                  borderRadius: 3,
+                  fontSize: 10,
+                  height: 20,
+                  padding: '0 6px'
+                }}
+              >
+                {isInWatchlist ? '已添加' : '加自选'}
+              </Button>
+            )}
           </div>
           
           {/* 第二行：价格信息 */}
@@ -668,11 +738,30 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ 
               display: 'flex',
-              alignItems: 'baseline',
+              alignItems: 'center',
               gap: '8px'
             }}>
               <span style={{ fontSize: '16px', color: '#333', fontWeight: '600' }}>{stockName}</span>
               <span style={{ fontSize: '13px', color: '#888', fontFamily: 'monospace' }}>{stockCode}</span>
+              {!quoteLoading && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  size="small"
+                  onClick={handleAddToWatchlist}
+                  loading={adding}
+                  disabled={isInWatchlist}
+                  style={{ 
+                    background: isInWatchlist ? '#d9d9d9' : '#1890ff', 
+                    borderColor: isInWatchlist ? '#d9d9d9' : '#1890ff',
+                    borderRadius: 3,
+                    fontSize: 12,
+                    height: 24
+                  }}
+                >
+                  {isInWatchlist ? '已添加' : '加自选'}
+                </Button>
+              )}
             </div>
           </div>
           

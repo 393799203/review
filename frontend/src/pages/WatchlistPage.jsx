@@ -278,12 +278,14 @@ const WatchlistPage = () => {
                       style={{ 
                         background: '#722ed1', 
                         borderColor: '#722ed1', 
-                        borderRadius: 0, 
+                        borderRadius: 3, 
                         padding: '0 6px', 
                         height: 18, 
                         minWidth: 18 
                       }}
                     />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
                     <Tag color={isHolding ? 'blue' : 'default'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
                       {isHolding ? '持仓' : '空仓'}
                     </Tag>

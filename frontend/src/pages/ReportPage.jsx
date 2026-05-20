@@ -443,7 +443,7 @@ const ReportPage = () => {
               style={{
                 background: analysis ? '#52c41a' : '#722ed1',
                 borderColor: analysis ? '#52c41a' : '#722ed1',
-                borderRadius: 0
+                borderRadius: 3
               }}
               size="small"
             >
