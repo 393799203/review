@@ -238,63 +238,103 @@ class DataFetcher:
     
     def get_stock_kline(self, stock_code: str, days: int = 60) -> Optional[List[Dict]]:
         """
-        获取股票历史K线数据（使用百度股市通API）
+        获取股票历史K线数据（使用mootdx）
         """
         try:
-            print(f"从百度股市通获取 {stock_code} K线数据...")
+            print(f"从mootdx获取 {stock_code} K线数据...")
             
-            url = "https://finance.pae.baidu.com/selfselect/getstockquotation"
-            params = {
-                "all": "1", "isIndex": "false", "isBk": "false", "isBlock": "false",
-                "isFutures": "false", "isStock": "true", "newFormat": "1",
-                "group": "quotation_kline_ab", "finClientType": "pc",
-                "code": stock_code, "start_time": "", "ktype": "1",
-            }
-            headers = {
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "application/vnd.finance-web.v1+json",
-                "Origin": "https://gushitong.baidu.com",
-                "Referer": "https://gushitong.baidu.com/",
-            }
+            market = 1 if stock_code.startswith('6') else 0
+            client = Quotes.factory(market=market)
             
-            r = requests.get(url, params=params, headers=headers, timeout=15)
-            d = r.json()
+            end_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=days * 2)).strftime('%Y-%m-%d')
             
-            result = d.get("Result", {})
-            md = result.get("newMarketData", {})
-            keys = md.get("keys", [])
-            rows = md.get("marketData", "").split(";")
+            df = client.get_k_data(code=stock_code, start_date=start_date, end_date=end_date)
             
-            if not rows or rows[0] == '':
-                print(f"✗ 百度股市通未返回K线数据")
+            if df is None or df.empty:
+                print(f"✗ mootdx未返回K线数据")
                 return None
             
-            key_map = {k: i for i, k in enumerate(keys)}
+            df = df.tail(days)
+            
+            liutongguben = 0
+            try:
+                finance_data = client.finance(symbol=stock_code)
+                if finance_data is not None and not finance_data.empty:
+                    liutongguben = float(finance_data['liutongguben'].iloc[0])
+            except Exception as e:
+                print(f"获取流通股本失败: {e}")
+            
+            today_pre_close = 0
+            try:
+                quotes = client.quotes(symbol=[stock_code])
+                if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                    today_pre_close = float(quotes.iloc[0].get('last_close', 0) or 0)
+            except Exception as e:
+                print(f"获取实时行情失败: {e}")
             
             kline_data = []
-            for row in rows[-days:]:
-                if not row.strip():
-                    continue
-                vals = row.split(',')
-                
+            prev_close = None
+            
+            for i, (idx, row) in enumerate(df.iterrows()):
                 try:
-                    close = float(vals[key_map.get('close', 3)]) if vals[key_map.get('close', 3)] else 0
-                    pre_close = float(vals[key_map.get('preClose', 11)]) if key_map.get('preClose', 11) < len(vals) and vals[key_map.get('preClose', 11)] else 0
+                    current_close = float(row['close']) if row['close'] else 0
+                    
+                    is_last = (i == len(df) - 1)
+                    
+                    if is_last and today_pre_close > 0:
+                        pre_close = today_pre_close
+                    else:
+                        pre_close = prev_close if prev_close is not None else 0
+                    
+                    is_ex_dividend = False
+                    ex_dividend_ratio = None
+                    ex_dividend_desc = None
+                    
+                    if prev_close is not None and pre_close > 0:
+                        if abs(prev_close - pre_close) > 0.01:
+                            is_ex_dividend = True
+                            price_diff = prev_close - pre_close
+                            ratio = price_diff / prev_close
+                            ex_dividend_ratio = round(ratio * 100, 2)
+                            
+                            if price_diff > 0:
+                                cash_per_10 = round(price_diff * 10, 2)
+                                ex_dividend_desc = f"10派{cash_per_10}元"
+                    
+                    change_percent = 0
+                    change_amount = 0
+                    if pre_close > 0:
+                        change_percent = ((current_close - pre_close) / pre_close) * 100
+                        change_amount = current_close - pre_close
+                    
+                    turnover = 0
+                    if liutongguben > 0 and row['vol']:
+                        vol_shares = float(row['vol']) * 100
+                        turnover = (vol_shares / liutongguben) * 100
+                    
+                    date_str = str(row['date'])[:10] if 'date' in row else idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
                     
                     kline_data.append({
-                        'date': vals[key_map.get('time', 1)],
-                        'open': float(vals[key_map.get('open', 2)]) if vals[key_map.get('open', 2)] else 0,
-                        'close': close,
-                        'high': float(vals[key_map.get('high', 5)]) if vals[key_map.get('high', 5)] else 0,
-                        'low': float(vals[key_map.get('low', 6)]) if vals[key_map.get('low', 6)] else 0,
-                        'volume': float(vals[key_map.get('volume', 4)]) if vals[key_map.get('volume', 4)] else 0,
-                        'amount': float(vals[key_map.get('amount', 7)]) if vals[key_map.get('amount', 7)] else 0,
-                        'change_percent': float(vals[key_map.get('ratio', 9)]) if key_map.get('ratio', 9) < len(vals) and vals[key_map.get('ratio', 9)] else 0,
-                        'change_amount': float(vals[key_map.get('range', 8)]) if key_map.get('range', 8) < len(vals) and vals[key_map.get('range', 8)] else 0,
-                        'turnover': float(vals[key_map.get('turnoverratio', 10)]) if key_map.get('turnoverratio', 10) < len(vals) and vals[key_map.get('turnoverratio', 10)] else 0,
+                        'date': date_str,
+                        'open': float(row['open']) if row['open'] else 0,
+                        'close': current_close,
+                        'high': float(row['high']) if row['high'] else 0,
+                        'low': float(row['low']) if row['low'] else 0,
+                        'volume': float(row['vol']) if row['vol'] else 0,
+                        'amount': float(row['amount']) if row['amount'] else 0,
+                        'change_percent': round(change_percent, 2),
+                        'change_amount': round(change_amount, 2),
+                        'turnover': round(turnover, 2),
                         'pre_close': pre_close,
+                        'is_ex_dividend': is_ex_dividend,
+                        'ex_dividend_ratio': ex_dividend_ratio,
+                        'ex_dividend_desc': ex_dividend_desc,
                     })
-                except (ValueError, TypeError, IndexError) as e:
+                    
+                    prev_close = current_close
+                    
+                except (ValueError, TypeError) as e:
                     continue
             
             if kline_data:
