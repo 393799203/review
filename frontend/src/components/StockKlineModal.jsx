@@ -398,6 +398,27 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       return result;
     };
 
+    const exDividendMarks = [];
+    klineData.forEach((item, index) => {
+      if (item.is_ex_dividend) {
+        exDividendMarks.push({
+          name: '除权除息',
+          coord: [index, item.high],
+          value: item.ex_dividend_desc || '除权',
+          itemStyle: {
+            color: '#faad14'
+          },
+          label: {
+            show: true,
+            position: 'top',
+            color: '#faad14',
+            fontSize: 10,
+            formatter: item.ex_dividend_desc || '除权'
+          }
+        });
+      }
+    });
+
     return {
       tooltip: {
         trigger: 'axis',
@@ -422,9 +443,11 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           if (data) {
             const changeColor = (data.change_percent || 0) >= 0 ? '#f5222d' : '#52c41a';
             const dateStr = data.date.replace(/-/g, '').substring(0, 8);
+            const exDividendBadge = data.is_ex_dividend ? 
+              `<span style="background: #faad14; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 5px;">${data.ex_dividend_desc || '除权'}</span>` : '';
             
             return `
-              <div style="font-weight: bold; margin-bottom: 5px;">${dateStr}</div>
+              <div style="font-weight: bold; margin-bottom: 5px;">${dateStr}${exDividendBadge}</div>
               <div>开盘: ${(data.open || 0).toFixed(2)}</div>
               <div>收盘: <span style="color: ${changeColor}; font-weight: bold;">${(data.close || 0).toFixed(2)}</span></div>
               <div>最高: ${(data.high || 0).toFixed(2)}</div>
@@ -534,6 +557,15 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             color0: '#52c41a',
             borderColor: '#f5222d',
             borderColor0: '#52c41a'
+          },
+          markPoint: {
+            symbol: 'pin',
+            symbolSize: 30,
+            data: exDividendMarks,
+            label: {
+              show: true,
+              fontSize: 10
+            }
           }
         },
         {
