@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   news: { autoRefresh: false, refreshInterval: 300, smartMode: true, showAllNews: false },
+  reports: { autoRefresh: false, refreshInterval: 3600, smartMode: false },
 };
 
 export const GlobalProvider = ({ children }) => {
@@ -81,15 +82,15 @@ export const GlobalProvider = ({ children }) => {
         setShowAllNewsState(userSettings[page].showAllNews ?? false);
       }
     } else {
-      const defaultPageSettings = DEFAULT_SETTINGS[page];
+      const defaultPageSettings = DEFAULT_SETTINGS[page] || { autoRefresh: false, refreshInterval: 30, smartMode: true };
       setAutoRefreshState(defaultPageSettings.autoRefresh);
       setRefreshIntervalState(defaultPageSettings.refreshInterval);
       setSmartModeState(defaultPageSettings.smartMode);
       if (page === 'ladder') {
-        setShowFirstBoardState(defaultPageSettings.showFirstBoard);
+        setShowFirstBoardState(defaultPageSettings.showFirstBoard ?? true);
       }
       if (page === 'news') {
-        setShowAllNewsState(defaultPageSettings.showAllNews);
+        setShowAllNewsState(defaultPageSettings.showAllNews ?? false);
       }
     }
   };

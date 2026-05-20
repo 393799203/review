@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
 import { refreshNewsData } from '../pages/NewsPage';
+import { refreshReportsData } from '../pages/ReportPage';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import dayjs from 'dayjs';
 
@@ -59,6 +60,7 @@ const MainLayout = ({ children }) => {
       '/watchlist': 'watchlist',
       '/statistics': 'statistics',
       '/news': 'news',
+      '/reports': 'reports',
     };
 
     const page = pageMap[location.pathname] || 'ladder';
@@ -73,6 +75,8 @@ const MainLayout = ({ children }) => {
       setRefreshCallback(() => refreshStatistics);
     } else if (location.pathname === '/news') {
       setRefreshCallback(() => () => refreshNewsData(true));
+    } else if (location.pathname === '/reports') {
+      setRefreshCallback(() => refreshReportsData);
     } else {
       setRefreshCallback(null);
     }
@@ -97,6 +101,11 @@ const MainLayout = ({ children }) => {
       key: '/news',
       icon: <NotificationOutlined />,
       label: '财联播报',
+    },
+    {
+      key: '/reports',
+      icon: <FileTextOutlined />,
+      label: '研报解读',
     },
     {
       key: '/watchlist',
@@ -129,6 +138,7 @@ const MainLayout = ({ children }) => {
     const isWatchlistPage = location.pathname === '/watchlist';
     const isStatisticsPage = location.pathname === '/statistics';
     const isNewsPage = location.pathname === '/news';
+    const isReportsPage = location.pathname === '/reports';
 
     const settingsContent = (
       <div style={{ width: isMobile ? 200 : 250 }}>
@@ -175,6 +185,7 @@ const MainLayout = ({ children }) => {
       if (isWatchlistPage) return refreshWatchlistPrices;
       if (isStatisticsPage) return refreshStatistics;
       if (isNewsPage) return refreshNewsData;
+      if (isReportsPage) return refreshReportsData;
       return refreshCurrentData;
     };
 
@@ -486,7 +497,7 @@ const MainLayout = ({ children }) => {
             top: 0,
             right: 0,
             left: 200,
-            zIndex: 1,
+            zIndex: 100,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',

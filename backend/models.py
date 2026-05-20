@@ -183,7 +183,7 @@ class AIAnalysisResult(Base):
     )
     
     id = Column(Integer, primary_key=True)
-    stock_code = Column(String(20), nullable=False)
+    stock_code = Column(String(50), nullable=False)
     stock_name = Column(String(500), nullable=False)
     trade_date = Column(Date, nullable=False)
     analysis_result = Column(Text, nullable=False)  # JSON格式的分析结果

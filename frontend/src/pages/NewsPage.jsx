@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Button, Collapse, Badge, Tooltip, Empty, Switch, Slider, Select, Popover } from 'antd';
-import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, SettingOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, SettingOutlined, PlayCircleOutlined, UpOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
+import StockKlineModal from '../components/StockKlineModal';
 
 const { Panel } = Collapse;
 
@@ -32,8 +33,11 @@ const NewsPage = () => {
   const [countdown, setCountdown] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showBackTop, setShowBackTop] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [klineVisible, setKlineVisible] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
 
   const getBrowserInfo = () => {
     const ua = navigator.userAgent;
@@ -423,6 +427,19 @@ const NewsPage = () => {
   }, []);
 
   useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowBackTop(scrollTop > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
     loadNews(true);
   }, []);
 
@@ -677,11 +694,22 @@ const NewsPage = () => {
             )}
             {news.has_stocks && news.stock_list && news.stock_list.length > 0 && (
               <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {news.stock_list.map((stock, idx) => (
-                  <Tag key={idx} color="blue" style={{ margin: 0 }}>
-                    {stock.name} {stock.code}
-                  </Tag>
-                ))}
+                {news.stock_list.map((stock, idx) => {
+                  const cleanCode = stock.code.replace(/^(SH|SZ|BJ)/i, '');
+                  return (
+                    <Tag 
+                      key={idx} 
+                      color="blue" 
+                      style={{ margin: 0, cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelectedStock({ code: cleanCode, name: stock.name });
+                        setKlineVisible(true);
+                      }}
+                    >
+                      {stock.name} {stock.code}
+                    </Tag>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -749,7 +777,17 @@ const NewsPage = () => {
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>相关个股:</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {analysis.related_stocks.map((stock, idx) => (
-                    <Tag key={idx} color="cyan">
+                    <Tag 
+                      key={idx} 
+                      color="cyan"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        if (stock.code) {
+                          setSelectedStock({ code: stock.code, name: stock.name });
+                          setKlineVisible(true);
+                        }
+                      }}
+                    >
                       {stock.name} {stock.code && `(${stock.code})`}
                     </Tag>
                   ))}
@@ -1061,6 +1099,37 @@ const NewsPage = () => {
         </div>
       )}
         </>
+      )}
+      
+      <StockKlineModal
+        visible={klineVisible}
+        stockCode={selectedStock?.code}
+        stockName={selectedStock?.name}
+        onClose={() => setKlineVisible(false)}
+      />
+
+      {isMobile && showBackTop && (
+        <div
+          onClick={scrollToTop}
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 70,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: '#1890ff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(24, 144, 255, 0.4)',
+            cursor: 'pointer',
+            zIndex: 100,
+            transition: 'all 0.3s'
+          }}
+        >
+          <UpOutlined style={{ color: '#fff', fontSize: 14 }} />
+        </div>
       )}
     </div>
   );
