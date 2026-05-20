@@ -1140,6 +1140,47 @@ def get_watchlist():
             WatchlistStock.user_id == user_id
         ).order_by(desc(WatchlistStock.created_at)).all()
         
+        stock_codes = [stock.stock_code.split('.')[0] for stock in watchlist]
+        
+        quotes_dict = {}
+        if stock_codes:
+            sh_codes = [code for code in stock_codes if code.startswith('6')]
+            sz_codes = [code for code in stock_codes if code.startswith(('0', '3'))]
+            
+            if sh_codes:
+                try:
+                    client = Quotes.factory(market=1)
+                    quotes = client.quotes(symbol=sh_codes)
+                    
+                    if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                        for idx, row in quotes.iterrows():
+                            code = row['code']
+                            quotes_dict[code] = {
+                                'price': float(row.get('price', 0) or 0),
+                                'high': float(row.get('high', 0) or 0),
+                                'low': float(row.get('low', 0) or 0),
+                                'prev_close': float(row.get('last_close', 0) or 0),
+                            }
+                except Exception as e:
+                    print(f"批量获取沪市实时行情失败: {e}")
+            
+            if sz_codes:
+                try:
+                    client = Quotes.factory(market=0)
+                    quotes = client.quotes(symbol=sz_codes)
+                    
+                    if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                        for idx, row in quotes.iterrows():
+                            code = row['code']
+                            quotes_dict[code] = {
+                                'price': float(row.get('price', 0) or 0),
+                                'high': float(row.get('high', 0) or 0),
+                                'low': float(row.get('low', 0) or 0),
+                                'prev_close': float(row.get('last_close', 0) or 0),
+                            }
+                except Exception as e:
+                    print(f"批量获取深市实时行情失败: {e}")
+        
         result = []
         for stock in watchlist:
             stock_total_profit = session.query(func.sum(TradeRecord.profit)).filter(
@@ -1158,13 +1199,9 @@ def get_watchlist():
             
             current_quantity = sum(r.remaining_quantity for r in buy_records)
             
-            try:
-                stock_code_num = stock.stock_code.split('.')[0]
-                quote = data_fetcher.get_realtime_quote(stock_code_num)
-                current_price = quote['price'] if quote and 'price' in quote else None
-            except Exception as e:
-                print(f"更新股票 {stock.stock_code} 价格失败: {e}")
-                current_price = None
+            stock_code_num = stock.stock_code.split('.')[0]
+            quote = quotes_dict.get(stock_code_num)
+            current_price = quote['price'] if quote else None
             
             if current_quantity > 0:
                 total_cost = sum(float(r.price) * r.remaining_quantity for r in buy_records)
@@ -2474,6 +2511,11 @@ def get_cls_telegraph():
         saved_count = 0
         
         try:
+            news_ids = [str(item.get('id')) for item in roll_data if item.get('title') or item.get('content')]
+            
+            existing_news = session.query(ClsNews).filter(ClsNews.news_id.in_(news_ids)).all()
+            existing_dict = {news.news_id: news for news in existing_news}
+            
             for item in roll_data:
                 title = item.get('title', '')
                 content = item.get('content', '')
@@ -2496,7 +2538,7 @@ def get_cls_telegraph():
                 ctime_dt = datetime.fromtimestamp(ctime_timestamp)
                 news_id = str(item.get('id'))
                 
-                existing = session.query(ClsNews).filter(ClsNews.news_id == news_id).first()
+                existing = existing_dict.get(news_id)
                 
                 if existing:
                     existing.title = title
