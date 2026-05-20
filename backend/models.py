@@ -137,6 +137,7 @@ class WatchlistStock(Base):
     add_price = Column(Numeric(10, 2))
     add_reason = Column(String(200))
     source = Column(String(50))
+    add_type = Column(String(20), default='manual')
     limit_up_reason_category = Column(String(200))
     
     created_at = Column(DateTime, default=datetime.now)
@@ -187,6 +188,46 @@ class AIAnalysisResult(Base):
     stock_name = Column(String(500), nullable=False)
     trade_date = Column(Date, nullable=False)
     analysis_result = Column(Text, nullable=False)  # JSON格式的分析结果
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class WatchlistAnalysisResult(Base):
+    """自选股AI分析结果缓存表"""
+    __tablename__ = 'watchlist_analysis_results'
+    __table_args__ = (
+        UniqueConstraint('stock_code', 'analysis_date', name='uq_watchlist_analysis_stock_date'),
+        Index('idx_watchlist_analysis_date', 'analysis_date'),
+        Index('idx_watchlist_analysis_code', 'stock_code'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    stock_code = Column(String(50), nullable=False)
+    stock_name = Column(String(500), nullable=False)
+    analysis_date = Column(Date, nullable=False)
+    analysis_result = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class ResearchReportAnalysisResult(Base):
+    """研报AI分析结果缓存表"""
+    __tablename__ = 'research_report_analysis_results'
+    __table_args__ = (
+        UniqueConstraint('info_code', name='uq_research_report_info_code'),
+        Index('idx_research_report_code', 'stock_code'),
+        Index('idx_research_report_date', 'analysis_date'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    info_code = Column(String(50), nullable=False, unique=True)
+    stock_code = Column(String(50), nullable=False)
+    stock_name = Column(String(500), nullable=False)
+    title = Column(String(500), nullable=False)
+    rating = Column(String(50))
+    rating_change = Column(String(50))
+    analysis_result = Column(Text, nullable=False)
+    analysis_date = Column(Date, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

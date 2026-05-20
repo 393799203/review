@@ -28,11 +28,11 @@ const ReportPage = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentReport, setCurrentReport] = useState(null);
   const [currentAnalysis, setCurrentAnalysis] = useState(null);
+  const [klineVisible, setKlineVisible] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
   const listEndRef = useRef(null);
   const searchTimeoutRef = useRef(null);
   const [showBackTop, setShowBackTop] = useState(false);
-  const [klineVisible, setKlineVisible] = useState(false);
-  const [selectedStock, setSelectedStock] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -191,6 +191,8 @@ const ReportPage = () => {
 
       if (response.data.success) {
         const analysis = response.data.data;
+        const isCached = response.data.cached;
+        
         setAnalysisCache(prev => ({
           ...prev,
           [report.infoCode]: analysis
@@ -198,6 +200,10 @@ const ReportPage = () => {
         setCurrentReport(report);
         setCurrentAnalysis(analysis);
         setModalVisible(true);
+        
+        if (isCached) {
+          console.log('使用缓存的分析结果');
+        }
       }
     } catch (error) {
       console.error('分析研报失败:', error);
@@ -242,22 +248,39 @@ const ReportPage = () => {
       width: isMobile ? 120 : 160,
       render: (_, record) => {
         const isAnalyzing = analyzingIds.has(record.infoCode);
-        const hasAnalysis = analysisCache[record.infoCode];
+        const analysis = analysisCache[record.infoCode];
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div>
-              <div style={{ fontWeight: 500 }}>{record.stockName || '--'}</div>
-              <div style={{ fontSize: 12, color: '#888' }}>{record.stockCode || '--'}</div>
+              <div 
+                style={{ fontWeight: 500, cursor: 'pointer', color: '#1890ff' }}
+                onClick={() => {
+                  setSelectedStock({ code: record.stockCode, name: record.stockName });
+                  setKlineVisible(true);
+                }}
+              >
+                {record.stockName || '--'}
+              </div>
+              <div 
+                style={{ fontSize: 12, color: '#888', cursor: 'pointer' }}
+                onClick={() => {
+                  setSelectedStock({ code: record.stockCode, name: record.stockName });
+                  setKlineVisible(true);
+                }}
+              >
+                {record.stockCode || '--'}
+              </div>
             </div>
             <Button 
               type="primary"
               icon={<RobotOutlined />}
               size="small"
               loading={isAnalyzing}
-              onClick={() => analyzeReport(record, !!hasAnalysis)}
+              onClick={() => analyzeReport(record, false)}
               style={{
-                background: hasAnalysis ? '#52c41a' : undefined,
-                borderColor: hasAnalysis ? '#52c41a' : undefined
+                background: analysis ? '#52c41a' : '#722ed1',
+                borderColor: analysis ? '#52c41a' : '#722ed1',
+                borderRadius: 3
               }}
             />
           </div>
@@ -351,7 +374,7 @@ const ReportPage = () => {
 
   const renderMobileCard = (report) => {
     const isAnalyzing = analyzingIds.has(report.infoCode);
-    const hasAnalysis = analysisCache[report.infoCode];
+    const analysis = analysisCache[report.infoCode];
     
     const thisYearEps = parseFloat(report.predictThisYearEps);
     const nextYearEps = parseFloat(report.predictNextYearEps);
@@ -415,15 +438,16 @@ const ReportPage = () => {
             <Button
               type="primary"
               icon={<RobotOutlined />}
-              onClick={() => analyzeReport(report, !!hasAnalysis)}
+              onClick={() => analyzeReport(report, false)}
               loading={isAnalyzing}
               style={{
-                background: hasAnalysis ? '#52c41a' : '#722ed1',
-                borderColor: hasAnalysis ? '#52c41a' : '#722ed1'
+                background: analysis ? '#52c41a' : '#722ed1',
+                borderColor: analysis ? '#52c41a' : '#722ed1',
+                borderRadius: 0
               }}
               size="small"
             >
-              {isMobile ? '' : (hasAnalysis ? '再次分析' : 'AI分析')}
+              {isMobile ? '' : (analysis ? '查看分析' : 'AI分析')}
             </Button>
           </div>
         </div>
@@ -537,7 +561,13 @@ const ReportPage = () => {
         {currentReport && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontWeight: 500, marginBottom: 8 }}>{currentReport.title}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>
+            <div 
+              style={{ fontSize: 12, color: '#1890ff', cursor: 'pointer' }}
+              onClick={() => {
+                setSelectedStock({ code: currentReport.stockCode, name: currentReport.stockName });
+                setKlineVisible(true);
+              }}
+            >
               {currentReport.stockName} ({currentReport.stockCode})
             </div>
           </div>
@@ -551,11 +581,25 @@ const ReportPage = () => {
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>相关个股:</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {currentAnalysis.related_stocks.map((stock, idx) => (
-                    <Tag key={idx} color="blue">
-                      {typeof stock === 'string' ? stock : stock.name || stock.code}
-                    </Tag>
-                  ))}
+                  {currentAnalysis.related_stocks.map((stock, idx) => {
+                    const stockCode = typeof stock === 'string' ? stock : stock.code || '';
+                    const stockName = typeof stock === 'string' ? stock : stock.name || stock.code || '';
+                    return (
+                      <Tag 
+                        key={idx} 
+                        color="blue" 
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          if (stockCode) {
+                            setSelectedStock({ code: stockCode, name: stockName });
+                            setKlineVisible(true);
+                          }
+                        }}
+                      >
+                        {stockName}
+                      </Tag>
+                    );
+                  })}
                 </div>
               </div>
             )}
