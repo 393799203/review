@@ -196,6 +196,29 @@ class DataFetcher:
                 price = float(q.get('price', 0) or 0)
                 prev_close = float(q.get('last_close', 0) or 0)
                 
+                volatility = None
+                turnover = None
+                
+                try:
+                    high = float(q.get('high', 0) or 0)
+                    low = float(q.get('low', 0) or 0)
+                    
+                    if high > 0 and low > 0 and prev_close > 0:
+                        volatility = ((high - low) / prev_close) * 100
+                    
+                    volume = float(q.get('vol', 0) or 0)
+                    if volume > 0:
+                        market = 1 if stock_code.startswith('6') else 0
+                        client = Quotes.factory(market=market)
+                        finance_data = client.finance(symbol=stock_code)
+                        if finance_data is not None and not finance_data.empty:
+                            liutongguben = float(finance_data['liutongguben'].iloc[0])
+                            if liutongguben > 0:
+                                vol_shares = volume * 100
+                                turnover = (vol_shares / liutongguben) * 100
+                except Exception as e:
+                    print(f"计算波动率和换手率失败: {e}")
+                
                 return {
                     'code': stock_code,
                     'name': '',
@@ -208,6 +231,8 @@ class DataFetcher:
                     'amount': float(q.get('amount', 0) or 0),
                     'change_amount': price - prev_close if price and prev_close else 0,
                     'change_percent': ((price - prev_close) / prev_close * 100) if prev_close else 0,
+                    'volatility': round(volatility, 2) if volatility else None,
+                    'turnover': round(turnover, 2) if turnover else None,
                     'bid1': float(q.get('bid1', 0) or 0),
                     'bid2': float(q.get('bid2', 0) or 0),
                     'bid3': float(q.get('bid3', 0) or 0),

@@ -675,6 +675,8 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     const change = quoteData.change_amount || 0;
     const changePercent = quoteData.change_percent || 0;
     const color = change >= 0 ? '#f5222d' : '#52c41a';
+    const volatility = quoteData.volatility;
+    const turnover = quoteData.turnover;
     
     const getPriceColor = (currentPrice) => {
       if (!currentPrice || !prevClose) return '#333';
@@ -753,6 +755,14 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: '9px', color: '#999' }}>最低</div>
               <div style={{ fontSize: '11px', color: getPriceColor(quoteData.low) }}>{quoteData.low?.toFixed(2) || '--'}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '9px', color: '#999' }}>换手率</div>
+              <div style={{ fontSize: '11px', color: '#333' }}>{turnover ? `${turnover.toFixed(2)}%` : '--'}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '9px', color: '#999' }}>波动率</div>
+              <div style={{ fontSize: '11px', color: '#333' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
             </div>
           </div>
         </div>
@@ -838,6 +848,14 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '11px', color: '#999' }}>成交额</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{((quoteData.amount || 0) / 100000000).toFixed(2)}亿</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>换手率</div>
+              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{turnover ? `${turnover.toFixed(2)}%` : '--'}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#999' }}>波动率</div>
+              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
             </div>
           </div>
         </div>
