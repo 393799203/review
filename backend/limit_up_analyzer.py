@@ -75,23 +75,73 @@ class LimitUpReasonAnalyzer:
             }
         
         try:
+            # 判断是否为自选股分析
+            is_watchlist_analysis = limit_up_reason.startswith("自选股投资分析：")
+            
             # 构造提示词
             limit_up_price_float = float(limit_up_price) if limit_up_price else None
             
-            # 构造股票状态
-            status_parts = []
-            if continuous_days and continuous_days > 1:
-                status_parts.append(f"{continuous_days}连板")
+            if is_watchlist_analysis:
+                # 自选股分析提示词
+                prompt = f"""分析股票并给出交易建议。
+
+股票: {stock_name}({stock_code}) {limit_up_reason.replace('自选股投资分析：', '')}
+
+返回JSON:
+{{
+  "sectors": [{{"name":"板块","score":0.9}}],
+  "speculation_logic": [{{"keyword":"关键词","logic":"逻辑"}}],
+  "stock_attribute": {{"type":"类型","market_cap":"市值","investor_type":"资金","trading_style":"风格"}},
+  "market_heat": 5,
+  "recommendation_score": 4,
+  "recommendation_reason": "推荐原因",
+  "analysis_summary": "一句话总结",
+  "trading_advice": {{
+    "buy_strategy": "策略",
+    "buy_price_range": "价位",
+    "stop_loss_price": "止损",
+    "take_profit_price": "止盈",
+    "position_ratio": "仓位",
+    "risk_level": "风险",
+    "holding_period": "周期",
+    "key_points": ["要点"]
+  }},
+  "holding_advice": {{
+    "holding_strategy": "持有策略",
+    "target_price": "目标价位",
+    "stop_loss_price": "止损价位",
+    "take_profit_price": "止盈价位",
+    "holding_period": "持有周期",
+    "risk_warning": "风险提示",
+    "key_points": ["关注要点"]
+  }}
+}}
+
+要求:
+1. 基于当天的股价和走势进行分析，结合技术面和基本面
+2. 板块最多3个,逻辑最多3个
+3. 推荐指数: 根据股票基本面、技术面、市场热度综合评分1-5星
+4. recommendation_reason说明推荐理由
+5. market_heat市场热度评分0-10分,综合考虑板块热度、题材热度、资金关注度,7分以上高热度,4-7分中等,4分以下低热度
+6. trading_advice针对未持有该股票的买入建议,包括买入价位、仓位、止损止盈等
+7. holding_advice针对已持有该股票的持有建议,包括目标价位、止损止盈、持有周期等
+8. 直接返回JSON"""
             else:
-                status_parts.append("首板")
-            if limit_up_time:
-                status_parts.append(f"涨停{limit_up_time}")
-            if seal_amount:
-                status_parts.append(f"封单{seal_amount/100000000:.1f}亿")
-            if turnover_rate:
-                status_parts.append(f"换手{turnover_rate:.1f}%")
-            
-            prompt = f"""分析涨停股票并给出交易建议。
+                # 涨停股分析提示词
+                # 构造股票状态
+                status_parts = []
+                if continuous_days and continuous_days > 1:
+                    status_parts.append(f"{continuous_days}连板")
+                else:
+                    status_parts.append("首板")
+                if limit_up_time:
+                    status_parts.append(f"涨停{limit_up_time}")
+                if seal_amount:
+                    status_parts.append(f"封单{seal_amount/100000000:.1f}亿")
+                if turnover_rate:
+                    status_parts.append(f"换手{turnover_rate:.1f}%")
+                
+                prompt = f"""分析涨停股票并给出交易建议。
 
 股票: {stock_name}({stock_code}) 涨停价{limit_up_price_float}元 {', '.join(status_parts)}
 原因: {limit_up_reason}

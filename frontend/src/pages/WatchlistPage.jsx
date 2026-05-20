@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip } from 'antd';
-import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip, AutoComplete, Input } from 'antd';
+import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
+import WatchlistAnalysisModal from '../components/WatchlistAnalysisModal';
 
 const WatchlistPage = () => {
   const [watchlist, setWatchlist] = useState([]);
@@ -16,6 +17,11 @@ const WatchlistPage = () => {
   const [klineStock, setKlineStock] = useState(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [analysisStock, setAnalysisStock] = useState(null);
+  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -130,6 +136,74 @@ const WatchlistPage = () => {
     }
   };
 
+  const handleAIAnalyze = (stock) => {
+    setAnalysisStock({ code: stock.stock_code.split('.')[0], name: stock.stock_name });
+    setAnalysisVisible(true);
+  };
+
+  const handleSearchStock = async (value) => {
+    setSearchKeyword(value);
+    
+    if (!value || value.trim().length === 0) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearching(true);
+    try {
+      const response = await api.get(`/stock/search?keyword=${encodeURIComponent(value.trim())}`);
+      
+      if (response.data.success) {
+        setSearchResults(response.data.data || []);
+      } else {
+        message.error('搜索失败');
+      }
+    } catch (error) {
+      message.error('搜索失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddToWatchlist = async (stock) => {
+    try {
+      const today = new Date();
+      const addDate = today.getFullYear().toString() + 
+                      (today.getMonth() + 1).toString().padStart(2, '0') + 
+                      today.getDate().toString().padStart(2, '0');
+      
+      let addPrice = null;
+      try {
+        const quoteResponse = await api.get(`/stock/quote/${stock.code}`);
+        if (quoteResponse.data.success && quoteResponse.data.data) {
+          addPrice = quoteResponse.data.data.price;
+        }
+      } catch (error) {
+        console.warn('获取股票价格失败，将不设置加入价格:', error);
+      }
+      
+      const response = await api.post('/watchlist', {
+        stock_code: stock.code,
+        stock_name: stock.name,
+        add_date: addDate,
+        add_price: addPrice,
+        add_reason: '手动添加',
+        add_type: 'manual'
+      });
+      
+      if (response.data.success) {
+        message.success(`${stock.name} 已添加到自选`);
+        setSearchKeyword('');
+        setSearchResults([]);
+        loadWatchlist();
+      } else {
+        message.error(response.data.error || '添加失败');
+      }
+    } catch (error) {
+      message.error('添加失败：' + (error.response?.data?.error || error.message));
+    }
+  };
+
   const renderMobileContent = () => {
     if (watchlist.length === 0 && !loading) {
       return (
@@ -196,8 +270,25 @@ const WatchlistPage = () => {
                     >
                       {record.stock_name}
                     </span>
+                    <Button
+                      type="primary"
+                      icon={<RobotOutlined />}
+                      size="small"
+                      onClick={() => handleAIAnalyze(record)}
+                      style={{ 
+                        background: '#722ed1', 
+                        borderColor: '#722ed1', 
+                        borderRadius: 0, 
+                        padding: '0 6px', 
+                        height: 18, 
+                        minWidth: 18 
+                      }}
+                    />
                     <Tag color={isHolding ? 'blue' : 'default'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
                       {isHolding ? '持仓' : '空仓'}
+                    </Tag>
+                    <Tag color={record.add_type === 'strategy' ? 'orange' : 'green'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
+                      {record.add_type === 'strategy' ? '策略' : '手动'}
                     </Tag>
                     <Tag color="purple" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
                       {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
@@ -251,7 +342,7 @@ const WatchlistPage = () => {
                     onClick={() => handleBuy(record)}
                     style={{ fontSize: 10, padding: '0 8px', height: 22 }}
                   >
-                    买入
+                    买
                   </Button>
                   {isHolding && (
                     <Button
@@ -261,7 +352,7 @@ const WatchlistPage = () => {
                       onClick={() => handleSell(record)}
                       style={{ fontSize: 10, padding: '0 8px', height: 22 }}
                     >
-                      卖出
+                      卖
                     </Button>
                   )}
                   {!isHolding && (
@@ -293,38 +384,50 @@ const WatchlistPage = () => {
   const renderDesktopContent = () => {
     const columns = [
       {
-        title: '股票代码',
-        dataIndex: 'stock_code',
-        key: 'stock_code',
-        width: 100,
-        render: (text, record) => (
-          <span 
-            style={{ color: '#1890ff', cursor: 'pointer' }}
-            onClick={() => {
-              setKlineStock({ code: text.split('.')[0], name: record.stock_name });
-              setKlineVisible(true);
-            }}
-          >
-            {text.split('.')[0]}
-          </span>
-        ),
-      },
-      {
-        title: '股票名称',
-        dataIndex: 'stock_name',
-        key: 'stock_name',
-        width: 100,
-        render: (text, record) => (
-          <span 
-            style={{ cursor: 'pointer' }}
-            onClick={() => {
-              setKlineStock({ code: record.stock_code.split('.')[0], name: text });
-              setKlineVisible(true);
-            }}
-          >
-            {text}
-          </span>
-        ),
+        title: '股票',
+        key: 'stock',
+        width: 130,
+        render: (text, record) => {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span 
+                  style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+                  onClick={() => {
+                    setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                    setKlineVisible(true);
+                  }}
+                >
+                  {record.stock_name}
+                </span>
+                <Button
+                  type="primary"
+                  icon={<RobotOutlined />}
+                  size="small"
+                  onClick={() => handleAIAnalyze(record)}
+                  style={{ 
+                    background: '#722ed1', 
+                    borderColor: '#722ed1', 
+                    borderRadius: 3, 
+                    padding: '0 4px', 
+                    height: 16, 
+                    minWidth: 16,
+                    fontSize: 10
+                  }}
+                />
+              </div>
+              <span 
+                style={{ color: '#1890ff', cursor: 'pointer', fontSize: 12 }}
+                onClick={() => {
+                  setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                  setKlineVisible(true);
+                }}
+              >
+                {record.stock_code.split('.')[0]}
+              </span>
+            </div>
+          );
+        },
       },
       {
         title: '持仓状态',
@@ -334,6 +437,17 @@ const WatchlistPage = () => {
         render: (text) => (
           <Tag color={text === '持仓' ? 'blue' : 'default'}>
             {text || '空仓'}
+          </Tag>
+        ),
+      },
+      {
+        title: '加入类型',
+        dataIndex: 'add_type',
+        key: 'add_type',
+        width: 80,
+        render: (text) => (
+          <Tag color={text === 'strategy' ? 'orange' : 'green'}>
+            {text === 'strategy' ? '策略' : '手动'}
           </Tag>
         ),
       },
@@ -356,9 +470,9 @@ const WatchlistPage = () => {
         },
       },
       {
-        title: '较加入价涨跌',
+        title: '较加入涨跌',
         key: 'add_price_change',
-        width: 120,
+        width: 100,
         render: (_, record) => {
           if (!record.add_price || !record.current_price) return '-';
           const changeRatio = ((record.current_price - record.add_price) / record.add_price * 100);
@@ -371,9 +485,9 @@ const WatchlistPage = () => {
         },
       },
       {
-        title: '买入信息',
+        title: '买入',
         key: 'buy_info',
-        width: 150,
+        width: 100,
         render: (_, record) => {
           if (!record.buy_price) return '-';
           return (
@@ -385,10 +499,10 @@ const WatchlistPage = () => {
         },
       },
       {
-        title: '持仓盈亏',
+        title: '盈亏',
         dataIndex: 'position_profit',
         key: 'position_profit',
-        width: 120,
+        width: 100,
         render: (value, record) => {
           if (record.position_status !== '持仓' || value === null) return '-';
           const color = value > 0 ? '#f5222d' : value < 0 ? '#52c41a' : '#8c8c8c';
@@ -404,7 +518,7 @@ const WatchlistPage = () => {
       {
         title: '策略日期',
         key: 'source_info',
-        width: 100,
+        width: 80,
         render: (_, record) => (
           <Tag color="purple" style={{ fontSize: 11 }}>
             {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
@@ -415,7 +529,7 @@ const WatchlistPage = () => {
         title: '涨停原因',
         dataIndex: 'limit_up_reason_category',
         key: 'limit_up_reason_category',
-        width: 150,
+        width: 230,
         ellipsis: true,
         render: (text) => {
           if (!text) return '-';
@@ -432,7 +546,6 @@ const WatchlistPage = () => {
         title: '操作',
         key: 'action',
         width: 150,
-        fixed: 'right',
         render: (_, record) => (
           <div style={{ display: 'flex', gap: 4 }}>
             {record.position_status === '持仓' ? (
@@ -480,7 +593,6 @@ const WatchlistPage = () => {
         columns={columns}
         dataSource={watchlist}
         rowKey="id"
-        scroll={{ x: 1300 }}
         pagination={{
           pageSize: 20,
           showSizeChanger: true,
@@ -508,20 +620,56 @@ const WatchlistPage = () => {
           style={{ marginBottom: 8 }}
           styles={{ body: { padding: isMobile ? '8px' : '12px' } }}
         >
-          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>共 {watchlist.length} 只自选股，{watchlist.filter(s => s.position_status === '持仓').length} 只持仓中</span>
-            {loading && !isFirstLoad && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                color: '#1890ff',
-                fontSize: 12
-              }}>
-                <LoadingOutlined spin />
-                <span>数据同步中...</span>
-              </div>
-            )}
+          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>共 {watchlist.length} 只自选股，{watchlist.filter(s => s.position_status === '持仓').length} 只持仓中</span>
+              {loading && !isFirstLoad && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: '#1890ff',
+                  fontSize: 12
+                }}>
+                  <LoadingOutlined spin />
+                  <span>数据同步中...</span>
+                </div>
+              )}
+            </div>
+            
+            <AutoComplete
+              style={{ width: isMobile ? 180 : 250 }}
+              value={searchKeyword}
+              options={searchResults.map(stock => ({
+                value: stock.code,
+                label: (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{stock.display}</span>
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddToWatchlist(stock);
+                      }}
+                      style={{ padding: 0, height: 'auto' }}
+                    >
+                      添加
+                    </Button>
+                  </div>
+                )
+              }))}
+              onSearch={handleSearchStock}
+              onChange={setSearchKeyword}
+              placeholder="搜索股票代码或名称"
+              size="small"
+            >
+              <Input 
+                suffix={searching ? <LoadingOutlined spin /> : <SearchOutlined />}
+                allowClear
+              />
+            </AutoComplete>
           </div>
           
           {isMobile ? renderMobileContent() : renderDesktopContent()}
@@ -628,6 +776,16 @@ const WatchlistPage = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      <WatchlistAnalysisModal
+        visible={analysisVisible}
+        stockCode={analysisStock?.code}
+        stockName={analysisStock?.name}
+        onClose={() => {
+          setAnalysisVisible(false);
+          setAnalysisStock(null);
+        }}
+      />
 
       <StockKlineModal
         visible={klineVisible}

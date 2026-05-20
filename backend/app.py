@@ -14,7 +14,7 @@ import threading
 import json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews, UserWencaiStrategy
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews, UserWencaiStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
 from data_fetcher import DataFetcher
 from statistics_api import register_statistics_routes
 from limit_up_analyzer import LimitUpReasonAnalyzer
@@ -596,6 +596,7 @@ def wencai_query():
                 'success': False,
                 'error': '问财查询失败'
             }), 500
+        
         
         return jsonify({
             'success': True,
@@ -1194,6 +1195,7 @@ def get_watchlist():
                 'current_price': float(current_price) if current_price else None,
                 'add_reason': stock.add_reason or '',
                 'source': stock.source or '',
+                'add_type': stock.add_type or 'manual',
                 'limit_up_reason_category': stock.limit_up_reason_category or '',
                 'position_status': position_status,
                 'buy_price': float(avg_buy_price) if avg_buy_price else None,
@@ -1240,6 +1242,7 @@ def add_to_watchlist():
         add_price = data.get('add_price')
         add_reason = data.get('add_reason', '')
         source = data.get('source', 'wencai')
+        add_type = data.get('add_type', 'manual')
         limit_up_reason_category = data.get('limit_up_reason_category', '')
         
         if not stock_code or not stock_name or not add_date_str:
@@ -1269,6 +1272,7 @@ def add_to_watchlist():
             add_price=add_price,
             add_reason=add_reason,
             source=source,
+            add_type=add_type,
             limit_up_reason_category=limit_up_reason_category
         )
         
@@ -1352,6 +1356,89 @@ def update_watchlist_prices():
         'success': True,
         'message': '价格已在获取列表时实时更新，无需手动刷新'
     })
+
+
+@app.route('/api/stock/search', methods=['GET'])
+def search_stock():
+    """搜索股票"""
+    try:
+        keyword = request.args.get('keyword', '').strip()
+        
+        if not keyword:
+            return jsonify({
+                'success': True,
+                'data': []
+            })
+        
+        import requests as req_module
+        from urllib.parse import quote
+        
+        url = "https://searchapi.eastmoney.com/api/suggest/get"
+        params = {
+            "input": keyword,
+            "type": "14",
+            "token": "D43BF722C8E33BCE90EFB9D8653D9A5B",
+            "count": 20,
+            "cb": ""
+        }
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://quote.eastmoney.com/",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+        }
+        
+        response = req_module.get(url, params=params, headers=headers, timeout=5)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': f'搜索失败，状态码: {response.status_code}'
+            }), 500
+        
+        try:
+            text = response.text.strip()
+            if text.startswith('(') and text.endswith(')'):
+                text = text[1:-1]
+            data = json.loads(text)
+        except Exception as json_err:
+            return jsonify({
+                'success': False,
+                'error': '搜索接口返回数据格式错误'
+            }), 500
+        
+        stocks = []
+        if data and 'QuotationCodeTable' in data:
+            table_data = data['QuotationCodeTable']
+            if table_data and 'Data' in table_data and isinstance(table_data['Data'], list):
+                for item in table_data['Data']:
+                    code = item.get('Code', '')
+                    name = item.get('Name', '')
+                    market_code = item.get('MktNum', '')
+                    
+                    if code and name:
+                        stocks.append({
+                            'code': code,
+                            'name': name,
+                            'market_code': market_code,
+                            'display': f"{code} {name}"
+                        })
+        
+        return jsonify({
+            'success': True,
+            'data': stocks
+        })
+        
+    except Exception as e:
+        print(f"搜索股票异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/stock/quote/<stock_code>', methods=['GET'])
@@ -2496,33 +2583,34 @@ def analyze_news():
         
         session = get_db_session()
         try:
-            news_record = session.query(ClsNews).filter(ClsNews.news_id == str(news_id)).first()
-            
-            if news_record and news_record.analysis_result:
-                try:
-                    analysis_data = json.loads(news_record.analysis_result)
-                    return jsonify({
-                        'success': True,
-                        'data': analysis_data,
-                        'cached': True
-                    })
-                except:
-                    pass
-            
-            existing = session.query(AIAnalysisResult).filter(
-                AIAnalysisResult.stock_code == f"NEWS_{news_id}"
-            ).first()
-            
-            if existing and not force:
-                try:
-                    analysis_data = json.loads(existing.analysis_result)
-                    return jsonify({
-                        'success': True,
-                        'data': analysis_data,
-                        'cached': True
-                    })
-                except:
-                    pass
+            if not force:
+                news_record = session.query(ClsNews).filter(ClsNews.news_id == str(news_id)).first()
+                
+                if news_record and news_record.analysis_result:
+                    try:
+                        analysis_data = json.loads(news_record.analysis_result)
+                        return jsonify({
+                            'success': True,
+                            'data': analysis_data,
+                            'cached': True
+                        })
+                    except:
+                        pass
+                
+                existing = session.query(AIAnalysisResult).filter(
+                    AIAnalysisResult.stock_code == f"NEWS_{news_id}"
+                ).first()
+                
+                if existing:
+                    try:
+                        analysis_data = json.loads(existing.analysis_result)
+                        return jsonify({
+                            'success': True,
+                            'data': analysis_data,
+                            'cached': True
+                        })
+                    except:
+                        pass
         finally:
             session.close()
         
@@ -2611,6 +2699,12 @@ def analyze_report():
         predict_next_two_year_pe = data.get('predict_next_two_year_pe', '')
         force = data.get('force', False)
         
+        if not info_code:
+            return jsonify({
+                'success': False,
+                'error': '缺少研报ID'
+            }), 400
+        
         if not title:
             return jsonify({
                 'success': False,
@@ -2619,8 +2713,8 @@ def analyze_report():
         
         session = get_db_session()
         try:
-            existing = session.query(AIAnalysisResult).filter(
-                AIAnalysisResult.stock_code == f"REPORT_{info_code}"
+            existing = session.query(ResearchReportAnalysisResult).filter(
+                ResearchReportAnalysisResult.info_code == info_code
             ).first()
             
             if existing and not force:
@@ -2636,7 +2730,7 @@ def analyze_report():
         finally:
             session.close()
         
-        prompt = f"""请分析以下研报对股票的影响：
+        prompt = f"""分析以下研报对股票的影响：
 
 研报标题：{title}
 股票名称：{stock_name}
@@ -2646,13 +2740,10 @@ def analyze_report():
 EPS预测：今年{predict_this_year_eps or '--'}，明年{predict_next_year_eps or '--'}，后年{predict_next_two_year_eps or '--'}
 PE预测：今年{predict_this_year_pe or '--'}，明年{predict_next_year_pe or '--'}，后年{predict_next_two_year_pe or '--'}
 
-请从以下几个方面进行分析：
-1. 研报核心观点
-2. 对股价的潜在影响（利好/利空/中性）
-3. 投资建议
-4. 风险提示
+返回JSON:
+{{"analysis":"研报核心观点(100字内)","related_sectors":[{{"name":"相关板块","relevance":0.9}}],"related_stocks":[{{"code":"代码","name":"名称","reason":"原因"}}],"market_impact":"对股价的潜在影响(利好/利空/中性)","investment_suggestion":"投资建议和风险提示"}}
 
-请用简洁的中文回答。"""
+要求:最多3个板块,5只个股,直接返回JSON。"""
         
         analyzer = LimitUpReasonAnalyzer()
         
@@ -2662,19 +2753,25 @@ PE预测：今年{predict_this_year_pe or '--'}，明年{predict_next_year_pe or
         try:
             today = datetime.now().date()
             
-            existing_result = session.query(AIAnalysisResult).filter(
-                AIAnalysisResult.stock_code == f"REPORT_{info_code}"
+            existing_result = session.query(ResearchReportAnalysisResult).filter(
+                ResearchReportAnalysisResult.info_code == info_code
             ).first()
             
             if existing_result:
                 existing_result.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
+                existing_result.rating = rating
+                existing_result.rating_change = rating_change
                 existing_result.updated_at = datetime.now()
             else:
-                new_result = AIAnalysisResult(
-                    stock_code=f"REPORT_{info_code}",
+                new_result = ResearchReportAnalysisResult(
+                    info_code=info_code,
+                    stock_code=stock_code,
                     stock_name=stock_name,
-                    trade_date=today,
-                    analysis_result=json.dumps(analysis_result, ensure_ascii=False)
+                    title=title,
+                    rating=rating,
+                    rating_change=rating_change,
+                    analysis_result=json.dumps(analysis_result, ensure_ascii=False),
+                    analysis_date=today
                 )
                 session.add(new_result)
             
@@ -2690,6 +2787,139 @@ PE预测：今年{predict_this_year_pe or '--'}，明年{predict_next_year_pe or
         
     except Exception as e:
         print(f"AI分析研报失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/stock/analyze', methods=['POST'])
+def analyze_stock():
+    """
+    AI分析自选股
+    
+    请求体:
+    {
+        "stock_code": "股票代码",
+        "stock_name": "股票名称",
+        "force": false
+    }
+    """
+    try:
+        data = request.json
+        stock_code = data.get('stock_code', '')
+        stock_name = data.get('stock_name', '')
+        force = data.get('force', False)
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'error': '缺少股票代码'
+            }), 400
+        
+        session = get_db_session()
+        try:
+            today = datetime.now().date()
+            
+            existing = session.query(WatchlistAnalysisResult).filter(
+                WatchlistAnalysisResult.stock_code == stock_code,
+                WatchlistAnalysisResult.analysis_date == today
+            ).first()
+            
+            if existing and not force:
+                try:
+                    analysis_data = json.loads(existing.analysis_result)
+                    return jsonify({
+                        'success': True,
+                        'data': analysis_data,
+                        'cached': True
+                    })
+                except:
+                    pass
+        finally:
+            session.close()
+        
+        # 获取实时行情数据
+        quote_data = data_fetcher.get_realtime_quote(stock_code)
+        
+        # 构造股票状态信息
+        stock_status = ""
+        if quote_data:
+            price = quote_data.get('price', 0)
+            open_price = quote_data.get('open', 0)
+            high = quote_data.get('high', 0)
+            low = quote_data.get('low', 0)
+            prev_close = quote_data.get('prev_close', 0)
+            change_percent = quote_data.get('change_percent', 0)
+            volume = quote_data.get('volume', 0)
+            amount = quote_data.get('amount', 0)
+            
+            status_parts = []
+            if change_percent > 0:
+                status_parts.append(f"涨幅{change_percent:.2f}%")
+            elif change_percent < 0:
+                status_parts.append(f"跌幅{abs(change_percent):.2f}%")
+            else:
+                status_parts.append("平盘")
+            
+            if price and open_price:
+                status_parts.append(f"今开{open_price:.2f}元")
+            if high and low:
+                status_parts.append(f"最高{high:.2f}元")
+                status_parts.append(f"最低{low:.2f}元")
+            if volume:
+                status_parts.append(f"成交量{(volume/10000):.0f}万手")
+            if amount:
+                status_parts.append(f"成交额{(amount/100000000):.2f}亿")
+            
+            stock_status = f" 现价{price:.2f}元 {', '.join(status_parts)}"
+        
+        analyzer = LimitUpReasonAnalyzer()
+        
+        analysis_result = analyzer.analyze_with_llm(
+            limit_up_reason=f"自选股投资分析：{stock_name}{stock_status}",
+            stock_code=stock_code,
+            stock_name=stock_name,
+            limit_up_price=quote_data.get('price') if quote_data else None,
+            continuous_days=None,
+            limit_up_time=None,
+            seal_amount=None,
+            turnover_rate=None
+        )
+        
+        session = get_db_session()
+        try:
+            today = datetime.now().date()
+            
+            existing_result = session.query(WatchlistAnalysisResult).filter(
+                WatchlistAnalysisResult.stock_code == stock_code,
+                WatchlistAnalysisResult.analysis_date == today
+            ).first()
+            
+            if existing_result:
+                existing_result.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
+                existing_result.updated_at = datetime.now()
+            else:
+                new_result = WatchlistAnalysisResult(
+                    stock_code=stock_code,
+                    stock_name=stock_name,
+                    analysis_date=today,
+                    analysis_result=json.dumps(analysis_result, ensure_ascii=False)
+                )
+                session.add(new_result)
+            
+            session.commit()
+        finally:
+            session.close()
+        
+        return jsonify({
+            'success': True,
+            'data': analysis_result,
+            'cached': False
+        })
+        
+    except Exception as e:
+        print(f"AI分析股票失败: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

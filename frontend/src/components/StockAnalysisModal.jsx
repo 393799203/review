@@ -60,7 +60,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
         title={
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 30 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <RobotOutlined style={{ color: '#1890ff' }} />
+              <RobotOutlined style={{ color: '#722ed1' }} />
               <span style={{ fontSize: isMobile ? 14 : 16 }}>涨停原因智能分析</span>
             </div>
             <Button 

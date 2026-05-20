@@ -162,6 +162,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
         add_price: price,
         add_reason: query.substring(0, 200),
         source: 'wencai',
+        add_type: 'strategy',
         limit_up_reason_category: limitUpReasonCategory
       });
       
@@ -274,8 +275,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                   justifyContent: 'center',
                   width: 16,
                   height: 16,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: 3,
+                  background: '#722ed1',
                   cursor: 'pointer'
                 }}
                 onClick={(e) => {
@@ -496,8 +497,8 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
                         justifyContent: 'center',
                         width: 16,
                         height: 16,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        borderRadius: 3,
+                        background: '#722ed1',
                         cursor: 'pointer'
                       }}
                       onClick={(e) => {
@@ -617,7 +618,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <RobotOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#1890ff' }} />
+            <RobotOutlined style={{ fontSize: isMobile ? 16 : 18, color: '#722ed1' }} />
             <span style={{ fontSize: isMobile ? 14 : 16 }}>{getTitleByType(type)}</span>
           </div>
         }
