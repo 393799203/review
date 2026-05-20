@@ -206,6 +206,9 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       yAxisMax = maxAbsChange + padding;
     }
 
+    const maxPrice = yesterdayClose ? yesterdayClose * (1 + maxChangePercent / 100) : null;
+    const minPrice = yesterdayClose ? yesterdayClose * (1 + minChangePercent / 100) : null;
+
     return {
       tooltip: {
         trigger: 'axis',
@@ -237,13 +240,13 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       },
       grid: [
         {
-          left: '8%',
+          left: '2%',
           right: '2%',
           top: isMobile ? '12%' : '8%',
           height: isMobile ? '50%' : '55%'
         },
         {
-          left: '8%',
+          left: '2%',
           right: '2%',
           top: isMobile ? '70%' : '72%',
           height: isMobile ? '18%' : '15%'
@@ -284,9 +287,23 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           min: yAxisMin,
           max: yAxisMax,
           interval: (yAxisMax - yAxisMin) / 4,
+          position: 'left',
           axisLabel: {
+            inside: true,
             formatter: function(value) {
-              return value.toFixed(2) + '%';
+              if (!yesterdayClose) return '';
+              if (Math.abs(value - yAxisMax) < 0.01) {
+                const price = yesterdayClose * (1 + value / 100);
+                return price.toFixed(2);
+              }
+              if (Math.abs(value - yAxisMin) < 0.01) {
+                const price = yesterdayClose * (1 + value / 100);
+                return price.toFixed(2);
+              }
+              if (Math.abs(value) < 0.01) {
+                return yesterdayClose.toFixed(2);
+              }
+              return '';
             }
           },
           splitLine: {
@@ -296,6 +313,28 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           },
           splitArea: {
             show: true
+          }
+        },
+        {
+          type: 'value',
+          min: yAxisMin,
+          max: yAxisMax,
+          interval: (yAxisMax - yAxisMin) / 4,
+          position: 'right',
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: {
+            inside: true,
+            formatter: function(value) {
+              if (Math.abs(value - yAxisMax) < 0.01) {
+                return (value > 0 ? '+' : '') + value.toFixed(2) + '%';
+              }
+              if (Math.abs(value - yAxisMin) < 0.01) {
+                return (value > 0 ? '+' : '') + value.toFixed(2) + '%';
+              }
+              return '';
+            }
           }
         },
         {
@@ -344,7 +383,39 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
                   width: 1
                 },
                 label: {
-                  show: false
+                  show: true,
+                  position: 'insideEndTop',
+                  formatter: '0.00%',
+                  color: '#666',
+                  fontSize: 11
+                }
+              }
+            ]
+          },
+          markPoint: {
+            symbol: 'pin',
+            symbolSize: 1,
+            data: [
+              {
+                coord: [fullTimes[fullTimes.length - 1], maxChangePercent],
+                label: {
+                  show: true,
+                  position: 'right',
+                  formatter: maxChangePercent > 0 ? '+' + maxChangePercent.toFixed(2) + '%' : maxChangePercent.toFixed(2) + '%',
+                  color: '#f5222d',
+                  fontSize: 12,
+                  fontWeight: 'bold'
+                }
+              },
+              {
+                coord: [fullTimes[fullTimes.length - 1], minChangePercent],
+                label: {
+                  show: true,
+                  position: 'right',
+                  formatter: minChangePercent > 0 ? '+' + minChangePercent.toFixed(2) + '%' : minChangePercent.toFixed(2) + '%',
+                  color: '#52c41a',
+                  fontSize: 12,
+                  fontWeight: 'bold'
                 }
               }
             ]
@@ -354,7 +425,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           name: '成交量',
           type: 'bar',
           xAxisIndex: 1,
-          yAxisIndex: 1,
+          yAxisIndex: 2,
           data: fullVolumes,
           itemStyle: {
             color: function(params) {
@@ -463,7 +534,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         }
       },
       legend: {
-        data: ['日K', '5日均线', '10日均线', '20日均线'],
+        data: ['日K', '5日', '10日', '20日'],
         top: isMobile ? 30 : 40,
         itemWidth: isMobile ? 15 : 25,
         itemHeight: isMobile ? 10 : 14,
@@ -473,13 +544,13 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       },
       grid: [
         {
-          left: '8%',
+          left: '2%',
           right: '3%',
           top: isMobile ? '12%' : '8%',
           height: isMobile ? '50%' : '55%'
         },
         {
-          left: '8%',
+          left: '2%',
           right: '3%',
           top: isMobile ? '70%' : '72%',
           height: isMobile ? '18%' : '15%'
@@ -517,6 +588,9 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       yAxis: [
         {
           scale: true,
+          axisLabel: {
+            inside: true
+          },
           splitArea: {
             show: true
           }
@@ -569,7 +643,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           }
         },
         {
-          name: '5日均线',
+          name: '5日',
           type: 'line',
           data: calculateMA(5),
           smooth: true,
@@ -577,7 +651,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           symbol: 'none'
         },
         {
-          name: '10日均线',
+          name: '10日',
           type: 'line',
           data: calculateMA(10),
           smooth: true,
@@ -585,7 +659,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           symbol: 'none'
         },
         {
-          name: '20日均线',
+          name: '20日',
           type: 'line',
           data: calculateMA(20),
           smooth: true,
