@@ -1088,7 +1088,7 @@ const LadderPage = () => {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {diffData.added.map((stock, index) => (
                   <Tag key={index} color="green">
-                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {stock.limitUpTime || '-'}
+                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {!isMobile && (stock.limitUpTime || '-')}
                   </Tag>
                 ))}
               </div>
@@ -1103,7 +1103,7 @@ const LadderPage = () => {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {diffData.removed.map((stock, index) => (
                   <Tag key={index} color="red">
-                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {stock.limitUpTime || '-'}
+                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {!isMobile && (stock.limitUpTime || '-')}
                   </Tag>
                 ))}
               </div>
