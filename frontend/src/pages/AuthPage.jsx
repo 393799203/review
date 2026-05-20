@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card, Tabs, message, Divider } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, IdcardOutlined, StockOutlined, FireOutlined, TrophyOutlined, DollarOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined, IdcardOutlined, StockOutlined, FireOutlined, TrophyOutlined, DollarOutlined, NotificationOutlined, FileTextOutlined, BarChartOutlined, BulbOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -218,52 +218,117 @@ const AuthPage = () => {
       <div style={{
         minHeight: '100vh',
         background: 'linear-gradient(180deg, #001529 0%, #1890ff 100%)',
-        padding: '40px 20px',
+        padding: '30px 16px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
       }}>
         <div style={{
           textAlign: 'center',
-          marginBottom: 40
+          marginBottom: 24
         }}>
           <div style={{
-            width: 80,
-            height: 80,
-            borderRadius: 20,
+            width: 70,
+            height: 70,
+            borderRadius: 16,
             background: 'rgba(255, 255, 255, 0.2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 16px',
+            margin: '0 auto 12px',
           }}>
-            <StockOutlined style={{ fontSize: 40, color: '#fff' }} />
+            <StockOutlined style={{ fontSize: 32, color: '#fff' }} />
           </div>
           <h1 style={{
-            fontSize: 32,
+            fontSize: 28,
             fontWeight: 'bold',
             color: '#fff',
-            marginBottom: 8,
-            letterSpacing: 4
+            marginBottom: 6,
+            letterSpacing: 3
           }}>
             云雀AI
           </h1>
           <p style={{
-            fontSize: 14,
+            fontSize: 13,
             color: 'rgba(255, 255, 255, 0.8)',
           }}>
             A股涨停复盘系统
           </p>
         </div>
 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 10,
+          width: '100%',
+          maxWidth: 360,
+          marginBottom: 20
+        }}>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 12,
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <FireOutlined style={{ fontSize: 20, color: '#ff4d4f', marginBottom: 4 }} />
+            <div style={{ color: '#fff', fontSize: 11 }}>涨停复盘</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 12,
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <TrophyOutlined style={{ fontSize: 20, color: '#faad14', marginBottom: 4 }} />
+            <div style={{ color: '#fff', fontSize: 11 }}>连板追踪</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 12,
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <NotificationOutlined style={{ fontSize: 20, color: '#13c2c2', marginBottom: 4 }} />
+            <div style={{ color: '#fff', fontSize: 11 }}>财经播报</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 12,
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <FileTextOutlined style={{ fontSize: 20, color: '#722ed1', marginBottom: 4 }} />
+            <div style={{ color: '#fff', fontSize: 11 }}>研报解读</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 12,
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <BarChartOutlined style={{ fontSize: 20, color: '#eb2f96', marginBottom: 4 }} />
+            <div style={{ color: '#fff', fontSize: 11 }}>数据统计</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 12,
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <BulbOutlined style={{ fontSize: 20, color: '#52c41a', marginBottom: 4 }} />
+            <div style={{ color: '#fff', fontSize: 11 }}>AI分析</div>
+          </div>
+        </div>
+
         <Card
           style={{
             width: '100%',
+            maxWidth: 400,
             borderRadius: 16,
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
             border: 'none',
           }}
-          styles={{ body: { padding: '24px 20px' } }}
+          styles={{ body: { padding: '20px 16px' } }}
         >
           <Tabs
             activeKey={activeTab}
@@ -272,26 +337,26 @@ const AuthPage = () => {
             style={{ marginBottom: 16 }}
           />
 
-          <Divider style={{ margin: '16px 0' }}>
-            <span style={{ color: '#8c8c8c', fontSize: 12 }}>登录即表示同意</span>
+          <Divider style={{ margin: '12px 0' }}>
+            <span style={{ color: '#8c8c8c', fontSize: 11 }}>登录即表示同意</span>
           </Divider>
 
           <div style={{
             textAlign: 'center',
             color: '#8c8c8c',
-            fontSize: 12,
-            marginTop: 16
+            fontSize: 11,
+            marginTop: 12
           }}>
             <span style={{ color: '#1890ff', cursor: 'pointer' }}>用户协议</span>
-            <span style={{ margin: '0 8px' }}>和</span>
+            <span style={{ margin: '0 6px' }}>和</span>
             <span style={{ color: '#1890ff', cursor: 'pointer' }}>隐私政策</span>
           </div>
         </Card>
 
         <div style={{
-          marginTop: 40,
+          marginTop: 24,
           color: 'rgba(255, 255, 255, 0.5)',
-          fontSize: 12
+          fontSize: 11
         }}>
           © 2024 云雀AI All Rights Reserved
         </div>
@@ -388,53 +453,75 @@ const AuthPage = () => {
           position: 'relative',
           zIndex: 1,
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 24,
-          maxWidth: 480
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 20,
+          maxWidth: 600
         }}>
           <div style={{
             background: 'rgba(255, 255, 255, 0.1)',
             backdropFilter: 'blur(10px)',
             borderRadius: 16,
-            padding: 24,
+            padding: 20,
             textAlign: 'center',
             border: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
-            <FireOutlined style={{ fontSize: 32, color: '#ff4d4f', marginBottom: 12 }} />
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>涨停复盘</div>
+            <FireOutlined style={{ fontSize: 28, color: '#ff4d4f', marginBottom: 8 }} />
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>涨停复盘</div>
           </div>
           <div style={{
             background: 'rgba(255, 255, 255, 0.1)',
             backdropFilter: 'blur(10px)',
             borderRadius: 16,
-            padding: 24,
+            padding: 20,
             textAlign: 'center',
             border: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
-            <TrophyOutlined style={{ fontSize: 32, color: '#faad14', marginBottom: 12 }} />
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>连板追踪</div>
+            <TrophyOutlined style={{ fontSize: 28, color: '#faad14', marginBottom: 8 }} />
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>连板追踪</div>
           </div>
           <div style={{
             background: 'rgba(255, 255, 255, 0.1)',
             backdropFilter: 'blur(10px)',
             borderRadius: 16,
-            padding: 24,
+            padding: 20,
             textAlign: 'center',
             border: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
-            <DollarOutlined style={{ fontSize: 32, color: '#52c41a', marginBottom: 12 }} />
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>智能分析</div>
+            <NotificationOutlined style={{ fontSize: 28, color: '#13c2c2', marginBottom: 8 }} />
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>财经播报</div>
           </div>
           <div style={{
             background: 'rgba(255, 255, 255, 0.1)',
             backdropFilter: 'blur(10px)',
             borderRadius: 16,
-            padding: 24,
+            padding: 20,
             textAlign: 'center',
             border: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
-            <StockOutlined style={{ fontSize: 32, color: '#1890ff', marginBottom: 12 }} />
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>板块热度</div>
+            <FileTextOutlined style={{ fontSize: 28, color: '#722ed1', marginBottom: 8 }} />
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>研报解读</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: 16,
+            padding: 20,
+            textAlign: 'center',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <BarChartOutlined style={{ fontSize: 28, color: '#eb2f96', marginBottom: 8 }} />
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>数据统计</div>
+          </div>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: 16,
+            padding: 20,
+            textAlign: 'center',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <BulbOutlined style={{ fontSize: 28, color: '#52c41a', marginBottom: 8 }} />
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>AI分析</div>
           </div>
         </div>
 

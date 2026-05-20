@@ -1664,6 +1664,33 @@ def get_stock_intraday(stock_code):
         }), 500
 
 
+@app.route('/api/reports', methods=['GET'])
+def get_reports():
+    """获取研报列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        page_size = request.args.get('pageSize', 50, type=int)
+        stock_code = request.args.get('code', '')
+        
+        result = data_fetcher.get_reports(page, page_size, stock_code)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '获取研报数据失败'
+            }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/stock/analyze/<stock_code>', methods=['GET'])
 def analyze_limit_up_reason(stock_code):
     """
@@ -2546,6 +2573,129 @@ def analyze_news():
         }), 500
 
 
+@app.route('/api/reports/analyze', methods=['POST'])
+def analyze_report():
+    """
+    AI分析研报
+    
+    请求体:
+    {
+        "info_code": "研报ID",
+        "title": "研报标题",
+        "stock_name": "股票名称",
+        "stock_code": "股票代码",
+        "rating": "评级",
+        "rating_change": "评级变化",
+        "predict_this_year_eps": "今年EPS预测",
+        "predict_next_year_eps": "明年EPS预测",
+        "predict_next_two_year_eps": "后年EPS预测",
+        "predict_this_year_pe": "今年PE预测",
+        "predict_next_year_pe": "明年PE预测",
+        "predict_next_two_year_pe": "后年PE预测",
+        "force": false
+    }
+    """
+    try:
+        data = request.json
+        info_code = data.get('info_code')
+        title = data.get('title', '')
+        stock_name = data.get('stock_name', '')
+        stock_code = data.get('stock_code', '')
+        rating = data.get('rating', '')
+        rating_change = data.get('rating_change', '')
+        predict_this_year_eps = data.get('predict_this_year_eps', '')
+        predict_next_year_eps = data.get('predict_next_year_eps', '')
+        predict_next_two_year_eps = data.get('predict_next_two_year_eps', '')
+        predict_this_year_pe = data.get('predict_this_year_pe', '')
+        predict_next_year_pe = data.get('predict_next_year_pe', '')
+        predict_next_two_year_pe = data.get('predict_next_two_year_pe', '')
+        force = data.get('force', False)
+        
+        if not title:
+            return jsonify({
+                'success': False,
+                'error': '缺少研报标题'
+            }), 400
+        
+        session = get_db_session()
+        try:
+            existing = session.query(AIAnalysisResult).filter(
+                AIAnalysisResult.stock_code == f"REPORT_{info_code}"
+            ).first()
+            
+            if existing and not force:
+                try:
+                    analysis_data = json.loads(existing.analysis_result)
+                    return jsonify({
+                        'success': True,
+                        'data': analysis_data,
+                        'cached': True
+                    })
+                except:
+                    pass
+        finally:
+            session.close()
+        
+        prompt = f"""请分析以下研报对股票的影响：
+
+研报标题：{title}
+股票名称：{stock_name}
+股票代码：{stock_code}
+机构评级：{rating or '无'}
+评级变化：{rating_change or '无'}
+EPS预测：今年{predict_this_year_eps or '--'}，明年{predict_next_year_eps or '--'}，后年{predict_next_two_year_eps or '--'}
+PE预测：今年{predict_this_year_pe or '--'}，明年{predict_next_year_pe or '--'}，后年{predict_next_two_year_pe or '--'}
+
+请从以下几个方面进行分析：
+1. 研报核心观点
+2. 对股价的潜在影响（利好/利空/中性）
+3. 投资建议
+4. 风险提示
+
+请用简洁的中文回答。"""
+        
+        analyzer = LimitUpReasonAnalyzer()
+        
+        analysis_result = analyzer.analyze_news_impact(prompt)
+        
+        session = get_db_session()
+        try:
+            today = datetime.now().date()
+            
+            existing_result = session.query(AIAnalysisResult).filter(
+                AIAnalysisResult.stock_code == f"REPORT_{info_code}"
+            ).first()
+            
+            if existing_result:
+                existing_result.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
+                existing_result.updated_at = datetime.now()
+            else:
+                new_result = AIAnalysisResult(
+                    stock_code=f"REPORT_{info_code}",
+                    stock_name=stock_name,
+                    trade_date=today,
+                    analysis_result=json.dumps(analysis_result, ensure_ascii=False)
+                )
+                session.add(new_result)
+            
+            session.commit()
+        finally:
+            session.close()
+        
+        return jsonify({
+            'success': True,
+            'data': analysis_result,
+            'cached': False
+        })
+        
+    except Exception as e:
+        print(f"AI分析研报失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
     """用户登出"""
@@ -2653,6 +2803,16 @@ def sync_cls_news():
 if __name__ == '__main__':
     print("初始化数据库...")
     init_database()
+    
+    try:
+        session = get_db_session()
+        session.execute("ALTER TABLE ai_analysis_results ALTER COLUMN stock_code TYPE VARCHAR(50)")
+        session.commit()
+        print("已更新 ai_analysis_results.stock_code 字段长度为 50")
+    except Exception as e:
+        print(f"更新字段长度时出错（可能已是正确长度）: {e}")
+    finally:
+        session.close()
     
     print("\n" + "="*50)
     print("初始化同花顺会话（后台线程）...")

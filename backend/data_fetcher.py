@@ -401,3 +401,42 @@ class DataFetcher:
             'limit_up_type': self.get_limit_up_type(date_str),
             'block_top': self.get_block_top(date_str),
         }
+    
+    def get_reports(self, page: int = 1, page_size: int = 50, stock_code: str = '') -> Optional[Dict]:
+        """
+        获取研报列表（东财研报API）
+        """
+        try:
+            REPORT_API = "https://reportapi.eastmoney.com/report/list"
+            
+            params = {
+                "industryCode": "*",
+                "pageSize": str(page_size),
+                "industry": "*",
+                "rating": "*",
+                "ratingChange": "*",
+                "beginTime": "2000-01-01",
+                "endTime": "2030-01-01",
+                "pageNo": str(page),
+                "fields": "",
+                "qType": "0",
+                "orgCode": "",
+                "code": stock_code,
+                "rcode": "",
+                "p": str(page),
+                "pageNum": str(page),
+                "pageNumber": str(page),
+            }
+            
+            r = self.session.get(REPORT_API, params=params, timeout=30)
+            d = r.json()
+            
+            return {
+                'list': d.get('data', []),
+                'total': d.get('TotalPage', 0),
+                'page': page
+            }
+            
+        except Exception as e:
+            print(f"✗ 获取研报列表失败: {e}")
+            return None
