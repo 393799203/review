@@ -313,6 +313,18 @@ const ReportPage = () => {
       ellipsis: true
     },
     {
+      title: '行业',
+      dataIndex: 'indvInduName',
+      key: 'indvInduName',
+      width: isMobile ? 80 : 100,
+      ellipsis: true,
+      render: (industry) => industry ? (
+        <Tag color="cyan" style={{ margin: 0 }}>
+          {industry}
+        </Tag>
+      ) : '--'
+    },
+    {
       title: (
         <span>
           评级 <Tooltip title={
@@ -400,6 +412,11 @@ const ReportPage = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#999' }}>{report.publishDate ? report.publishDate.substring(0, 10) : '--'}</span>
               <Tag color="blue" style={{ margin: 0 }}>{report.orgSName || '--'}</Tag>
+              {report.indvInduName && (
+                <Tag color="cyan" style={{ margin: 0 }}>
+                  {report.indvInduName}
+                </Tag>
+              )}
               <Tag color={getRatingColor(report.emRatingName)} style={{ margin: 0 }}>
                 {report.emRatingName || '--'}
               </Tag>
