@@ -1730,12 +1730,26 @@ def get_stock_intraday(stock_code):
         intraday_data = data_fetcher.get_stock_intraday(stock_code_clean)
         quote_data = data_fetcher.get_realtime_quote(stock_code_clean)
         
+        is_in_watchlist = False
+        user_id = request.headers.get('X-User-Uid')
+        if user_id:
+            session = get_db_session()
+            try:
+                existing = session.query(WatchlistStock).filter(
+                    WatchlistStock.user_id == user_id,
+                    WatchlistStock.stock_code.like(f'{stock_code_clean}%')
+                ).first()
+                is_in_watchlist = existing is not None
+            finally:
+                session.close()
+        
         if intraday_data:
             return jsonify({
                 'success': True,
                 'data': {
                     **intraday_data,
-                    'quote': quote_data
+                    'quote': quote_data,
+                    'is_in_watchlist': is_in_watchlist
                 }
             })
         else:
