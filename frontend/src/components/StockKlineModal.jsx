@@ -123,7 +123,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     });
     const fullChangePercent = fullTimes.map(time => {
       const index = intradayTimes.findIndex(t => t.substring(0, 5) === time);
-      return index >= 0 ? intradayChangePercent[index] : 0;
+      return index >= 0 ? intradayChangePercent[index] : null;
     });
 
     const getLimitByStockCode = (code) => {
@@ -137,11 +137,9 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     
     const limitPercent = getLimitByStockCode(stockCode);
     
-    const priceMax = Math.max(...fullPrices.filter(p => p !== null));
-    const priceMin = Math.min(...fullPrices.filter(p => p !== null));
-    
-    const maxChangePercent = Math.max(...fullChangePercent.filter(p => p !== null));
-    const minChangePercent = Math.min(...fullChangePercent.filter(p => p !== null));
+    const validChangePercents = fullChangePercent.filter(p => p !== null);
+    const maxChangePercent = Math.max(...validChangePercents);
+    const minChangePercent = Math.min(...validChangePercents);
     
     let yAxisMin, yAxisMax;
     
@@ -171,7 +169,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           const changePercent = fullChangePercent[params[0].dataIndex];
           const volume = fullVolumes[params[0].dataIndex];
           
-          if (price === null) {
+          if (price === null || changePercent === null) {
             return `<div style="font-weight: bold;">${time}</div><div style="color: #999;">无交易数据</div>`;
           }
           
