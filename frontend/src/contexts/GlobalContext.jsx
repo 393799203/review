@@ -1,10 +1,27 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { message } from 'antd';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
 import { useAuth } from './AuthContext';
 
 const GlobalContext = createContext(null);
+
+const getBrowserInfo = () => {
+  const ua = navigator.userAgent;
+  let browserName = 'unknown';
+  
+  if (ua.indexOf('Chrome') > -1 && ua.indexOf('Edg') === -1) {
+    browserName = 'chrome';
+  } else if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
+    browserName = 'safari';
+  } else if (ua.indexOf('Firefox') > -1) {
+    browserName = 'firefox';
+  } else if (ua.indexOf('Edg') > -1) {
+    browserName = 'edge';
+  }
+  
+  return browserName;
+};
 
 export const useGlobal = () => {
   const context = useContext(GlobalContext);
@@ -18,7 +35,19 @@ const DEFAULT_SETTINGS = {
   ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true, showFirstBoard: true },
   watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
   statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-  news: { autoRefresh: false, refreshInterval: 300, smartMode: true, showAllNews: false },
+  news: { 
+    autoRefresh: false, 
+    refreshInterval: 300, 
+    smartMode: true, 
+    showAllNews: false,
+    speechEnabled: true,
+    speechSettings: {
+      voices: {},
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0
+    }
+  },
   reports: { autoRefresh: false, refreshInterval: 3600, smartMode: false },
 };
 
@@ -47,6 +76,102 @@ export const GlobalProvider = ({ children }) => {
   const [showAllNews, setShowAllNewsState] = useState(
     userSettings?.news?.showAllNews ?? false
   );
+
+  const [speechEnabled, setSpeechEnabledState] = useState(
+    userSettings?.news?.speechEnabled ?? true
+  );
+
+  const [speechSettings, setSpeechSettingsState] = useState(() => {
+    const savedSettings = userSettings?.news?.speechSettings;
+    
+    if (!savedSettings) {
+      return {
+        voices: {},
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0
+      };
+    }
+    
+    if (savedSettings.voice && !savedSettings.voices) {
+      const browserName = getBrowserInfo();
+      return {
+        voices: {
+          [browserName]: savedSettings.voice
+        },
+        rate: savedSettings.rate || 1.0,
+        pitch: savedSettings.pitch || 1.0,
+        volume: savedSettings.volume || 1.0
+      };
+    }
+    
+    return {
+      voices: savedSettings.voices || {},
+      rate: savedSettings.rate || 1.0,
+      pitch: savedSettings.pitch || 1.0,
+      volume: savedSettings.volume || 1.0
+    };
+  });
+
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [speechSupported, setSpeechSupported] = useState(false);
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    let isMounted = true;
+    let checkCount = 0;
+    const maxChecks = 10;
+
+    const checkVoices = () => {
+      if (!isMounted) return;
+
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        checkCount++;
+
+        if (voices && voices.length > 0) {
+          const chineseVoices = voices.filter(voice => voice.lang.includes('zh'));
+          if (isMounted) {
+            setAvailableVoices(chineseVoices.length > 0 ? chineseVoices : voices);
+            setSpeechSupported(true);
+          }
+          return true;
+        } else if (checkCount < maxChecks) {
+          setTimeout(checkVoices, 500);
+        } else {
+          if (isMounted) {
+            setSpeechSupported(false);
+          }
+        }
+      } catch (error) {
+        console.error('检查语音包出错:', error);
+        if (isMounted) {
+          setSpeechSupported(false);
+        }
+      }
+
+      return false;
+    };
+
+    checkVoices();
+
+    const handleVoicesChanged = () => {
+      checkVoices();
+    };
+
+    window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+
+    return () => {
+      isMounted = false;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (userSettings && userSettings[currentPage]) {
@@ -154,6 +279,65 @@ export const GlobalProvider = ({ children }) => {
     };
     updateSettings(newSettings);
   };
+
+  const setSpeechEnabled = (value) => {
+    setSpeechEnabledState(value);
+    const newSettings = {
+      ...userSettings,
+      news: {
+        ...(userSettings?.news || DEFAULT_SETTINGS.news),
+        speechEnabled: value,
+      },
+    };
+    updateSettings(newSettings);
+  };
+
+  const setSpeechSettings = (value) => {
+    setSpeechSettingsState(value);
+    const newSettings = {
+      ...userSettings,
+      news: {
+        ...(userSettings?.news || DEFAULT_SETTINGS.news),
+        speechSettings: value,
+      },
+    };
+    updateSettings(newSettings);
+  };
+
+  const testSpeech = useCallback(() => {
+    if (!('speechSynthesis' in window)) {
+      message.warning('您的浏览器不支持语音播报功能');
+      return;
+    }
+
+    const testText = '这是一条测试消息，用于试听语音效果。';
+    const utterance = new SpeechSynthesisUtterance(testText);
+    
+    const currentBrowser = getBrowserInfo();
+    let selectedVoice = null;
+    
+    if (speechSettings.voices && speechSettings.voices[currentBrowser]) {
+      selectedVoice = availableVoices.find(v => v.name === speechSettings.voices[currentBrowser]);
+    }
+    
+    if (!selectedVoice) {
+      selectedVoice = availableVoices.find(voice => voice.lang.includes('zh'));
+    }
+    
+    if (!selectedVoice && availableVoices.length > 0) {
+      selectedVoice = availableVoices[0];
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+    
+    utterance.rate = speechSettings.rate;
+    utterance.pitch = speechSettings.pitch;
+    utterance.volume = speechSettings.volume;
+    
+    window.speechSynthesis.speak(utterance);
+  }, [speechSettings, availableVoices]);
 
   const loadTradingDays = async (dateStr) => {
     try {
@@ -345,6 +529,14 @@ export const GlobalProvider = ({ children }) => {
     setShowFirstBoard,
     showAllNews,
     setShowAllNews,
+    speechEnabled,
+    setSpeechEnabled,
+    speechSettings,
+    setSpeechSettings,
+    availableVoices,
+    speechSupported,
+    testSpeech,
+    getBrowserInfo,
     settings: userSettings,
     updateSettings,
     loadPageSettings,

@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { refreshNewsData } from '../pages/NewsPage';
 import { refreshReportsData } from '../pages/ReportPage';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import SpeechSettings from '../components/SpeechSettings';
 import dayjs from 'dayjs';
 
 const { Sider, Content, Header } = Layout;
@@ -230,13 +231,16 @@ const MainLayout = ({ children }) => {
             </>
           )}
           {isNewsPage && (
-            <Switch
-              checked={showAllNews}
-              onChange={setShowAllNews}
-              size="small"
-              checkedChildren="全"
-              unCheckedChildren="红"
-            />
+            <>
+              <SpeechSettings isMobile />
+              <Switch
+                checked={showAllNews}
+                onChange={setShowAllNews}
+                size="small"
+                checkedChildren="全"
+                unCheckedChildren="红"
+              />
+            </>
           )}
           <Button
             type="primary"
@@ -287,6 +291,7 @@ const MainLayout = ({ children }) => {
 
         {isNewsPage && (
           <>
+            <SpeechSettings />
             <span>显示全部:</span>
             <Switch checked={showAllNews} onChange={setShowAllNews} />
           </>
