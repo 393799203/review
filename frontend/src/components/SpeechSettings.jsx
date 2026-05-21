@@ -99,19 +99,21 @@ const SpeechSettings = ({ isMobile = false }) => {
           onChange={setSpeechEnabled}
           size="small"
         />
-        <Popover
-          content={settingsContent}
-          title={null}
-          trigger="click"
-          placement="bottomRight"
-        >
-          <Button
-            type="text"
-            icon={<SettingOutlined />}
-            size="small"
-            style={{ color: '#1890ff', padding: '0 4px' }}
-          />
-        </Popover>
+        {speechEnabled && (
+          <Popover
+            content={settingsContent}
+            title={null}
+            trigger="click"
+            placement="bottomRight"
+          >
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              size="small"
+              style={{ color: '#1890ff', padding: '0 4px' }}
+            />
+          </Popover>
+        )}
       </div>
     );
   }
@@ -124,19 +126,21 @@ const SpeechSettings = ({ isMobile = false }) => {
         onChange={setSpeechEnabled}
         size="small"
       />
-      <Popover
-        content={settingsContent}
-        title={null}
-        trigger="click"
-        placement="bottomRight"
-      >
-        <Button
-          type="text"
-          icon={<SettingOutlined />}
-          size="small"
-          style={{ color: '#1890ff' }}
-        />
-      </Popover>
+      {speechEnabled && (
+        <Popover
+          content={settingsContent}
+          title={null}
+          trigger="click"
+          placement="bottomRight"
+        >
+          <Button
+            type="text"
+            icon={<SettingOutlined />}
+            size="small"
+            style={{ color: '#1890ff' }}
+          />
+        </Popover>
+      )}
     </div>
   );
 };
