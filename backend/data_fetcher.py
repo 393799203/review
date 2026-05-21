@@ -293,15 +293,18 @@ class DataFetcher:
                             desc_parts = []
                             
                             if pd.notna(row.get('songzhuangu')) and row['songzhuangu'] > 0:
-                                desc_parts.append(f"10转{row['songzhuangu']:.2f}")
+                                desc_parts.append(f"转{row['songzhuangu']:.2f}")
                             
                             if pd.notna(row.get('fenhong')) and row['fenhong'] > 0:
                                 desc_parts.append(f"派{row['fenhong']:.2f}")
                             
                             if pd.notna(row.get('peigu')) and row['peigu'] > 0:
-                                desc_parts.append(f"10配{row['peigu']:.2f}")
+                                desc_parts.append(f"配{row['peigu']:.2f}")
                             
-                            xdxr_data[date_str] = ''.join(desc_parts) if desc_parts else '除权'
+                            if desc_parts:
+                                xdxr_data[date_str] = '10' + ''.join(desc_parts)
+                            else:
+                                xdxr_data[date_str] = '除权'
             except Exception as e:
                 print(f"获取除权除息数据失败: {e}")
             
