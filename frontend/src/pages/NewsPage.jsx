@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Button, Collapse, Badge, Tooltip, Empty, Switch, Slider, Select, Popover, Input } from 'antd';
-import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, SettingOutlined, PlayCircleOutlined, UpOutlined, SearchOutlined } from '@ant-design/icons';
+import { Card, Tag, Spin, message, Button, Collapse, Empty, Input } from 'antd';
+import { RobotOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, UpOutlined, SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useGlobal } from '../contexts/GlobalContext';
-import { useAuth } from '../contexts/AuthContext';
 import StockKlineModal from '../components/StockKlineModal';
 
-const { Panel } = Collapse;
 const { Search } = Input;
 
 let loadNewsRef = null;
@@ -18,8 +16,15 @@ export const refreshNewsData = (force = true) => {
 };
 
 const NewsPage = () => {
-  const { showAllNews, settings, updateSettings } = useGlobal();
-  const { user } = useAuth();
+  const { 
+    showAllNews, 
+    speechEnabled,
+    speechSettings,
+    setSpeechSettings,
+    availableVoices,
+    speechSupported,
+    getBrowserInfo
+  } = useGlobal();
   const [newsList, setNewsList] = useState([]);
   const [analyzingIds, setAnalyzingIds] = useState(new Set());
   const [analysisCache, setAnalysisCache] = useState({});
@@ -36,7 +41,6 @@ const NewsPage = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showBackTop, setShowBackTop] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [speechSupported, setSpeechSupported] = useState(false);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -44,65 +48,7 @@ const NewsPage = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
-
-  const getBrowserInfo = () => {
-    const ua = navigator.userAgent;
-    let browserName = 'unknown';
-    
-    if (ua.indexOf('Chrome') > -1 && ua.indexOf('Edg') === -1) {
-      browserName = 'chrome';
-    } else if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
-      browserName = 'safari';
-    } else if (ua.indexOf('Firefox') > -1) {
-      browserName = 'firefox';
-    } else if (ua.indexOf('Edg') > -1) {
-      browserName = 'edge';
-    }
-    
-    return browserName;
-  };
   
-  // 从用户设置中获取语音设置
-  const [speechEnabled, setSpeechEnabled] = useState(() => {
-    return settings?.news?.speechEnabled ?? true;
-  });
-  
-  const [speechSettings, setSpeechSettings] = useState(() => {
-    const savedSettings = settings?.news?.speechSettings;
-    
-    if (!savedSettings) {
-      return {
-        voices: {},
-        rate: 1.0,
-        pitch: 1.0,
-        volume: 1.0
-      };
-    }
-    
-    if (savedSettings.voice && !savedSettings.voices) {
-      console.log('检测到旧的语音设置格式，正在迁移...');
-      const browserName = getBrowserInfo();
-      const migratedSettings = {
-        voices: {
-          [browserName]: savedSettings.voice
-        },
-        rate: savedSettings.rate || 1.0,
-        pitch: savedSettings.pitch || 1.0,
-        volume: savedSettings.volume || 1.0
-      };
-      console.log('语音设置迁移完成:', migratedSettings);
-      return migratedSettings;
-    }
-    
-    return {
-      voices: savedSettings.voices || {},
-      rate: savedSettings.rate || 1.0,
-      pitch: savedSettings.pitch || 1.0,
-      volume: savedSettings.volume || 1.0
-    };
-  });
-  
-  const [availableVoices, setAvailableVoices] = useState([]);
   const countdownRef = useRef(null);
   const speechRef = useRef(null);
   const lastSpeakTimeRef = useRef(0);
@@ -113,77 +59,6 @@ const NewsPage = () => {
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
-
-  // 预加载语音并检测支持情况
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) {
-      // 不支持Web Speech API
-      setSpeechSupported(false);
-      console.log('浏览器不支持Web Speech API');
-      return;
-    }
-
-    let isMounted = true;
-    let checkCount = 0;
-    const maxChecks = 10; // 最多检查10次
-
-    const checkVoices = () => {
-      if (!isMounted) return;
-
-      try {
-        const voices = window.speechSynthesis.getVoices();
-        checkCount++;
-
-        console.log(`检查语音包 (第${checkCount}次):`, voices ? voices.length : 0);
-
-        if (voices && voices.length > 0) {
-          // 有可用的语音包
-          const chineseVoices = voices.filter(voice => voice.lang.includes('zh'));
-          if (isMounted) {
-            setAvailableVoices(chineseVoices.length > 0 ? chineseVoices : voices);
-            setSpeechSupported(true);
-            console.log('✅ 检测到语音包支持，可用语音包数量:', voices.length);
-          }
-          return true;
-        } else if (checkCount < maxChecks) {
-          // 没有检测到语音包，但还有检查次数，延迟后继续检查
-          setTimeout(checkVoices, 500);
-        } else {
-          // 达到最大检查次数，仍然没有语音包
-          if (isMounted) {
-            setSpeechSupported(false);
-            console.log('❌ 未检测到可用的语音包');
-          }
-        }
-      } catch (error) {
-        console.error('检查语音包出错:', error);
-        if (isMounted) {
-          setSpeechSupported(false);
-        }
-      }
-
-      return false;
-    };
-
-    // 立即尝试加载
-    checkVoices();
-
-    // 监听语音包加载事件
-    const handleVoicesChanged = () => {
-      console.log('voiceschanged事件触发');
-      checkVoices();
-    };
-
-    window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
-
-    // 清理函数
-    return () => {
-      isMounted = false;
-      if (window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = null;
-      }
-    };
-  }, []);
 
   // 开始倒计时
   const startCountdown = (seconds = 5) => {
@@ -272,17 +147,7 @@ const NewsPage = () => {
         
         // 自动更新用户设置为这个语音包
         const newVoices = { ...speechSettings.voices, [currentBrowser]: selectedVoice.name };
-        setSpeechSettings(prev => ({ ...prev, voices: newVoices }));
-        updateSettings({
-          ...settings,
-          news: {
-            ...settings?.news,
-            speechSettings: {
-              ...speechSettings,
-              voices: newVoices
-            }
-          }
-        });
+        setSpeechSettings({ ...speechSettings, voices: newVoices });
       }
       
       // 如果还没有选中，尝试智能匹配中文语音包（备用方案）
@@ -363,36 +228,6 @@ const NewsPage = () => {
   };
 
   // 试听语音
-  const testSpeech = () => {
-    const testText = '这是一条测试消息，用于试听语音效果。';
-    const utterance = new SpeechSynthesisUtterance(testText);
-    
-    const currentBrowser = getBrowserInfo();
-    let selectedVoice = null;
-    
-    if (speechSettings.voices && speechSettings.voices[currentBrowser]) {
-      selectedVoice = availableVoices.find(v => v.name === speechSettings.voices[currentBrowser]);
-    }
-    
-    if (!selectedVoice) {
-      selectedVoice = availableVoices.find(voice => voice.lang.includes('zh'));
-    }
-    
-    if (!selectedVoice && availableVoices.length > 0) {
-      selectedVoice = availableVoices[0];
-    }
-    
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-    }
-    
-    utterance.rate = speechSettings.rate;
-    utterance.pitch = speechSettings.pitch;
-    utterance.volume = speechSettings.volume;
-    
-    window.speechSynthesis.speak(utterance);
-  };
-
   // 停止朗读
   const stopSpeaking = () => {
     if (window.speechSynthesis) {
@@ -448,34 +283,6 @@ const NewsPage = () => {
   useEffect(() => {
     loadNews(true);
   }, []);
-
-  // 预加载语音
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      const loadVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        const chineseVoices = voices.filter(voice => voice.lang.includes('zh'));
-        setAvailableVoices(chineseVoices.length > 0 ? chineseVoices : voices);
-      };
-      
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-  }, []);
-
-  // 保存设置到用户设置
-  useEffect(() => {
-    if (user) {
-      updateSettings({
-        ...settings,
-        news: {
-          ...settings?.news,
-          speechEnabled,
-          speechSettings
-        }
-      });
-    }
-  }, [speechEnabled, speechSettings]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1069,97 +876,6 @@ const NewsPage = () => {
             }
             value={searchKeyword}
           />
-          {speechSupported && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, color: '#666' }}>语音播报</span>
-              <Switch
-                checked={speechEnabled}
-                onChange={setSpeechEnabled}
-                size="small"
-              />
-              <Popover
-                content={
-                  <div style={{ width: 300 }}>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ marginBottom: 8, fontWeight: 'bold' }}>语音设置</div>
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语音包</div>
-                        <Select
-                          style={{ width: '100%' }}
-                          value={speechSettings.voices?.[getBrowserInfo()] || undefined}
-                          onChange={(value) => {
-                            const currentBrowser = getBrowserInfo();
-                            setSpeechSettings({ 
-                              ...speechSettings, 
-                              voices: {
-                                ...speechSettings.voices,
-                                [currentBrowser]: value
-                              }
-                            });
-                          }}
-                          placeholder="选择语音包"
-                        >
-                          {availableVoices.map(voice => (
-                            <Select.Option key={voice.name} value={voice.name}>
-                              {voice.name} ({voice.lang})
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </div>
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>语速: {speechSettings.rate.toFixed(1)}</div>
-                        <Slider
-                          min={0.5}
-                          max={2}
-                          step={0.1}
-                          value={speechSettings.rate}
-                          onChange={(value) => setSpeechSettings({ ...speechSettings, rate: value })}
-                        />
-                      </div>
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音调: {speechSettings.pitch.toFixed(1)}</div>
-                        <Slider
-                          min={0.5}
-                          max={2}
-                          step={0.1}
-                          value={speechSettings.pitch}
-                          onChange={(value) => setSpeechSettings({ ...speechSettings, pitch: value })}
-                        />
-                      </div>
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>音量: {speechSettings.volume.toFixed(1)}</div>
-                        <Slider
-                          min={0}
-                          max={1}
-                          step={0.1}
-                          value={speechSettings.volume}
-                          onChange={(value) => setSpeechSettings({ ...speechSettings, volume: value })}
-                        />
-                      </div>
-                      <Button
-                        type="primary"
-                        size="small"
-                        icon={<PlayCircleOutlined />}
-                        onClick={testSpeech}
-                        block
-                      >
-                        试听效果
-                      </Button>
-                    </div>
-                  </div>
-                }
-                title={null}
-                trigger="click"
-              >
-                <Button
-                  type="text"
-                  icon={<SettingOutlined />}
-                  size="small"
-                  style={{ color: '#1890ff' }}
-                />
-              </Popover>
-            </div>
-          )}
         </div>
       </div>
 
