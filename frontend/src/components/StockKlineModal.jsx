@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, Spin, message, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
@@ -128,7 +128,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     }
   };
 
-  const getIntradayOption = () => {
+  const getIntradayOption = useMemo(() => {
     if (!intradayData || intradayData.length === 0) {
       return {};
     }
@@ -408,9 +408,9 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         }
       ]
     };
-  };
+  }, [intradayData, yesterdayClose, isMobile]);
 
-  const getKlineOption = () => {
+  const getKlineOption = useMemo(() => {
     if (!klineData || klineData.length === 0) {
       return {};
     }
@@ -447,13 +447,14 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           name: '除权除息',
           coord: [index, item.high],
           value: item.ex_dividend_desc || '除权',
+          symbolSize: 10,
           itemStyle: {
-            color: '#faad14'
+            color: '#722ed1'
           },
           label: {
             show: true,
             position: 'top',
-            color: '#faad14',
+            color: '#722ed1',
             fontSize: 10,
             formatter: item.ex_dividend_desc || '除权'
           }
@@ -486,7 +487,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             const changeColor = (data.change_percent || 0) >= 0 ? '#f5222d' : '#52c41a';
             const dateStr = data.date.replace(/-/g, '').substring(0, 8);
             const exDividendBadge = data.is_ex_dividend ? 
-              `<span style="background: #faad14; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 5px;">${data.ex_dividend_desc || '除权'}</span>` : '';
+              `<span style="background: #722ed1; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 5px;">${data.ex_dividend_desc || '除权'}</span>` : '';
             
             return `
               <div style="font-weight: bold; margin-bottom: 5px;">${dateStr}${exDividendBadge}</div>
@@ -648,7 +649,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         }
       ]
     };
-  };
+  }, [klineData, isMobile]);
 
   const renderQuotePanel = () => {
     if (!quoteData) return null;
@@ -932,7 +933,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
               <Spin spinning={intradayLoading}>
                 {intradayData && intradayData.length > 0 ? (
                   <ReactECharts
-                    option={getIntradayOption()}
+                    option={getIntradayOption}
                     style={{ height: isMobile ? '280px' : '320px', width: '100%' }}
                     notMerge={true}
                     lazyUpdate={true}
@@ -971,7 +972,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
           <Spin spinning={klineLoading}>
             {klineData && klineData.length > 0 ? (
               <ReactECharts
-                option={getKlineOption()}
+                option={getKlineOption}
                 style={{ height: isMobile ? '300px' : '350px', width: '100%' }}
                 notMerge={true}
                 lazyUpdate={true}
