@@ -12,6 +12,7 @@ import time
 import random
 import threading
 import re
+import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from mootdx.quotes import Quotes
@@ -282,6 +283,28 @@ class DataFetcher:
             
             df = df.tail(days)
             
+            xdxr_data = {}
+            try:
+                xdxr_df = client.xdxr(symbol=stock_code)
+                if xdxr_df is not None and not xdxr_df.empty:
+                    for _, row in xdxr_df.iterrows():
+                        if row['category'] == 1:
+                            date_str = f"{int(row['year'])}-{int(row['month']):02d}-{int(row['day']):02d}"
+                            desc_parts = []
+                            
+                            if pd.notna(row.get('songzhuangu')) and row['songzhuangu'] > 0:
+                                desc_parts.append(f"10转{row['songzhuangu']:.2f}")
+                            
+                            if pd.notna(row.get('fenhong')) and row['fenhong'] > 0:
+                                desc_parts.append(f"派{row['fenhong']:.2f}")
+                            
+                            if pd.notna(row.get('peigu')) and row['peigu'] > 0:
+                                desc_parts.append(f"10配{row['peigu']:.2f}")
+                            
+                            xdxr_data[date_str] = ''.join(desc_parts) if desc_parts else '除权'
+            except Exception as e:
+                print(f"获取除权除息数据失败: {e}")
+            
             liutongguben = 0
             try:
                 finance_data = client.finance(symbol=stock_code)
@@ -312,20 +335,18 @@ class DataFetcher:
                     else:
                         pre_close = prev_close if prev_close is not None else 0
                     
+                    date_str = str(row['date'])[:10] if 'date' in row else idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
+                    
                     is_ex_dividend = False
                     ex_dividend_ratio = None
                     ex_dividend_desc = None
                     
-                    if prev_close is not None and pre_close > 0:
-                        if abs(prev_close - pre_close) > 0.01:
-                            is_ex_dividend = True
-                            price_diff = prev_close - pre_close
-                            ratio = price_diff / prev_close
-                            ex_dividend_ratio = round(ratio * 100, 2)
-                            
-                            if price_diff > 0:
-                                cash_per_10 = round(price_diff * 10, 2)
-                                ex_dividend_desc = f"10派{cash_per_10}元"
+                    if date_str in xdxr_data:
+                        is_ex_dividend = True
+                        ex_dividend_desc = xdxr_data[date_str]
+                        
+                        if prev_close is not None and prev_close > 0:
+                            ex_dividend_ratio = round(abs(current_close - prev_close) / prev_close * 100, 2)
                     
                     change_percent = 0
                     change_amount = 0
@@ -337,8 +358,6 @@ class DataFetcher:
                     if liutongguben > 0 and row['vol']:
                         vol_shares = float(row['vol']) * 100
                         turnover = (vol_shares / liutongguben) * 100
-                    
-                    date_str = str(row['date'])[:10] if 'date' in row else idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
                     
                     kline_data.append({
                         'date': date_str,
