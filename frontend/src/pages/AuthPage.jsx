@@ -7,8 +7,9 @@ import { useAuth } from '../contexts/AuthContext';
 const AuthPage = () => {
   const [activeTab, setActiveTab] = useState('login');
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { login, register } = useAuth();
+  const { login, guestLogin, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,6 +26,17 @@ const AuthPage = () => {
     setLoading(true);
     const success = await login(values.username, values.password);
     setLoading(false);
+
+    if (success) {
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setGuestLoading(true);
+    const success = await guestLogin();
+    setGuestLoading(false);
 
     if (success) {
       const from = location.state?.from?.pathname || '/';
@@ -93,6 +105,23 @@ const AuthPage = () => {
           }}
         >
           登录
+        </Button>
+      </Form.Item>
+
+      <Form.Item>
+        <Button
+          type="default"
+          loading={guestLoading}
+          onClick={handleGuestLogin}
+          block
+          style={{
+            height: isMobile ? 44 : 50,
+            borderRadius: isMobile ? 8 : 12,
+            fontWeight: 'bold',
+            fontSize: isMobile ? 14 : 16
+          }}
+        >
+          访客登录
         </Button>
       </Form.Item>
     </Form>

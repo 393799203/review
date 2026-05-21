@@ -8,6 +8,7 @@ import WatchlistPage from '../pages/WatchlistPage';
 import StatisticsPage from '../pages/StatisticsPage';
 import NewsPage from '../pages/NewsPage';
 import ReportPage from '../pages/ReportPage';
+import UserDashboardPage from '../pages/UserDashboardPage';
 import AuthPage from '../pages/AuthPage';
 
 const ProtectedRoute = ({ children }) => {
@@ -20,6 +21,21 @@ const ProtectedRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { isAdmin, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -66,6 +82,14 @@ const AppRouter = () => {
                       <Route path="/statistics" element={<StatisticsPage />} />
                       <Route path="/news" element={<NewsPage />} />
                       <Route path="/reports" element={<ReportPage />} />
+                      <Route 
+                        path="/user" 
+                        element={
+                          <AdminRoute>
+                            <UserDashboardPage />
+                          </AdminRoute>
+                        } 
+                      />
                     </Routes>
                   </MainLayout>
                 </GlobalProvider>

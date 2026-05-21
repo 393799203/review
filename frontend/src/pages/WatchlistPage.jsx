@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip, AutoComplete, Input } from 'antd';
-import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined, HeartOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
 import WatchlistAnalysisModal from '../components/WatchlistAnalysisModal';
@@ -22,6 +22,10 @@ const WatchlistPage = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [comfortModalVisible, setComfortModalVisible] = useState(false);
+  const [comfortStock, setComfortStock] = useState(null);
+  const [comfortLoading, setComfortLoading] = useState(false);
+  const [comfortResult, setComfortResult] = useState('');
 
   useEffect(() => {
     const checkMobile = () => {
@@ -204,6 +208,38 @@ const WatchlistPage = () => {
     }
   };
 
+  const handleComfort = async (stock) => {
+    setComfortStock(stock);
+    setComfortModalVisible(true);
+    setComfortLoading(true);
+    setComfortResult('');
+    
+    try {
+      const response = await api.post('/stock/comfort', {
+        stock_code: stock.stock_code,
+        stock_name: stock.stock_name,
+        buy_price: stock.buy_price,
+        current_price: stock.current_price,
+        position_profit: stock.position_profit,
+        position_profit_ratio: stock.position_profit_ratio
+      }, {
+        timeout: 60000
+      });
+      
+      if (response.data.success) {
+        setComfortResult(response.data.data.analysis);
+      } else {
+        message.error(response.data.error || '安慰分析失败');
+        setComfortModalVisible(false);
+      }
+    } catch (error) {
+      message.error('安慰分析失败：' + (error.response?.data?.error || error.message));
+      setComfortModalVisible(false);
+    } finally {
+      setComfortLoading(false);
+    }
+  };
+
   const renderMobileContent = () => {
     if (watchlist.length === 0 && !loading) {
       return (
@@ -347,15 +383,26 @@ const WatchlistPage = () => {
                     买
                   </Button>
                   {isHolding && (
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<DollarOutlined />}
-                      onClick={() => handleSell(record)}
-                      style={{ fontSize: 10, padding: '0 8px', height: 22 }}
-                    >
-                      卖
-                    </Button>
+                    <>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<HeartOutlined />}
+                        onClick={() => handleComfort(record)}
+                        style={{ fontSize: 10, padding: '0 8px', height: 22, background: '#eb2f96', borderColor: '#eb2f96' }}
+                      >
+                        安慰
+                      </Button>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<DollarOutlined />}
+                        onClick={() => handleSell(record)}
+                        style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                      >
+                        卖
+                      </Button>
+                    </>
                   )}
                   {!isHolding && (
                     <Popconfirm
@@ -547,18 +594,29 @@ const WatchlistPage = () => {
       {
         title: '操作',
         key: 'action',
-        width: 150,
+        width: 220,
         render: (_, record) => (
           <div style={{ display: 'flex', gap: 4 }}>
             {record.position_status === '持仓' ? (
-              <Button
-                type="primary"
-                size="small"
-                icon={<DollarOutlined />}
-                onClick={() => handleSell(record)}
-              >
-                卖出
-              </Button>
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<HeartOutlined />}
+                  onClick={() => handleComfort(record)}
+                  style={{ background: '#eb2f96', borderColor: '#eb2f96' }}
+                >
+                  安慰
+                </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<DollarOutlined />}
+                  onClick={() => handleSell(record)}
+                >
+                  卖出
+                </Button>
+              </>
             ) : (
               <>
                 <Button
@@ -798,6 +856,86 @@ const WatchlistPage = () => {
           setKlineStock(null);
         }}
       />
+
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HeartOutlined style={{ color: '#eb2f96' }} />
+            <span>AI安慰分析</span>
+          </div>
+        }
+        open={comfortModalVisible}
+        onCancel={() => {
+          setComfortModalVisible(false);
+          setComfortResult('');
+        }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setComfortModalVisible(false);
+            setComfortResult('');
+          }}>
+            关闭
+          </Button>
+        ]}
+        width={700}
+      >
+        {comfortLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16, color: '#8c8c8c' }}>AI正在为您分析并准备安慰...</div>
+          </div>
+        ) : (
+          <div>
+            {comfortResult && typeof comfortResult === 'object' && (
+              <>
+                {comfortResult.emotion_comfort && (
+                  <Card size="small" style={{ marginBottom: 12, borderLeft: '3px solid #eb2f96' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 8, color: '#eb2f96' }}>💗 情感安慰</div>
+                    <div style={{ lineHeight: 1.6 }}>{comfortResult.emotion_comfort}</div>
+                  </Card>
+                )}
+                
+                {comfortResult.rational_analysis && (
+                  <Card size="small" style={{ marginBottom: 12, borderLeft: '3px solid #1890ff' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 8, color: '#1890ff' }}>📊 理性分析</div>
+                    <div style={{ lineHeight: 1.6 }}>{comfortResult.rational_analysis}</div>
+                  </Card>
+                )}
+                
+                {comfortResult.operation_advice && (
+                  <Card size="small" style={{ marginBottom: 12, borderLeft: '3px solid #52c41a' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 8, color: '#52c41a' }}>💡 操作建议</div>
+                    <div style={{ lineHeight: 1.6 }}>{comfortResult.operation_advice}</div>
+                  </Card>
+                )}
+                
+                {comfortResult.risk_warning && (
+                  <Card size="small" style={{ marginBottom: 12, borderLeft: '3px solid #faad14' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 8, color: '#faad14' }}>⚠️ 风险提示</div>
+                    <div style={{ lineHeight: 1.6 }}>{comfortResult.risk_warning}</div>
+                  </Card>
+                )}
+                
+                {comfortResult.future_outlook && (
+                  <Card size="small" style={{ marginBottom: 12, borderLeft: '3px solid #722ed1' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 8, color: '#722ed1' }}>🔮 未来展望</div>
+                    <div style={{ lineHeight: 1.6 }}>{comfortResult.future_outlook}</div>
+                  </Card>
+                )}
+                
+                {comfortResult.overall_suggestion && (
+                  <Card size="small" style={{ marginBottom: 0, background: '#f6ffed', borderColor: '#b7eb8f' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 8, color: '#52c41a' }}>✨ 总体建议</div>
+                    <Tag color="green" style={{ fontSize: 14, padding: '4px 12px' }}>
+                      {comfortResult.overall_suggestion}
+                    </Tag>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

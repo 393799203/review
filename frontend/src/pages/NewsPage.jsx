@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Button, Collapse, Badge, Tooltip, Empty, Switch, Slider, Select, Popover } from 'antd';
-import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, SettingOutlined, PlayCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Tag, Spin, message, Button, Collapse, Badge, Tooltip, Empty, Switch, Slider, Select, Popover, Input } from 'antd';
+import { NotificationOutlined, RobotOutlined, ReloadOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, SettingOutlined, PlayCircleOutlined, UpOutlined, SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
 import StockKlineModal from '../components/StockKlineModal';
 
 const { Panel } = Collapse;
+const { Search } = Input;
 
 let loadNewsRef = null;
 
@@ -38,6 +39,11 @@ const NewsPage = () => {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false);
 
   const getBrowserInfo = () => {
     const ua = navigator.userAgent;
@@ -473,6 +479,9 @@ const NewsPage = () => {
 
   useEffect(() => {
     const handleScroll = () => {
+      // 如果在搜索模式，不触发加载更多
+      if (isSearchMode) return;
+      
       if (loadingMore || !hasMore || newsList.length === 0) return;
       
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
@@ -486,7 +495,48 @@ const NewsPage = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [loadingMore, hasMore, newsList]);
+  }, [loadingMore, hasMore, newsList, isSearchMode]);
+
+  const handleSearch = async (keyword) => {
+    if (!keyword || keyword.trim() === '') {
+      setSearchKeyword('');
+      setSearchResults([]);
+      setSearchHasMore(false);
+      setIsSearchMode(false);
+      return;
+    }
+    
+    setSearching(true);
+    setSearchKeyword(keyword);
+    setIsSearchMode(true);
+    
+    try {
+      const response = await axios.get('/api/news/cls-telegraph', {
+        params: { keyword: keyword.trim() }
+      });
+      
+      if (response.data.success) {
+        setSearchResults(response.data.data || []);
+        setSearchHasMore(response.data.has_more !== false);
+        if (response.data.data.length === 0) {
+          message.info('未找到相关资讯');
+        }
+      } else {
+        message.error('搜索失败：' + response.data.error);
+      }
+    } catch (error) {
+      message.error('搜索失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchKeyword('');
+    setSearchResults([]);
+    setSearchHasMore(false);
+    setIsSearchMode(false);
+  };
 
   const loadNews = async (force = false) => {
     if (refreshing) return;
@@ -640,6 +690,20 @@ const NewsPage = () => {
     }
   };
 
+  const highlightKeyword = (text, keyword) => {
+    if (!text || !keyword) return text;
+    
+    const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => {
+      if (part.toLowerCase() === keyword.toLowerCase()) {
+        return <span key={index} style={{ backgroundColor: '#ffe58f', padding: '0 2px' }}>{part}</span>;
+      }
+      return part;
+    });
+  };
+
   const renderNewsItem = (news) => {
     const analysis = analysisCache[news.id];
     const isAnalyzing = analyzingIds.has(news.id);
@@ -684,12 +748,12 @@ const NewsPage = () => {
             </div>
             {news.title && (
               <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: news.is_important ? 'bold' : 'normal', marginBottom: 6, color: news.is_important ? '#f5222d' : '#333' }}>
-                {news.title}
+                {isSearchMode && searchKeyword ? highlightKeyword(news.title, searchKeyword) : news.title}
               </div>
             )}
             {news.content && (
               <div style={{ fontSize: 13, color: '#666', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {news.content}
+                {isSearchMode && searchKeyword ? highlightKeyword(news.content, searchKeyword) : news.content}
               </div>
             )}
             {news.has_stocks && news.stock_list && news.stock_list.length > 0 && (
@@ -817,7 +881,7 @@ const NewsPage = () => {
     );
   };
 
-  const displayList = showAllNews ? newsList : newsList.filter(n => n.is_important);
+  const displayList = isSearchMode ? searchResults : (showAllNews ? newsList : newsList.filter(n => n.is_important));
   const importantCount = newsList.filter(n => n.is_important).length;
 
   return (
@@ -985,6 +1049,26 @@ const NewsPage = () => {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Input
+            placeholder="搜索资讯..."
+            allowClear
+            size="small"
+            style={{ width: isMobile ? 150 : 250 }}
+            onChange={(e) => {
+              setSearchKeyword(e.target.value);
+              if (!e.target.value) {
+                clearSearch();
+              }
+            }}
+            onPressEnter={() => handleSearch(searchKeyword)}
+            suffix={
+              <SearchOutlined 
+                style={{ color: '#bfbfbf', cursor: 'pointer' }} 
+                onClick={() => handleSearch(searchKeyword)}
+              />
+            }
+            value={searchKeyword}
+          />
           {speechSupported && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 14, color: '#666' }}>语音播报</span>
@@ -1092,9 +1176,15 @@ const NewsPage = () => {
             </div>
           )}
           
-          {!hasMore && displayList.length > 0 && (
+          {!loadingMore && !hasMore && displayList.length > 0 && !isSearchMode && (
             <div style={{ textAlign: 'center', padding: '20px 0', color: '#999' }}>
               已经到底了
+            </div>
+          )}
+          
+          {!loadingMore && !searchHasMore && isSearchMode && searchResults.length > 0 && (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: '#999' }}>
+              已加载全部搜索结果
             </div>
           )}
         </div>

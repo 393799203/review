@@ -12,6 +12,7 @@ import sys
 import os
 import threading
 import json
+import requests
 from mootdx.quotes import Quotes
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -2052,6 +2053,7 @@ def login():
             }), 401
         
         user.last_login = datetime.now()
+        user.login_count = (user.login_count or 0) + 1
         session.commit()
         
         token = secrets.token_hex(32)
@@ -2067,6 +2069,60 @@ def login():
                     'email': user.email,
                     'nickname': user.nickname,
                     'avatar': user.avatar
+                }
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/auth/guest', methods=['POST'])
+def guest_login():
+    """访客登录"""
+    import uuid as uuid_lib
+    import secrets
+    
+    session = get_db_session()
+    try:
+        guest_user = session.query(User).filter(User.username == 'guest').first()
+        
+        if not guest_user:
+            guest_user = User(
+                uid=str(uuid_lib.uuid4()),
+                username='guest',
+                email='guest@yunque.ai',
+                password_hash='',
+                nickname='访客用户',
+                role='guest'
+            )
+            session.add(guest_user)
+            session.commit()
+        
+        guest_user.last_login = datetime.now()
+        guest_user.login_count = (guest_user.login_count or 0) + 1
+        session.commit()
+        
+        token = secrets.token_hex(32)
+        
+        return jsonify({
+            'success': True,
+            'message': '访客登录成功',
+            'data': {
+                'token': token,
+                'user': {
+                    'uid': guest_user.uid,
+                    'username': guest_user.username,
+                    'email': guest_user.email,
+                    'nickname': guest_user.nickname,
+                    'avatar': guest_user.avatar,
+                    'role': 'guest'
                 }
             }
         })
@@ -2141,6 +2197,54 @@ def get_current_user():
             }
         })
 
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/admin/user-stats', methods=['GET'])
+def get_user_stats():
+    """获取用户统计信息（管理员接口）"""
+    session = get_db_session()
+    try:
+        uid = request.headers.get('X-User-Uid')
+        
+        user = session.query(User).filter(User.uid == uid).first()
+        
+        if not user or user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'error': '权限不足'
+            }), 403
+        
+        total_users = session.query(func.count(User.uid)).scalar()
+        
+        users = session.query(User).order_by(User.login_count.desc()).all()
+        
+        user_list = []
+        for u in users:
+            user_list.append({
+                'username': u.username,
+                'email': u.email,
+                'nickname': u.nickname,
+                'role': u.role,
+                'login_count': u.login_count or 0,
+                'last_login': u.last_login.strftime('%Y-%m-%d %H:%M:%S') if u.last_login else None,
+                'created_at': u.created_at.strftime('%Y-%m-%d %H:%M:%S') if u.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_users': total_users,
+                'users': user_list
+            }
+        })
+        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -2386,6 +2490,7 @@ def get_cls_telegraph():
         last_ctime: 最后一条新闻的时间，用于分页加载历史数据
         limit: 每次加载数量，默认50
         load_from_api: 是否从财联社API加载历史数据，默认false
+        keyword: 搜索关键词，用于搜索标题和内容
     
     返回:
     {
@@ -2400,10 +2505,53 @@ def get_cls_telegraph():
         last_ctime_str = request.args.get('last_ctime')
         limit = request.args.get('limit', 50, type=int)
         load_from_api = request.args.get('load_from_api', 'false').lower() == 'true'
+        keyword = request.args.get('keyword', '').strip()
         
         session = get_db_session()
         try:
             total_count = session.query(ClsNews).count()
+            
+            # 如果有搜索关键词，执行搜索
+            if keyword:
+                search_pattern = f"%{keyword}%"
+                query = session.query(ClsNews).filter(
+                    (ClsNews.title.ilike(search_pattern)) | 
+                    (ClsNews.content.ilike(search_pattern))
+                ).order_by(ClsNews.ctime.desc())
+                
+                db_news = query.limit(limit).all()
+                
+                news_list = []
+                for item in db_news:
+                    stock_list = []
+                    if item.stock_list:
+                        try:
+                            stock_list = json.loads(item.stock_list)
+                        except:
+                            pass
+                    
+                    news_list.append({
+                        'id': item.news_id,
+                        'title': item.title or '',
+                        'content': item.content or '',
+                        'ctime': item.ctime.strftime("%Y-%m-%d %H:%M:%S"),
+                        'level': 'C',
+                        'is_important': item.is_important == 1,
+                        'level_text': '加红' if item.is_important == 1 else '普通',
+                        'has_stocks': item.has_stocks == 1,
+                        'confirmed': item.confirmed == 1,
+                        'reading_num': item.reading_num or 0,
+                        'stock_list': stock_list
+                    })
+                
+                return jsonify({
+                    'success': True,
+                    'data': news_list,
+                    'from_cache': True,
+                    'has_more': False,
+                    'total': len(news_list),
+                    'keyword': keyword
+                })
             
             if not force and not load_from_api:
                 query = session.query(ClsNews).order_by(ClsNews.ctime.desc())
@@ -2977,6 +3125,131 @@ def analyze_stock():
         
     except Exception as e:
         print(f"AI分析股票失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/stock/comfort', methods=['POST'])
+def comfort_stock():
+    """
+    AI安慰分析持仓股票
+    
+    请求体:
+    {
+        "stock_code": "股票代码",
+        "stock_name": "股票名称",
+        "buy_price": 买入价格,
+        "current_price": 当前价格,
+        "position_profit": 持仓盈亏,
+        "position_profit_ratio": 持仓盈亏比例
+    }
+    """
+    try:
+        data = request.json
+        stock_code = data.get('stock_code', '')
+        stock_name = data.get('stock_name', '')
+        buy_price = data.get('buy_price', 0)
+        current_price = data.get('current_price', 0)
+        position_profit = data.get('position_profit', 0)
+        position_profit_ratio = data.get('position_profit_ratio', 0)
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'error': '缺少股票代码'
+            }), 400
+        
+        profit_status = ""
+        if position_profit_ratio > 0:
+            profit_status = f"盈利{position_profit:.2f}元（+{(position_profit_ratio * 100):.2f}%）"
+        elif position_profit_ratio < 0:
+            profit_status = f"亏损{abs(position_profit):.2f}元（{(position_profit_ratio * 100):.2f}%）"
+        else:
+            profit_status = "持平"
+        
+        prompt = f"""你是一位温暖专业的投资顾问,需要安慰和分析投资者的持仓。
+
+股票: {stock_name}({stock_code})
+买入价: {buy_price:.2f}元
+现价: {current_price:.2f}元
+持仓: {profit_status}
+
+请返回JSON格式分析:
+{{
+  "emotion_comfort": "情感安慰(温暖话语,50-80字)",
+  "rational_analysis": "理性分析(客观判断,50-80字)",
+  "operation_advice": "操作建议(具体可行,30-50字)",
+  "risk_warning": "风险提示(30-50字)",
+  "future_outlook": "未来展望(客观判断,30-50字)",
+  "overall_suggestion": "总体建议(持有/加仓/减仓/止损)"
+}}
+
+语气要温暖专业,避免过度乐观或悲观。只返回JSON,不要其他内容。"""
+        
+        api_key = "sk-rjknkdqxefbxebrbfawaokciapqzjejqzqfvlehyhohiknys"
+        api_url = "https://api.siliconflow.cn/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "deepseek-ai/DeepSeek-V4-Flash",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+        
+        response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+        
+        if response.status_code == 200:
+            result = response.json()
+            content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+            
+            if content:
+                try:
+                    analysis_data = json.loads(content)
+                    return jsonify({
+                        'success': True,
+                        'data': {
+                            'analysis': analysis_data
+                        }
+                    })
+                except json.JSONDecodeError:
+                    return jsonify({
+                        'success': True,
+                        'data': {
+                            'analysis': {
+                                'emotion_comfort': content,
+                                'rational_analysis': '',
+                                'operation_advice': '',
+                                'risk_warning': '',
+                                'future_outlook': '',
+                                'overall_suggestion': ''
+                            }
+                        }
+                    })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'AI返回内容为空'
+                }), 500
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'AI调用失败: {response.status_code}'
+            }), 500
+        
+    except Exception as e:
+        print(f"AI安慰分析失败: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

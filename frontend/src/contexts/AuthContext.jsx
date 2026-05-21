@@ -124,6 +124,37 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const guestLogin = async () => {
+    try {
+      const response = await stockApi.guestLogin();
+
+      if (response.data.success) {
+        const { token: newToken, user: userData } = response.data.data;
+
+        localStorage.setItem('token', newToken);
+        localStorage.setItem('user', JSON.stringify(userData));
+        setToken(newToken);
+        setUser(userData);
+
+        const currentUserData = await fetchCurrentUser();
+
+        if (currentUserData) {
+          message.success('访客登录成功');
+          return true;
+        } else {
+          message.error('访客登录成功但获取用户信息失败');
+          return false;
+        }
+      } else {
+        message.error(response.data.error || '访客登录失败');
+        return false;
+      }
+    } catch (error) {
+      message.error(error.response?.data?.error || '访客登录失败');
+      return false;
+    }
+  };
+
   const register = async (username, email, password, nickname) => {
     try {
       const response = await stockApi.register(username, email, password, nickname);
@@ -185,6 +216,7 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     login,
+    guestLogin,
     register,
     logout,
     fetchCurrentUser,
