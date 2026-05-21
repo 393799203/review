@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined } from '@ant-design/icons';
+import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider } from 'antd';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,7 +19,7 @@ const MainLayout = ({ children }) => {
   const [currentPage, setCurrentPage] = useState('ladder');
   const [refreshCallback, setRefreshCallback] = useState(null);
 
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, isAdmin } = useAuth();
 
   const {
     currentDate,
@@ -118,6 +118,20 @@ const MainLayout = ({ children }) => {
       label: '数据统计',
     },
   ];
+
+  const adminMenuItems = isAdmin ? [
+    {
+      type: 'divider',
+      key: 'admin-divider',
+    },
+    {
+      key: '/user',
+      icon: <TeamOutlined />,
+      label: '用户看板',
+    },
+  ] : [];
+
+  const allMenuItems = [...menuItems, ...adminMenuItems];
 
   const handleMenuClick = ({ key }) => {
     navigate(key);
@@ -305,7 +319,7 @@ const MainLayout = ({ children }) => {
     <Menu
       mode="inline"
       selectedKeys={[location.pathname]}
-      items={menuItems}
+      items={allMenuItems}
       onClick={handleMenuClick}
       style={{ borderRight: 0 }}
       theme="dark"
@@ -360,9 +374,10 @@ const MainLayout = ({ children }) => {
             justifyContent: 'space-around',
             alignItems: 'center',
             height: 56,
+            overflowX: 'auto',
           }}
         >
-          {menuItems.map(item => (
+          {allMenuItems.filter(item => item.type !== 'divider').map(item => (
             <div
               key={item.key}
               onClick={() => navigate(item.key)}
@@ -371,7 +386,8 @@ const MainLayout = ({ children }) => {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flex: 1,
+                flex: '0 0 auto',
+                minWidth: 60,
                 height: '100%',
                 cursor: 'pointer',
                 color: location.pathname === item.key ? '#1890ff' : '#666',

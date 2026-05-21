@@ -253,6 +253,7 @@ class User(Base):
     vip_expire_date = Column(Date)  # VIP到期日期
     settings = Column(Text)  # JSON格式的用户设置
     is_active = Column(Integer, default=1)
+    login_count = Column(Integer, default=0)  # 登录次数
     last_login = Column(DateTime)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

@@ -654,6 +654,13 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   const renderQuotePanel = () => {
     if (!quoteData) return null;
     
+    const getPriceColor = (price) => {
+      if (!price || !quoteData.prev_close) return '#333';
+      if (price > quoteData.prev_close) return '#f5222d';
+      if (price < quoteData.prev_close) return '#52c41a';
+      return '#333';
+    };
+    
     return (
       <div style={{ 
         padding: '0 10px', 
@@ -680,7 +687,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             fontSize: '13px'
           }}>
             <span style={{ color: '#999', width: '28px' }}>卖{i}</span>
-            <span style={{ color: '#52c41a', width: '55px', textAlign: 'right' }}>{quoteData[`ask${i}`]?.toFixed(2) || '--'}</span>
+            <span style={{ color: getPriceColor(quoteData[`ask${i}`]), width: '55px', textAlign: 'right' }}>{quoteData[`ask${i}`]?.toFixed(2) || '--'}</span>
             <span style={{ color: '#666', width: '55px', textAlign: 'right' }}>{quoteData[`ask_vol${i}`]?.toFixed(0) || '--'}</span>
           </div>
         ))}
@@ -700,7 +707,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
             fontSize: '13px'
           }}>
             <span style={{ color: '#999', width: '28px' }}>买{i}</span>
-            <span style={{ color: '#f5222d', width: '55px', textAlign: 'right' }}>{quoteData[`bid${i}`]?.toFixed(2) || '--'}</span>
+            <span style={{ color: getPriceColor(quoteData[`bid${i}`]), width: '55px', textAlign: 'right' }}>{quoteData[`bid${i}`]?.toFixed(2) || '--'}</span>
             <span style={{ color: '#666', width: '55px', textAlign: 'right' }}>{quoteData[`bid_vol${i}`]?.toFixed(0) || '--'}</span>
           </div>
         ))}

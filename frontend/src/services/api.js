@@ -86,6 +86,8 @@ export const stockApi = {
 
   login: (username, password) => api.post('/auth/login', { username, password }),
 
+  guestLogin: () => api.post('/auth/guest'),
+
   register: (username, email, password, nickname) => api.post('/auth/register', { username, email, password, nickname }),
 
   getCurrentUser: () => api.get('/auth/me'),
