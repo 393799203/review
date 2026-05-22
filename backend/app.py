@@ -1804,6 +1804,43 @@ def get_stock_intraday(stock_code):
         }), 500
 
 
+def get_stock_code_by_name(keyword):
+    """根据股票名称或代码获取股票代码"""
+    if not keyword:
+        return ''
+    
+    if keyword.isdigit() or (keyword[0].isdigit() and '.' in keyword):
+        return keyword
+    
+    try:
+        import requests as req_module
+        url = "https://searchapi.eastmoney.com/api/suggest/get"
+        params = {
+            "input": keyword,
+            "type": "14",
+            "token": "D43BF722C8E33BCE90EFB9D8653D9A5B",
+            "count": 1,
+            "cb": ""
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://quote.eastmoney.com/",
+        }
+        response = req_module.get(url, params=params, headers=headers, timeout=5)
+        if response.status_code == 200:
+            text = response.text.strip()
+            if text.startswith('(') and text.endswith(')'):
+                text = text[1:-1]
+            data = json.loads(text)
+            quotation_data = data.get('QuotationCodeTable', {})
+            if quotation_data.get('Data') and len(quotation_data['Data']) > 0:
+                return quotation_data['Data'][0].get('Code', '')
+    except Exception as e:
+        print(f"搜索股票代码失败: {e}")
+    
+    return keyword
+
+
 @app.route('/api/reports', methods=['GET'])
 def get_reports():
     """获取研报列表"""
@@ -1811,6 +1848,9 @@ def get_reports():
         page = request.args.get('page', 1, type=int)
         page_size = request.args.get('pageSize', 50, type=int)
         stock_code = request.args.get('code', '')
+        
+        if stock_code:
+            stock_code = get_stock_code_by_name(stock_code)
         
         result = data_fetcher.get_reports(page, page_size, stock_code)
         

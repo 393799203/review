@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Table, Tag, Spin, Input, Button, Empty, Tooltip, Modal } from 'antd';
-import { FileTextOutlined, RobotOutlined, ThunderboltOutlined, InfoCircleOutlined, UpOutlined } from '@ant-design/icons';
+import { FileTextOutlined, RobotOutlined, ThunderboltOutlined, InfoCircleOutlined, UpOutlined, SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import StockKlineModal from '../components/StockKlineModal';
 
@@ -31,7 +31,6 @@ const ReportPage = () => {
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
   const listEndRef = useRef(null);
-  const searchTimeoutRef = useRef(null);
   const [showBackTop, setShowBackTop] = useState(false);
 
   useEffect(() => {
@@ -139,17 +138,7 @@ const ReportPage = () => {
   };
 
   const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchCode(value);
-    
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    
-    searchTimeoutRef.current = setTimeout(() => {
-      const code = value ? value.trim() : '';
-      loadReports(1, code);
-    }, 500);
+    setSearchCode(e.target.value);
   };
 
   const handleReset = () => {
@@ -493,12 +482,19 @@ const ReportPage = () => {
           )}
         </div>
         <Input
-          placeholder="输入股票代码搜索"
+          placeholder="输入股票代码或名称搜索"
           value={searchCode}
           onChange={handleSearchChange}
           allowClear
           onClear={handleReset}
+          onPressEnter={() => handleSearch(searchCode)}
           style={{ width: isMobile ? 150 : 250 }}
+          suffix={
+            <SearchOutlined 
+              style={{ color: '#bfbfbf', cursor: 'pointer' }} 
+              onClick={() => handleSearch(searchCode)}
+            />
+          }
         />
       </div>
 
