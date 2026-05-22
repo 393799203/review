@@ -332,32 +332,40 @@ const WatchlistPage = () => {
                       {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
                     </Tag>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#595959' }}>
+                  <div style={{ display: 'flex', gap: 6, fontSize: 10, color: '#595959', alignItems: 'center' }}>
                     {isHolding ? (
                       <>
-                        <span>买入: <span style={{ fontWeight: 'bold', color: '#1890ff' }}>¥{record.buy_price ? record.buy_price.toFixed(2) : '-'}</span></span>
-                        <span>×{record.buy_quantity}股</span>
+                        <span>买: <span style={{ fontWeight: 'bold', color: '#1890ff' }}>¥{record.buy_price ? record.buy_price.toFixed(2) : '-'}</span></span>
+                        <span>×{record.buy_quantity}</span>
+                        <span>现: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
+                        {addPriceChange !== null && (
+                          <span style={{ fontWeight: 'bold', color: addPriceChangeColor }}>
+                            {addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(1)}%
+                          </span>
+                        )}
                       </>
                     ) : (
-                      <span>加入: <span style={{ fontWeight: 'bold', color: '#262626' }}>¥{record.add_price ? record.add_price.toFixed(2) : '-'}</span></span>
-                    )}
-                    <span>现价: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
-                    {addPriceChange !== null && (
-                      <span style={{ fontWeight: 'bold', color: addPriceChangeColor }}>
-                        ({addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(2)}%)
-                      </span>
+                      <>
+                        <span>加: <span style={{ fontWeight: 'bold', color: '#262626' }}>¥{record.add_price ? record.add_price.toFixed(2) : '-'}</span></span>
+                        <span>现: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
+                        {addPriceChange !== null && (
+                          <span style={{ fontWeight: 'bold', color: addPriceChangeColor }}>
+                            {addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(1)}%
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', marginLeft: 10, minWidth: 85 }}>
+                <div style={{ textAlign: 'right', marginLeft: 8, minWidth: 75 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontSize: 12, fontWeight: 'bold', color: totalProfitColor }}>
+                    <div style={{ fontSize: 11, fontWeight: 'bold', color: totalProfitColor }}>
                       累计: {totalProfit.toFixed(0)}
                     </div>
                     {isHolding && positionProfit !== null && (
-                      <div style={{ fontSize: 12, fontWeight: 'bold', color: profitColor }}>
+                      <div style={{ fontSize: 11, fontWeight: 'bold', color: profitColor }}>
                         盈亏: {positionProfit.toFixed(0)}
-                        <span style={{ fontSize: 10, marginLeft: 2 }}>{positionProfitRatio > 0 ? '+' : ''}{profitPercent}%</span>
+                        <span style={{ fontSize: 9, marginLeft: 2 }}>{positionProfitRatio > 0 ? '+' : ''}{profitPercent}%</span>
                       </div>
                     )}
                   </div>
@@ -372,13 +380,13 @@ const WatchlistPage = () => {
                     </Tag>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 3 }}>
                   <Button
                     type="primary"
                     size="small"
                     icon={<ShoppingCartOutlined />}
                     onClick={() => handleBuy(record)}
-                    style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                    style={{ fontSize: 10, padding: '0 6px', height: 20 }}
                   >
                     买
                   </Button>
@@ -389,7 +397,7 @@ const WatchlistPage = () => {
                         size="small"
                         icon={<HeartOutlined />}
                         onClick={() => handleComfort(record)}
-                        style={{ fontSize: 10, padding: '0 8px', height: 22, background: '#eb2f96', borderColor: '#eb2f96' }}
+                        style={{ fontSize: 10, padding: '0 6px', height: 20, background: '#eb2f96', borderColor: '#eb2f96' }}
                       >
                         安慰
                       </Button>
@@ -398,7 +406,7 @@ const WatchlistPage = () => {
                         size="small"
                         icon={<DollarOutlined />}
                         onClick={() => handleSell(record)}
-                        style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                        style={{ fontSize: 10, padding: '0 6px', height: 20 }}
                       >
                         卖
                       </Button>
@@ -415,7 +423,7 @@ const WatchlistPage = () => {
                         danger
                         size="small"
                         icon={<DeleteOutlined />}
-                        style={{ fontSize: 10, padding: '0 8px', height: 22 }}
+                        style={{ fontSize: 10, padding: '0 6px', height: 20 }}
                       >
                         删除
                       </Button>
