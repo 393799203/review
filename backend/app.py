@@ -3108,21 +3108,6 @@ def analyze_news():
                         })
                     except:
                         pass
-                
-                existing = session.query(AIAnalysisResult).filter(
-                    AIAnalysisResult.stock_code == f"NEWS_{news_id}"
-                ).first()
-                
-                if existing:
-                    try:
-                        analysis_data = json.loads(existing.analysis_result)
-                        return jsonify({
-                            'success': True,
-                            'data': analysis_data,
-                            'cached': True
-                        })
-                    except:
-                        pass
         finally:
             session.close()
         
@@ -3132,30 +3117,11 @@ def analyze_news():
         
         session = get_db_session()
         try:
-            today = datetime.now().date()
-            
-            existing_result = session.query(AIAnalysisResult).filter(
-                AIAnalysisResult.stock_code == f"NEWS_{news_id}"
-            ).first()
-            
-            if existing_result:
-                existing_result.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
-                existing_result.updated_at = datetime.now()
-            else:
-                new_result = AIAnalysisResult(
-                    stock_code=f"NEWS_{news_id}",
-                    stock_name=title[:50] if title else '未知',
-                    trade_date=today,
-                    analysis_result=json.dumps(analysis_result, ensure_ascii=False)
-                )
-                session.add(new_result)
-            
             news_record = session.query(ClsNews).filter(ClsNews.news_id == str(news_id)).first()
             if news_record:
                 news_record.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
                 news_record.analyzed_at = datetime.now()
-            
-            session.commit()
+                session.commit()
         finally:
             session.close()
         
