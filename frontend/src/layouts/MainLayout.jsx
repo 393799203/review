@@ -255,24 +255,22 @@ const MainLayout = ({ children }) => {
             loading={loading}
           />
 
-          {!isUserDashboardPage && (
-            <Popover
-              content={settingsContent}
-              title="设置"
-              trigger="click"
-              placement="bottomRight"
-              open={autoRefresh && popoverVisible}
-              onOpenChange={setPopoverVisible}
-            >
-              <Switch
-                checked={autoRefresh}
-                onChange={handleAutoRefreshChange}
-                size="small"
-                checkedChildren="自"
-                unCheckedChildren="自"
-              />
-            </Popover>
-          )}
+          <Popover
+            content={settingsContent}
+            title="设置"
+            trigger="click"
+            placement="bottomRight"
+            open={autoRefresh && popoverVisible}
+            onOpenChange={setPopoverVisible}
+          >
+            <Switch
+              checked={autoRefresh}
+              onChange={handleAutoRefreshChange}
+              size="small"
+              checkedChildren="自"
+              unCheckedChildren="自"
+            />
+          </Popover>
         </div>
       );
     }
@@ -308,23 +306,21 @@ const MainLayout = ({ children }) => {
           {isWatchlistPage ? '更新价格' : '刷新数据'}
         </Button>
 
-        {!isUserDashboardPage && (
-          <Popover
-            content={settingsContent}
-            title="设置"
-            trigger="click"
-            placement="bottomRight"
-            open={autoRefresh && popoverVisible}
-            onOpenChange={setPopoverVisible}
-          >
-            <Switch
-              checked={autoRefresh}
-              onChange={handleAutoRefreshChange}
-              checkedChildren="自动"
-              unCheckedChildren="手动"
-            />
-          </Popover>
-        )}
+        <Popover
+          content={settingsContent}
+          title="设置"
+          trigger="click"
+          placement="bottomRight"
+          open={autoRefresh && popoverVisible}
+          onOpenChange={setPopoverVisible}
+        >
+          <Switch
+            checked={autoRefresh}
+            onChange={handleAutoRefreshChange}
+            checkedChildren="自动"
+            unCheckedChildren="手动"
+          />
+        </Popover>
       </div>
     );
   };
