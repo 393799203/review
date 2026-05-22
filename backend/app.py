@@ -29,6 +29,26 @@ db_config = DatabaseConfig()
 data_fetcher = DataFetcher()
 
 
+@app.before_request
+def update_user_activity():
+    """更新用户最后活动时间"""
+    try:
+        uid = request.headers.get('X-User-Uid')
+        if uid and request.path.startswith('/api/') and not request.path.startswith('/api/health'):
+            session = get_db_session()
+            try:
+                user = session.query(User).filter(User.uid == uid).first()
+                if user:
+                    user.last_activity = datetime.now()
+                    session.commit()
+            except:
+                pass
+            finally:
+                session.close()
+    except:
+        pass
+
+
 def init_ths_session():
     """初始化同花顺会话并启动心跳"""
     print("初始化同花顺会话...")
@@ -2263,10 +2283,16 @@ def get_user_stats():
         
         total_users = session.query(func.count(User.uid)).scalar()
         
-        users = session.query(User).order_by(User.login_count.desc()).all()
+        online_threshold = datetime.now() - timedelta(minutes=5)
+        online_count = session.query(func.count(User.uid)).filter(
+            User.last_activity >= online_threshold
+        ).scalar()
+        
+        users = session.query(User).all()
         
         user_list = []
         for u in users:
+            is_online = u.last_activity and u.last_activity >= online_threshold
             user_list.append({
                 'username': u.username,
                 'email': u.email,
@@ -2274,13 +2300,25 @@ def get_user_stats():
                 'role': u.role,
                 'login_count': u.login_count or 0,
                 'last_login': u.last_login.strftime('%Y-%m-%d %H:%M:%S') if u.last_login else None,
+                'last_activity': u.last_activity.strftime('%Y-%m-%d %H:%M:%S') if u.last_activity else None,
+                'is_online': is_online,
                 'created_at': u.created_at.strftime('%Y-%m-%d %H:%M:%S') if u.created_at else None
             })
+        
+        def sort_key(user):
+            is_online = 0 if user['is_online'] else 1
+            is_admin = 0 if user['role'] == 'admin' else 1
+            is_guest = 1 if user['role'] == 'guest' else 0
+            login_count = -(user['login_count'] or 0)
+            return (is_guest, is_online, is_admin, login_count)
+        
+        user_list.sort(key=sort_key)
         
         return jsonify({
             'success': True,
             'data': {
                 'total_users': total_users,
+                'online_count': online_count,
                 'users': user_list
             }
         })

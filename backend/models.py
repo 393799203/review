@@ -255,6 +255,7 @@ class User(Base):
     is_active = Column(Integer, default=1)
     login_count = Column(Integer, default=0)  # 登录次数
     last_login = Column(DateTime)
+    last_activity = Column(DateTime)  # 最后活动时间
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
