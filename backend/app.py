@@ -6,14 +6,18 @@ Flask后端API
 
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
+from flask_mail import Mail, Message
 from datetime import datetime, timedelta
 from sqlalchemy import desc, func
+from dotenv import load_dotenv
 import sys
 import os
 import threading
 import json
 import requests
 from mootdx.quotes import Quotes
+
+load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews, UserWencaiStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
@@ -23,6 +27,15 @@ from limit_up_analyzer import LimitUpReasonAnalyzer
 
 app = Flask(__name__)
 CORS(app)
+
+app.config['MAIL_SERVER'] = 'smtp.qq.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_SSL'] = True
+app.config['MAIL_USERNAME'] = '393799203@qq.com'
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = '393799203@qq.com'
+
+mail = Mail(app)
 
 db_config = DatabaseConfig()
 
@@ -1224,6 +1237,12 @@ def get_watchlist():
             stock_code_num = stock.stock_code.split('.')[0]
             quote = quotes_dict.get(stock_code_num)
             current_price = quote['price'] if quote else None
+            prev_close = quote['prev_close'] if quote else None
+            
+            if current_price and prev_close and prev_close > 0:
+                day_change_pct = (current_price - prev_close) / prev_close * 100
+            else:
+                day_change_pct = None
             
             if current_quantity > 0:
                 total_cost = sum(float(r.price) * r.remaining_quantity for r in buy_records)
@@ -1252,6 +1271,7 @@ def get_watchlist():
                 'add_date': stock.add_date.strftime('%Y%m%d') if stock.add_date else '',
                 'add_price': float(stock.add_price) if stock.add_price else None,
                 'current_price': float(current_price) if current_price else None,
+                'day_change_pct': float(day_change_pct) if day_change_pct is not None else None,
                 'add_reason': stock.add_reason or '',
                 'source': stock.source or '',
                 'add_type': stock.add_type or 'manual',
@@ -2060,6 +2080,8 @@ def register():
         session.add(user)
         session.commit()
         
+        send_welcome_email_to_user(email, username)
+        
         return jsonify({
             'success': True,
             'message': '注册成功',
@@ -2266,6 +2288,93 @@ def get_current_user():
         session.close()
 
 
+def send_welcome_email_to_user(email, username):
+    """发送欢迎邮件给用户"""
+    try:
+        mail_password = os.environ.get('MAIL_PASSWORD')
+        if not mail_password:
+            print(f"✗ 邮件服务未配置：缺少 MAIL_PASSWORD 环境变量")
+            return False
+        
+        subject = '感谢您注册使用涨停复盘系统'
+        
+        html_content = f'''
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #1890ff; text-align: center;">欢迎您，{username}！</h2>
+            
+            <p style="font-size: 16px; line-height: 1.6; color: #333;">
+                感谢您注册使用涨停复盘系统！我们很高兴为您提供专业的股票分析工具。
+            </p>
+            
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #1890ff; margin-top: 0;">🎯 产品主要能力</h3>
+                <ul style="line-height: 1.8; color: #555;">
+                    <li><strong>🤖 AI智能体分析</strong>：全链路AI智能分析，从数据采集到决策建议，智能体全程辅助</li>
+                    <li><strong>涨停复盘</strong>：实时追踪涨停股票，深度分析涨停原因和板块联动</li>
+                    <li><strong>连板天梯</strong>：可视化展示连板股票，把握市场情绪和热点</li>
+                    <li><strong>板块强度</strong>：智能分析板块热度，识别强势板块和龙头股</li>
+                    <li><strong>自选股管理</strong>：个性化自选股池，实时监控股票动态</li>
+                    <li><strong>智能问答助手</strong>：基于AI技术的股票分析和投资问答助手</li>
+                    <li><strong>数据统计</strong>：全面的市场数据统计和历史回溯</li>
+                </ul>
+            </div>
+            
+            <div style="background-color: #e6f7ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #1890ff; margin-top: 0;">🤖 AI智能体特色功能</h3>
+                <ul style="line-height: 1.8; color: #555;">
+                    <li><strong>全链路AI分析</strong>：从行情监控、数据分析到投资建议，AI智能体全程参与</li>
+                    <li><strong>智能体问答</strong>：随时向AI智能体咨询股票相关问题，获得专业解答</li>
+                    <li><strong>自动化监控</strong>：AI智能体7x24小时监控市场动态，及时发现投资机会</li>
+                    <li><strong>个性化推荐</strong>：基于您的投资偏好，智能体提供定制化建议</li>
+                </ul>
+            </div>
+            
+            <div style="background-color: #fff7e6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #1890ff; margin-top: 0;">👥 适用客户</h3>
+                <ul style="line-height: 1.8; color: #555;">
+                    <li><strong>短线交易者</strong>：需要实时捕捉涨停板机会的投资者</li>
+                    <li><strong>板块轮动投资者</strong>：关注板块联动和市场热点的交易者</li>
+                    <li><strong>量化交易者</strong>：需要数据支持和统计分析的专业人士</li>
+                    <li><strong>股票分析师</strong>：需要深度分析工具的研究人员</li>
+                    <li><strong>个人投资者</strong>：希望提升投资决策水平的散户朋友</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="http://yunqueai.cloud/news" style="background-color: #1890ff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-size: 16px;">立即开始使用</a>
+            </div>
+            
+            <p style="font-size: 14px; color: #999; text-align: center; margin-top: 30px;">
+                如有任何问题或需求建议，请随时联系我们：393799203@qq.com
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            
+            <p style="font-size: 12px; color: #999; text-align: center;">
+                此邮件由系统自动发送，如有建议或想法，您可直接回复
+            </p>
+        </div>
+        '''
+        
+        msg = Message(
+            subject=subject,
+            recipients=[email],
+            html=html_content
+        )
+        
+        with mail.connect() as conn:
+            conn.send(msg)
+        
+        print(f"✓ 已向用户 {username} ({email}) 发送欢迎邮件")
+        return True
+        
+    except Exception as e:
+        print(f"✗ 发送欢迎邮件失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 @app.route('/api/admin/user-stats', methods=['GET'])
 def get_user_stats():
     """获取用户统计信息（管理员接口）"""
@@ -2327,6 +2436,126 @@ def get_user_stats():
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/admin/send-welcome-email', methods=['POST'])
+def send_welcome_email():
+    """发送欢迎邮件（管理员接口）"""
+    session = get_db_session()
+    try:
+        uid = request.headers.get('X-User-Uid')
+        
+        user = session.query(User).filter(User.uid == uid).first()
+        
+        if not user or user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'error': '权限不足'
+            }), 403
+        
+        data = request.get_json()
+        target_email = data.get('email')
+        username = data.get('username', '用户')
+        
+        if not target_email:
+            return jsonify({
+                'success': False,
+                'error': '邮箱地址不能为空'
+            }), 400
+        
+        if send_welcome_email_to_user(target_email, username):
+            return jsonify({
+                'success': True,
+                'message': f'已成功向 {target_email} 发送欢迎邮件'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '发送邮件失败，请检查邮件服务配置'
+            }), 500
+        
+    except Exception as e:
+        print(f"发送邮件失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'发送邮件失败：{str(e)}'
+        }), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/admin/send-email', methods=['POST'])
+def send_custom_email():
+    """发送自定义邮件（管理员接口）"""
+    session = get_db_session()
+    try:
+        uid = request.headers.get('X-User-Uid')
+        
+        user = session.query(User).filter(User.uid == uid).first()
+        
+        if not user or user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'error': '权限不足'
+            }), 403
+        
+        data = request.get_json()
+        target_email = data.get('email')
+        subject = data.get('subject')
+        content = data.get('content')
+        
+        if not target_email:
+            return jsonify({
+                'success': False,
+                'error': '邮箱地址不能为空'
+            }), 400
+        
+        if not subject:
+            return jsonify({
+                'success': False,
+                'error': '邮件主题不能为空'
+            }), 400
+        
+        if not content:
+            return jsonify({
+                'success': False,
+                'error': '邮件内容不能为空'
+            }), 400
+        
+        mail_password = os.environ.get('MAIL_PASSWORD')
+        if not mail_password:
+            return jsonify({
+                'success': False,
+                'error': '邮件服务未配置：缺少 MAIL_PASSWORD 环境变量'
+            }), 500
+        
+        msg = Message(
+            subject=subject,
+            recipients=[target_email],
+            html=content
+        )
+        
+        with mail.connect() as conn:
+            conn.send(msg)
+        
+        print(f"✓ 已向 {target_email} 发送自定义邮件")
+        return jsonify({
+            'success': True,
+            'message': f'已成功向 {target_email} 发送邮件'
+        })
+        
+    except Exception as e:
+        print(f"发送邮件失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'发送邮件失败：{str(e)}'
         }), 500
     finally:
         session.close()
@@ -3436,6 +3665,70 @@ def sync_cls_news():
                     session.close()
         except Exception as e:
             print(f"[财联社同步] 同步失败: {str(e)}")
+
+
+@app.route('/api/weixin/signature', methods=['GET'])
+def weixin_signature():
+    """微信JS-SDK签名接口"""
+    try:
+        import hashlib
+        import time
+        import random
+        import string
+        
+        url = request.args.get('url', '')
+        
+        WEIXIN_APP_ID = os.environ.get('WEIXIN_APP_ID', '')
+        WEIXIN_APP_SECRET = os.environ.get('WEIXIN_APP_SECRET', '')
+        
+        if not WEIXIN_APP_ID or not WEIXIN_APP_SECRET:
+            return jsonify({
+                'success': False,
+                'message': '微信配置未设置'
+            })
+        
+        access_token_url = f'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={WEIXIN_APP_ID}&secret={WEIXIN_APP_SECRET}'
+        token_response = requests.get(access_token_url, timeout=5)
+        token_data = token_response.json()
+        
+        if 'access_token' not in token_data:
+            return jsonify({
+                'success': False,
+                'message': '获取access_token失败'
+            })
+        
+        access_token = token_data['access_token']
+        
+        jsapi_ticket_url = f'https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token={access_token}&type=jsapi'
+        ticket_response = requests.get(jsapi_ticket_url, timeout=5)
+        ticket_data = ticket_response.json()
+        
+        if ticket_data.get('errcode', 0) != 0:
+            return jsonify({
+                'success': False,
+                'message': '获取jsapi_ticket失败'
+            })
+        
+        jsapi_ticket = ticket_data['ticket']
+        
+        noncestr = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+        timestamp = int(time.time())
+        
+        string1 = f'jsapi_ticket={jsapi_ticket}&noncestr={noncestr}&timestamp={timestamp}&url={url}'
+        signature = hashlib.sha1(string1.encode('utf-8')).hexdigest()
+        
+        return jsonify({
+            'success': True,
+            'appId': WEIXIN_APP_ID,
+            'timestamp': timestamp,
+            'nonceStr': noncestr,
+            'signature': signature
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
 
 
 if __name__ == '__main__':
