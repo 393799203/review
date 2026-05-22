@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined } from '@ant-design/icons';
+import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message } from 'antd';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -127,6 +127,9 @@ const MainLayout = ({ children }) => {
     {
       type: 'divider',
       key: 'admin-divider',
+      style: { 
+        borderColor: 'rgba(255, 255, 255, 0.1)'
+      }
     },
     {
       key: '/user',
@@ -139,6 +142,23 @@ const MainLayout = ({ children }) => {
 
   const handleMenuClick = ({ key }) => {
     navigate(key);
+  };
+
+  const handleAddFavorite = () => {
+    const url = window.location.origin;
+    const title = '云雀AI-最感性的A股复盘分析智能体';
+    
+    try {
+      if (window.external && window.external.AddFavorite) {
+        window.external.AddFavorite(url, title);
+      } else if (window.sidebar && window.sidebar.addPanel) {
+        window.sidebar.addPanel(title, url, '');
+      } else {
+        message.info('请使用 Ctrl+D (Mac: Cmd+D) 添加到收藏夹');
+      }
+    } catch (e) {
+      message.info('请使用 Ctrl+D (Mac: Cmd+D) 添加到收藏夹');
+    }
   };
 
   const disabledDate = (current) => {
@@ -531,6 +551,14 @@ const MainLayout = ({ children }) => {
         >
           <div style={{ fontSize: 18, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
             A股涨停复盘系统
+            <Button
+              type="link"
+              icon={<HeartOutlined />}
+              onClick={handleAddFavorite}
+              style={{ padding: '0 8px', height: 'auto', fontSize: 13 }}
+            >
+              一键收藏
+            </Button>
           </div>
           {renderHeaderRight()}
         </Header>

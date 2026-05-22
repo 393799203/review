@@ -58,13 +58,12 @@ ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${PROJECT_DIR}"
 if [ "$FRONTEND_ONLY" = true ]; then
     rsync -avz --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
         --exclude='.git' --exclude='*.log' --exclude='venv' --exclude='.env' \
-        --exclude='dist' --exclude='backend' \
+        --exclude='backend' \
         ${LOCAL_DIR}/frontend ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
     rsync -avz ${LOCAL_DIR}/docker-compose.yml ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
 else
     rsync -avz --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
         --exclude='.git' --exclude='*.log' --exclude='venv' --exclude='.env' \
-        --exclude='dist' \
         ${LOCAL_DIR}/ ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
 fi
 
@@ -75,11 +74,11 @@ cd ${PROJECT_DIR}
 
 echo "构建Docker镜像..."
 if [ "$FRONTEND_ONLY" = true ]; then
-    docker compose build frontend
-    echo "重启前端容器..."
-    docker compose restart frontend
+    docker compose build --no-cache frontend
+    echo "重建前端容器..."
+    docker compose up -d --force-recreate frontend
 else
-    docker compose build
+    docker compose build --no-cache
     echo "启动容器..."
     docker compose down
     docker compose up -d

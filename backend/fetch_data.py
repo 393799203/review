@@ -210,7 +210,6 @@ class LimitUpFetcher:
     
     def _process_and_save_data(self, session, trade_date, ths_data):
         """处理并保存数据"""
-        stocks_data = []
         ladder_stats = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
         
         # 1. 保存板块数据
@@ -226,7 +225,6 @@ class LimitUpFetcher:
                 block_name = block.get('name', '')
                 
                 if block_code and block_name:
-                    # 找出高位股（连板数最高的股票）
                     stock_list = block.get('stock_list', [])
                     high_stock_code = None
                     high_stock_name = None
@@ -237,23 +235,40 @@ class LimitUpFetcher:
                         if continue_num > max_continue_num:
                             max_continue_num = continue_num
                             high_stock_code = stock.get('code', '')
-                            # 需要从涨停池数据中获取股票名称，这里先保存代码
                     
-                    block_obj = Block(
-                        block_code=block_code,
-                        block_name=block_name,
-                        trade_date=trade_date,
-                        change_rate=Decimal(str(block.get('change', 0))) if block.get('change') else None,
-                        limit_up_num=block.get('limit_up_num', 0) or 0,
-                        continuous_plate_num=block.get('continuous_plate_num', 0) or 0,
-                        high=block.get('high', ''),
-                        high_num=block.get('high_num', 0) or 0,
-                        list_days=block.get('days', 0) or 0,
-                        high_stock_code=high_stock_code
-                    )
-                    session.add(block_obj)
-                    session.flush()
-                    block_id_dict[block_code] = block_obj.id
+                    existing_block = session.query(Block).filter(
+                        Block.block_code == block_code,
+                        Block.trade_date == trade_date
+                    ).first()
+                    
+                    if existing_block:
+                        existing_block.block_name = block_name
+                        existing_block.change_rate = Decimal(str(block.get('change', 0))) if block.get('change') else None
+                        existing_block.limit_up_num = block.get('limit_up_num', 0) or 0
+                        existing_block.continuous_plate_num = block.get('continuous_plate_num', 0) or 0
+                        existing_block.high = block.get('high', '')
+                        existing_block.high_num = block.get('high_num', 0) or 0
+                        existing_block.list_days = block.get('days', 0) or 0
+                        existing_block.high_stock_code = high_stock_code
+                        existing_block.updated_at = datetime.now()
+                        session.flush()
+                        block_id_dict[block_code] = existing_block.id
+                    else:
+                        block_obj = Block(
+                            block_code=block_code,
+                            block_name=block_name,
+                            trade_date=trade_date,
+                            change_rate=Decimal(str(block.get('change', 0))) if block.get('change') else None,
+                            limit_up_num=block.get('limit_up_num', 0) or 0,
+                            continuous_plate_num=block.get('continuous_plate_num', 0) or 0,
+                            high=block.get('high', ''),
+                            high_num=block.get('high_num', 0) or 0,
+                            list_days=block.get('days', 0) or 0,
+                            high_stock_code=high_stock_code
+                        )
+                        session.add(block_obj)
+                        session.flush()
+                        block_id_dict[block_code] = block_obj.id
                     
                     for stock in stock_list:
                         stock_code = stock.get('code', '')
@@ -375,48 +390,64 @@ class LimitUpFetcher:
                 limit_up_time_raw = row.get("最后封板时间")
                 limit_up_time = self.parse_timestamp_or_time(limit_up_time_raw)
                 
-                stock = LimitUpStock(
-                    stock_code=stock_code,
-                    stock_name=stock_name,
-                    trade_date=trade_date,
-                    limit_up_reason=limit_reason,
-                    limit_up_time=limit_up_time,
-                    limit_up_price=Decimal(str(limit_up_price)) if limit_up_price else None,
-                    limit_up_type=limit_up_type,
-                    block_id=block_id,
-                    ths_reason_info=ths_reason_info,
-                    seal_amount=Decimal(str(row.get("封板资金", 0))) if pd.notna(row.get("封板资金")) else Decimal('0'),
-                    continuous_days=continuous_days,
-                    high_days=high_days,
-                    sector=self.get_stock_sector(stock_code),
-                    change_percent=Decimal(str(row.get("涨跌幅", 0))) if pd.notna(row.get("涨跌幅")) else Decimal('0'),
-                    turnover_rate=Decimal(str(row.get("换手率", 0))) if pd.notna(row.get("换手率")) else Decimal('0'),
-                    amount=Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0'),
-                    is_high_stock=is_high_stock
-                )
+                existing_stock = session.query(LimitUpStock).filter(
+                    LimitUpStock.stock_code == stock_code,
+                    LimitUpStock.trade_date == trade_date
+                ).first()
                 
-                stocks_data.append(stock)
+                if existing_stock:
+                    existing_stock.stock_name = stock_name
+                    existing_stock.limit_up_reason = limit_reason
+                    existing_stock.limit_up_time = limit_up_time
+                    existing_stock.limit_up_price = Decimal(str(limit_up_price)) if limit_up_price else None
+                    existing_stock.limit_up_type = limit_up_type
+                    existing_stock.block_id = block_id
+                    existing_stock.ths_reason_info = ths_reason_info
+                    existing_stock.seal_amount = Decimal(str(row.get("封板资金", 0))) if pd.notna(row.get("封板资金")) else Decimal('0')
+                    existing_stock.continuous_days = continuous_days
+                    existing_stock.high_days = high_days
+                    existing_stock.sector = self.get_stock_sector(stock_code)
+                    existing_stock.change_percent = Decimal(str(row.get("涨跌幅", 0))) if pd.notna(row.get("涨跌幅")) else Decimal('0')
+                    existing_stock.turnover_rate = Decimal(str(row.get("换手率", 0))) if pd.notna(row.get("换手率")) else Decimal('0')
+                    existing_stock.amount = Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0')
+                    existing_stock.is_high_stock = is_high_stock
+                    existing_stock.updated_at = datetime.now()
+                else:
+                    stock = LimitUpStock(
+                        stock_code=stock_code,
+                        stock_name=stock_name,
+                        trade_date=trade_date,
+                        limit_up_reason=limit_reason,
+                        limit_up_time=limit_up_time,
+                        limit_up_price=Decimal(str(limit_up_price)) if limit_up_price else None,
+                        limit_up_type=limit_up_type,
+                        block_id=block_id,
+                        ths_reason_info=ths_reason_info,
+                        seal_amount=Decimal(str(row.get("封板资金", 0))) if pd.notna(row.get("封板资金")) else Decimal('0'),
+                        continuous_days=continuous_days,
+                        high_days=high_days,
+                        sector=self.get_stock_sector(stock_code),
+                        change_percent=Decimal(str(row.get("涨跌幅", 0))) if pd.notna(row.get("涨跌幅")) else Decimal('0'),
+                        turnover_rate=Decimal(str(row.get("换手率", 0))) if pd.notna(row.get("换手率")) else Decimal('0'),
+                        amount=Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0'),
+                        is_high_stock=is_high_stock
+                    )
+                    session.add(stock)
+                
+                if is_high_stock and block_id:
+                    block = session.query(Block).filter(Block.id == block_id).first()
+                    if block:
+                        block.high_stock_name = stock_name
                 
                 if continuous_days >= 8:
                     ladder_stats[8] += 1
                 else:
                     ladder_stats[continuous_days] += 1
         
-        # 6. 批量保存股票数据
-        if stocks_data:
-            session.bulk_save_objects(stocks_data)
-            
-            # 更新板块的高位股名称
-            print("\n更新板块高位股信息...")
-            for stock in stocks_data:
-                if stock.block_id:
-                    block = session.query(Block).filter(Block.id == stock.block_id).first()
-                    if block and block.high_stock_code == stock.stock_code:
-                        block.high_stock_name = stock.stock_name
-            
-            # 保存统计数据
-            total_count = sum(ladder_stats.values())
-            
+        # 6. 保存统计数据
+        total_count = sum(ladder_stats.values())
+        
+        if total_count > 0:
             stats = LadderStats(
                 trade_date=trade_date,
                 total_count=total_count,

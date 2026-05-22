@@ -272,6 +272,13 @@ const WatchlistPage = () => {
             ? (addPriceChange > 0 ? '#f5222d' : addPriceChange < 0 ? '#52c41a' : '#8c8c8c')
             : '#8c8c8c';
           
+          const dayChangePct = record.day_change_pct !== null && record.day_change_pct !== undefined 
+            ? parseFloat(record.day_change_pct) 
+            : null;
+          const dayChangeColor = dayChangePct !== null 
+            ? (dayChangePct > 0 ? '#f5222d' : dayChangePct < 0 ? '#52c41a' : '#8c8c8c')
+            : '#8c8c8c';
+          
           return (
             <Card
               key={record.id}
@@ -287,7 +294,7 @@ const WatchlistPage = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, height: 22 }}>
                     <span 
                       style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
                       onClick={() => {
@@ -321,7 +328,7 @@ const WatchlistPage = () => {
                       }}
                     />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 22 }}>
                     <Tag color={isHolding ? 'blue' : 'default'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
                       {isHolding ? '持仓' : '空仓'}
                     </Tag>
@@ -332,43 +339,57 @@ const WatchlistPage = () => {
                       {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
                     </Tag>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, fontSize: 10, color: '#595959', alignItems: 'center' }}>
-                    {isHolding ? (
-                      <>
-                        <span>买: <span style={{ fontWeight: 'bold', color: '#1890ff' }}>¥{record.buy_price ? record.buy_price.toFixed(2) : '-'}</span></span>
-                        <span>×{record.buy_quantity}</span>
-                        <span>现: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
-                        {addPriceChange !== null && (
-                          <span style={{ fontWeight: 'bold', color: addPriceChangeColor }}>
-                            {addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(1)}%
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span>加: <span style={{ fontWeight: 'bold', color: '#262626' }}>¥{record.add_price ? record.add_price.toFixed(2) : '-'}</span></span>
-                        <span>现: <span style={{ fontWeight: 'bold', color: profitColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span></span>
-                        {addPriceChange !== null && (
-                          <span style={{ fontWeight: 'bold', color: addPriceChangeColor }}>
-                            {addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(1)}%
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
                 </div>
                 <div style={{ textAlign: 'right', marginLeft: 8, minWidth: 75 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontSize: 11, fontWeight: 'bold', color: totalProfitColor }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ fontSize: 14, fontWeight: 'bold', color: totalProfitColor, height: 22, lineHeight: '22px' }}>
                       累计: {totalProfit.toFixed(0)}
                     </div>
                     {isHolding && positionProfit !== null && (
-                      <div style={{ fontSize: 11, fontWeight: 'bold', color: profitColor }}>
+                      <div style={{ fontSize: 12, fontWeight: 'bold', color: profitColor, height: 22, lineHeight: '22px' }}>
                         盈亏: {positionProfit.toFixed(0)}
                         <span style={{ fontSize: 9, marginLeft: 2 }}>{positionProfitRatio > 0 ? '+' : ''}{profitPercent}%</span>
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginTop: 6,
+                background: '#fafafa',
+                borderRadius: 4,
+                fontSize: 11,
+                flexWrap: 'nowrap'
+              }}>
+                {isHolding ? (
+                  <div style={{ whiteSpace: 'nowrap', flex: '0 0 auto' }}>
+                    <span style={{ color: '#8c8c8c' }}>买入: </span>
+                    <span style={{ fontWeight: 'bold', color: '#1890ff' }}>¥{record.buy_price ? record.buy_price.toFixed(2) : '-'}</span>
+                    <span style={{ color: '#8c8c8c', marginLeft: 4 }}>×{record.buy_quantity}</span>
+                  </div>
+                ) : (
+                  <div style={{ whiteSpace: 'nowrap', flex: '0 0 auto' }}>
+                    <span style={{ color: '#8c8c8c' }}>加入: </span>
+                    <span style={{ fontWeight: 'bold', color: '#262626' }}>¥{record.add_price ? record.add_price.toFixed(2) : '-'}</span>
+                  </div>
+                )}
+                <div style={{ textAlign: 'right', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
+                  <span style={{ color: '#8c8c8c' }}>现价: </span>
+                  <span style={{ fontWeight: 'bold', color: dayChangeColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span>
+                  {dayChangePct !== null && (
+                    <span style={{ fontWeight: 'bold', color: dayChangeColor, marginLeft: 4 }}>
+                      ({dayChangePct > 0 ? '+' : ''}{dayChangePct.toFixed(2)}%)
+                    </span>
+                  )}
+                  {addPriceChange !== null && (
+                    <span style={{ fontWeight: 'bold', color: addPriceChangeColor, marginLeft: 6 }}>
+                      较加: {addPriceChange > 0 ? '+' : ''}{addPriceChange.toFixed(1)}%
+                    </span>
+                  )}
                 </div>
               </div>
               
@@ -519,11 +540,20 @@ const WatchlistPage = () => {
         title: '当前价格',
         dataIndex: 'current_price',
         key: 'current_price',
-        width: 100,
+        width: 120,
         render: (value, record) => {
-          const color = record.position_status === '持仓' && record.position_profit > 0 ? '#f5222d' : 
-                       record.position_status === '持仓' && record.position_profit < 0 ? '#52c41a' : '#262626';
-          return value ? <span style={{ color, fontWeight: 'bold' }}>¥{value.toFixed(2)}</span> : '-';
+          const dayChange = record.day_change_pct;
+          const dayChangeColor = dayChange > 0 ? '#f5222d' : dayChange < 0 ? '#52c41a' : '#8c8c8c';
+          return value ? (
+            <div>
+              <div style={{ color: dayChangeColor, fontWeight: 'bold' }}>¥{value.toFixed(2)}</div>
+              {dayChange !== null && dayChange !== undefined && (
+                <div style={{ color: dayChangeColor, fontSize: 10 }}>
+                  ({dayChange > 0 ? '+' : ''}{dayChange.toFixed(2)}%)
+                </div>
+              )}
+            </div>
+          ) : '-';
         },
       },
       {

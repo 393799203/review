@@ -21,6 +21,9 @@ services:
       - DATABASE_URL=postgresql://stock_user:DB_PASSWORD_REMOVED@db:5432/stock_review
       - FLASK_ENV=production
       - TZ=Asia/Shanghai
+      - MAIL_PASSWORD=MAIL_PASSWORD_REMOVED
+      - WEIXIN_APP_ID=WEIXIN_APP_ID_REMOVED
+      - WEIXIN_APP_SECRET=WEIXIN_APP_SECRET_REMOVED
     depends_on:
       db:
         condition: service_healthy
