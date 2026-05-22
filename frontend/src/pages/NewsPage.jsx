@@ -859,7 +859,6 @@ const NewsPage = () => {
           <Input
             placeholder="搜索资讯..."
             allowClear
-            size="small"
             style={{ width: isMobile ? 150 : 250 }}
             onChange={(e) => {
               setSearchKeyword(e.target.value);

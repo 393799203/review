@@ -559,7 +559,7 @@ const WatchlistPage = () => {
         title: '盈亏',
         dataIndex: 'position_profit',
         key: 'position_profit',
-        width: 100,
+        width: 110,
         render: (value, record) => {
           if (record.position_status !== '持仓' || value === null) return '-';
           const color = value > 0 ? '#f5222d' : value < 0 ? '#52c41a' : '#8c8c8c';
@@ -602,7 +602,7 @@ const WatchlistPage = () => {
       {
         title: '操作',
         key: 'action',
-        width: 220,
+        width: 200,
         render: (_, record) => (
           <div style={{ display: 'flex', gap: 4 }}>
             {record.position_status === '持仓' ? (
