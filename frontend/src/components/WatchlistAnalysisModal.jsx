@@ -177,7 +177,7 @@ const WatchlistAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
 
           {analysisData.trading_advice && (
             <Card 
-              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>买入建议</span>}
+              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>买入建议（仅作参考）</span>}
               size="small"
               style={{ marginBottom: 12 }}
               styles={{ body: { padding: '8px 12px' } }}
@@ -266,7 +266,7 @@ const WatchlistAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
 
           {analysisData.holding_advice && (
             <Card 
-              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>持有建议</span>}
+              title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>持有建议（仅作参考）</span>}
               size="small"
               style={{ marginBottom: 12 }}
               styles={{ body: { padding: '8px 12px' } }}

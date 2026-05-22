@@ -68,7 +68,7 @@ const UserDashboardPage = () => {
     <h2 style="color: #1890ff; text-align: center;">欢迎您，${username}！</h2>
     
     <p style="font-size: 16px; line-height: 1.6; color: #333;">
-        感谢您注册使用涨停复盘系统！我们很高兴为您提供专业的股票分析工具。
+        感谢您注册使用云雀AI涨停复盘智能体！我们很高兴为您提供专业的股票分析工具。
     </p>
     
     <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
@@ -110,7 +110,7 @@ const UserDashboardPage = () => {
     </div>
     
     <p style="font-size: 14px; color: #999; text-align: center; margin-top: 30px;">
-        如有任何问题或需求建议，请随时联系我们：393799203@qq.com
+        如有任何问题或需求建议，请随时联系我们：yunque.ai@qq.com
     </p>
 </div>`;
   };
@@ -122,7 +122,7 @@ const UserDashboardPage = () => {
     }
     
     setCurrentEmailUser({ email, username });
-    setEmailSubject('感谢您注册使用涨停复盘系统');
+    setEmailSubject('感谢您注册使用云雀AI涨停复盘智能体');
     setEmailContent(getDefaultEmailContent(username));
     setEmailModalVisible(true);
   };

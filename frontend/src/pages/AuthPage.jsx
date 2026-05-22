@@ -9,6 +9,7 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [loginFormInstance] = Form.useForm();
   const { login, guestLogin, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,12 +57,13 @@ const AuthPage = () => {
 
     if (success) {
       setActiveTab('login');
-      message.success('注册成功，请登录');
+      loginFormInstance.setFieldsValue({ username: values.username });
     }
   };
 
   const loginForm = (
     <Form
+      form={loginFormInstance}
       name="login"
       onFinish={handleLogin}
       autoComplete="off"
