@@ -6,6 +6,7 @@ import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
 import { refreshNewsData } from '../pages/NewsPage';
 import { refreshReportsData } from '../pages/ReportPage';
+import { refreshUserDashboard } from '../pages/UserDashboardPage';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import SpeechSettings from '../components/SpeechSettings';
 import dayjs from 'dayjs';
@@ -78,6 +79,8 @@ const MainLayout = ({ children }) => {
       setRefreshCallback(() => () => refreshNewsData(true));
     } else if (location.pathname === '/reports') {
       setRefreshCallback(() => refreshReportsData);
+    } else if (location.pathname === '/user') {
+      setRefreshCallback(() => refreshUserDashboard);
     } else {
       setRefreshCallback(null);
     }
@@ -154,6 +157,7 @@ const MainLayout = ({ children }) => {
     const isStatisticsPage = location.pathname === '/statistics';
     const isNewsPage = location.pathname === '/news';
     const isReportsPage = location.pathname === '/reports';
+    const isUserDashboardPage = location.pathname === '/user';
 
     const settingsContent = (
       <div style={{ width: isMobile ? 200 : 250 }}>
@@ -201,6 +205,7 @@ const MainLayout = ({ children }) => {
       if (isStatisticsPage) return refreshStatistics;
       if (isNewsPage) return refreshNewsData;
       if (isReportsPage) return refreshReportsData;
+      if (isUserDashboardPage) return refreshUserDashboard;
       return refreshCurrentData;
     };
 
@@ -250,22 +255,24 @@ const MainLayout = ({ children }) => {
             loading={loading}
           />
 
-          <Popover
-            content={settingsContent}
-            title="设置"
-            trigger="click"
-            placement="bottomRight"
-            open={autoRefresh && popoverVisible}
-            onOpenChange={setPopoverVisible}
-          >
-            <Switch
-              checked={autoRefresh}
-              onChange={handleAutoRefreshChange}
-              size="small"
-              checkedChildren="自"
-              unCheckedChildren="自"
-            />
-          </Popover>
+          {!isUserDashboardPage && (
+            <Popover
+              content={settingsContent}
+              title="设置"
+              trigger="click"
+              placement="bottomRight"
+              open={autoRefresh && popoverVisible}
+              onOpenChange={setPopoverVisible}
+            >
+              <Switch
+                checked={autoRefresh}
+                onChange={handleAutoRefreshChange}
+                size="small"
+                checkedChildren="自"
+                unCheckedChildren="自"
+              />
+            </Popover>
+          )}
         </div>
       );
     }
@@ -301,21 +308,23 @@ const MainLayout = ({ children }) => {
           {isWatchlistPage ? '更新价格' : '刷新数据'}
         </Button>
 
-        <Popover
-          content={settingsContent}
-          title="设置"
-          trigger="click"
-          placement="bottomRight"
-          open={autoRefresh && popoverVisible}
-          onOpenChange={setPopoverVisible}
-        >
-          <Switch
-            checked={autoRefresh}
-            onChange={handleAutoRefreshChange}
-            checkedChildren="自动"
-            unCheckedChildren="手动"
-          />
-        </Popover>
+        {!isUserDashboardPage && (
+          <Popover
+            content={settingsContent}
+            title="设置"
+            trigger="click"
+            placement="bottomRight"
+            open={autoRefresh && popoverVisible}
+            onOpenChange={setPopoverVisible}
+          >
+            <Switch
+              checked={autoRefresh}
+              onChange={handleAutoRefreshChange}
+              checkedChildren="自动"
+              unCheckedChildren="手动"
+            />
+          </Popover>
+        )}
       </div>
     );
   };

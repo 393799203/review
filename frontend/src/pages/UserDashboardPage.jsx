@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Spin, message, Statistic, Row, Col } from 'antd';
-import { UserOutlined, TeamOutlined, LoginOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Spin, message, Statistic, Row, Col, Badge } from 'antd';
+import { UserOutlined, TeamOutlined, LoginOutlined, ClockCircleOutlined, EyeOutlined } from '@ant-design/icons';
 import api from '../services/api';
+
+let loadUsersRef = null;
+
+export const refreshUserDashboard = () => {
+  if (loadUsersRef) {
+    loadUsersRef();
+  }
+};
 
 const UserDashboardPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [onlineCount, setOnlineCount] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -27,6 +36,7 @@ const UserDashboardPage = () => {
       
       if (response.data.success) {
         setUsers(response.data.data.users || []);
+        setOnlineCount(response.data.data.online_count || 0);
       } else {
         message.error('加载用户数据失败');
       }
@@ -36,6 +46,8 @@ const UserDashboardPage = () => {
       setLoading(false);
     }
   };
+
+  loadUsersRef = loadUsers;
 
   const getRoleColor = (role) => {
     const colors = {
@@ -58,6 +70,19 @@ const UserDashboardPage = () => {
   };
 
   const columns = [
+    {
+      title: '状态',
+      dataIndex: 'is_online',
+      key: 'is_online',
+      width: 70,
+      fixed: isMobile ? 'left' : false,
+      render: (is_online) => (
+        <Badge 
+          status={is_online ? 'success' : 'default'} 
+          text={is_online ? '在线' : '离线'}
+        />
+      ),
+    },
     {
       title: '用户名',
       dataIndex: 'username',
@@ -139,44 +164,44 @@ const UserDashboardPage = () => {
         用户看板
       </h2>
 
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={12} sm={12} md={6}>
-          <Card>
+      <Row gutter={[8, 8]} style={{ marginBottom: '16px' }}>
+        <Col span={6}>
+          <Card size="small" bodyStyle={{ padding: '8px 10px' }}>
             <Statistic
-              title="总用户数"
+              title="用户数"
               value={getTotalUsers()}
               prefix={<UserOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+              valueStyle={{ color: '#1890ff', fontSize: 18 }}
             />
           </Card>
         </Col>
-        <Col xs={12} sm={12} md={6}>
-          <Card>
+        <Col span={6}>
+          <Card size="small" bodyStyle={{ padding: '8px 10px' }}>
             <Statistic
-              title="总登录次数"
+              title="在线"
+              value={onlineCount}
+              prefix={<EyeOutlined />}
+              valueStyle={{ color: '#52c41a', fontSize: 18 }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small" bodyStyle={{ padding: '8px 10px' }}>
+            <Statistic
+              title="登录次数"
               value={getTotalLogins()}
               prefix={<LoginOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: '#722ed1', fontSize: 18 }}
             />
           </Card>
         </Col>
-        <Col xs={12} sm={12} md={6}>
-          <Card>
+        <Col span={6}>
+          <Card size="small" bodyStyle={{ padding: '8px 10px' }}>
             <Statistic
               title="今日活跃"
               value={getActiveUsersToday()}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="管理员数"
-              value={getAdminCount()}
-              prefix={<TeamOutlined />}
-              valueStyle={{ color: '#f5222d' }}
+              valueStyle={{ color: '#faad14', fontSize: 18 }}
             />
           </Card>
         </Col>
@@ -184,18 +209,57 @@ const UserDashboardPage = () => {
 
       <Card>
         <Spin spinning={loading} tip="加载中...">
-          <Table
-            columns={columns}
-            dataSource={users}
-            rowKey="username"
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条记录`,
-            }}
-            scroll={{ x: 'max-content' }}
-            size={isMobile ? 'small' : 'middle'}
-          />
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {users.map(user => (
+                <Card 
+                  key={user.username} 
+                  size="small"
+                  style={{ 
+                    background: user.is_online ? '#f6ffed' : '#fafafa',
+                    borderLeft: `3px solid ${user.is_online ? '#52c41a' : '#d9d9d9'}`
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Badge 
+                        status={user.is_online ? 'success' : 'default'} 
+                      />
+                      <span style={{ fontWeight: 'bold', fontSize: 14 }}>{user.username}</span>
+                    </div>
+                    <Tag color={getRoleColor(user.role)} style={{ margin: 0 }}>
+                      {getRoleText(user.role)}
+                    </Tag>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
+                    昵称: {user.nickname || '-'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#999' }}>
+                    <span>登录: {user.login_count || 0}次</span>
+                    <span>{user.last_login || '从未登录'}</span>
+                  </div>
+                </Card>
+              ))}
+              {users.length === 0 && !loading && (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+                  暂无用户数据
+                </div>
+              )}
+            </div>
+          ) : (
+            <Table
+              columns={columns}
+              dataSource={users}
+              rowKey="username"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条记录`,
+              }}
+              scroll={{ x: 'max-content' }}
+              size="middle"
+            />
+          )}
         </Spin>
       </Card>
     </div>
