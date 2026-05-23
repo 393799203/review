@@ -78,6 +78,7 @@ class LimitUpStock(Base):
     turnover_rate = Column(Numeric(10, 4))
     amount = Column(Numeric(20, 2))
     is_high_stock = Column(Integer, default=0)
+    next_change = Column(Numeric(10, 4))
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -327,7 +328,6 @@ class UserWencaiStrategy(Base):
 
 class DatabaseConfig:
     """数据库配置"""
-    
     def __init__(self):
         self.database_url = os.getenv('DATABASE_URL')
         if not self.database_url:
@@ -336,6 +336,9 @@ class DatabaseConfig:
             self.database = os.getenv('DB_NAME', 'stock_review')
             self.user = os.getenv('DB_USER', 'postgres')
             self.password = os.getenv('DB_PASSWORD', 'postgres')
+        
+        self._engine = None
+        self._session_factory = None
     
     def get_database_url(self):
         if self.database_url:
@@ -343,12 +346,22 @@ class DatabaseConfig:
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
     
     def create_engine(self):
-        return create_engine(self.get_database_url(), echo=False)
+        if self._engine is None:
+            self._engine = create_engine(
+                self.get_database_url(), 
+                echo=False,
+                pool_size=10,
+                max_overflow=20,
+                pool_pre_ping=True,
+                pool_recycle=3600
+            )
+        return self._engine
     
     def create_session(self):
-        engine = self.create_engine()
-        Session = sessionmaker(bind=engine)
-        return Session()
+        if self._session_factory is None:
+            engine = self.create_engine()
+            self._session_factory = sessionmaker(bind=engine)
+        return self._session_factory()
 
 
 def init_database():

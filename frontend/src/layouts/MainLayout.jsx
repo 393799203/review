@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,6 +36,8 @@ const MainLayout = ({ children }) => {
     setSmartMode,
     showFirstBoard,
     setShowFirstBoard,
+    ladderMode,
+    setLadderMode,
     showAllNews,
     setShowAllNews,
     loadPageSettings,
@@ -94,6 +96,10 @@ const MainLayout = ({ children }) => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  const handleLadderModeChange = (mode) => {
+    setLadderMode(mode);
+  };
 
   const menuItems = [
     {
@@ -234,6 +240,12 @@ const MainLayout = ({ children }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isLadderPage && (
             <>
+              <Button 
+                size="small"
+                type="primary"
+                icon={ladderMode === 'ladder' ? <RiseOutlined /> : <AppstoreOutlined />}
+                onClick={() => handleLadderModeChange(ladderMode === 'ladder' ? 'comparison' : 'ladder')}
+              />
               <Button onClick={handlePrevDay} size="small">前</Button>
               <DatePicker
                 value={currentDate ? dayjs(currentDate, 'YYYYMMDD') : null}
@@ -559,6 +571,24 @@ const MainLayout = ({ children }) => {
             >
               一键收藏
             </Button>
+            {location.pathname === '/' && (
+              <Button.Group style={{ marginLeft: 8 }}>
+                <Button 
+                  type={ladderMode === 'ladder' ? 'primary' : 'default'}
+                  icon={<RiseOutlined />}
+                  onClick={() => handleLadderModeChange('ladder')}
+                >
+                  涨停天梯
+                </Button>
+                <Button 
+                  type={ladderMode === 'comparison' ? 'primary' : 'default'}
+                  icon={<AppstoreOutlined />}
+                  onClick={() => handleLadderModeChange('comparison')}
+                >
+                  晋级对比
+                </Button>
+              </Button.Group>
+            )}
           </div>
           {renderHeaderRight()}
         </Header>

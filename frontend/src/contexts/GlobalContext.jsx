@@ -3,6 +3,7 @@ import { message } from 'antd';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
 import { useAuth } from './AuthContext';
+import { DEFAULT_SETTINGS } from '../constants/settings';
 
 const GlobalContext = createContext(null);
 
@@ -31,26 +32,6 @@ export const useGlobal = () => {
   return context;
 };
 
-const DEFAULT_SETTINGS = {
-  ladder: { autoRefresh: false, refreshInterval: 30, smartMode: true, showFirstBoard: true },
-  watchlist: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-  statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-  news: { 
-    autoRefresh: false, 
-    refreshInterval: 300, 
-    smartMode: true, 
-    showAllNews: false,
-    speechEnabled: true,
-    speechSettings: {
-      voices: {},
-      rate: 1.0,
-      pitch: 1.0,
-      volume: 1.0
-    }
-  },
-  reports: { autoRefresh: false, refreshInterval: 3600, smartMode: false },
-};
-
 export const GlobalProvider = ({ children }) => {
   const { settings: userSettings, updateSettings } = useAuth();
   const [currentDate, setCurrentDateState] = useState('');
@@ -62,23 +43,26 @@ export const GlobalProvider = ({ children }) => {
   const [currentPage, setCurrentPage] = useState('ladder');
 
   const [autoRefresh, setAutoRefreshState] = useState(
-    userSettings?.ladder?.autoRefresh ?? false
+    userSettings?.ladder?.autoRefresh ?? DEFAULT_SETTINGS.ladder.autoRefresh
   );
   const [refreshInterval, setRefreshIntervalState] = useState(
-    userSettings?.ladder?.refreshInterval ?? 30
+    userSettings?.ladder?.refreshInterval ?? DEFAULT_SETTINGS.ladder.refreshInterval
   );
   const [smartMode, setSmartModeState] = useState(
-    userSettings?.ladder?.smartMode ?? true
+    userSettings?.ladder?.smartMode ?? DEFAULT_SETTINGS.ladder.smartMode
   );
   const [showFirstBoard, setShowFirstBoardState] = useState(
-    userSettings?.ladder?.showFirstBoard ?? true
+    userSettings?.ladder?.showFirstBoard ?? DEFAULT_SETTINGS.ladder.showFirstBoard
+  );
+  const [ladderMode, setLadderModeState] = useState(
+    userSettings?.ladder?.mode ?? DEFAULT_SETTINGS.ladder.mode
   );
   const [showAllNews, setShowAllNewsState] = useState(
-    userSettings?.news?.showAllNews ?? false
+    userSettings?.news?.showAllNews ?? DEFAULT_SETTINGS.news.showAllNews
   );
 
   const [speechEnabled, setSpeechEnabledState] = useState(
-    userSettings?.news?.speechEnabled ?? true
+    userSettings?.news?.speechEnabled ?? DEFAULT_SETTINGS.news.speechEnabled
   );
 
   const [speechSettings, setSpeechSettingsState] = useState(() => {
@@ -175,14 +159,19 @@ export const GlobalProvider = ({ children }) => {
 
   useEffect(() => {
     if (userSettings && userSettings[currentPage]) {
-      setAutoRefreshState(userSettings[currentPage].autoRefresh);
-      setRefreshIntervalState(userSettings[currentPage].refreshInterval);
-      setSmartModeState(userSettings[currentPage].smartMode);
+      const pageSettings = userSettings[currentPage];
+      const defaultPageSettings = DEFAULT_SETTINGS[currentPage] || { autoRefresh: false, refreshInterval: 30, smartMode: true };
+      
+      setAutoRefreshState(pageSettings.autoRefresh ?? defaultPageSettings.autoRefresh);
+      setRefreshIntervalState(pageSettings.refreshInterval ?? defaultPageSettings.refreshInterval);
+      setSmartModeState(pageSettings.smartMode ?? defaultPageSettings.smartMode);
+      
       if (currentPage === 'ladder') {
-        setShowFirstBoardState(userSettings[currentPage].showFirstBoard ?? true);
+        setShowFirstBoardState(pageSettings.showFirstBoard ?? defaultPageSettings.showFirstBoard ?? true);
+        setLadderModeState(pageSettings.mode ?? defaultPageSettings.mode ?? 'comparison');
       }
       if (currentPage === 'news') {
-        setShowAllNewsState(userSettings[currentPage].showAllNews ?? false);
+        setShowAllNewsState(pageSettings.showAllNews ?? defaultPageSettings.showAllNews ?? false);
       }
     }
   }, [userSettings, currentPage]);
@@ -196,23 +185,29 @@ export const GlobalProvider = ({ children }) => {
 
   const loadPageSettings = (page) => {
     setCurrentPage(page);
+    const defaultPageSettings = DEFAULT_SETTINGS[page] || { autoRefresh: false, refreshInterval: 30, smartMode: true };
+    
     if (userSettings && userSettings[page]) {
-      setAutoRefreshState(userSettings[page].autoRefresh);
-      setRefreshIntervalState(userSettings[page].refreshInterval);
-      setSmartModeState(userSettings[page].smartMode);
+      const pageSettings = userSettings[page];
+      
+      setAutoRefreshState(pageSettings.autoRefresh ?? defaultPageSettings.autoRefresh);
+      setRefreshIntervalState(pageSettings.refreshInterval ?? defaultPageSettings.refreshInterval);
+      setSmartModeState(pageSettings.smartMode ?? defaultPageSettings.smartMode);
+      
       if (page === 'ladder') {
-        setShowFirstBoardState(userSettings[page].showFirstBoard ?? true);
+        setShowFirstBoardState(pageSettings.showFirstBoard ?? defaultPageSettings.showFirstBoard ?? true);
+        setLadderModeState(pageSettings.mode ?? defaultPageSettings.mode ?? 'comparison');
       }
       if (page === 'news') {
-        setShowAllNewsState(userSettings[page].showAllNews ?? false);
+        setShowAllNewsState(pageSettings.showAllNews ?? defaultPageSettings.showAllNews ?? false);
       }
     } else {
-      const defaultPageSettings = DEFAULT_SETTINGS[page] || { autoRefresh: false, refreshInterval: 30, smartMode: true };
       setAutoRefreshState(defaultPageSettings.autoRefresh);
       setRefreshIntervalState(defaultPageSettings.refreshInterval);
       setSmartModeState(defaultPageSettings.smartMode);
       if (page === 'ladder') {
         setShowFirstBoardState(defaultPageSettings.showFirstBoard ?? true);
+        setLadderModeState(defaultPageSettings.mode ?? 'comparison');
       }
       if (page === 'news') {
         setShowAllNewsState(defaultPageSettings.showAllNews ?? false);
@@ -263,6 +258,18 @@ export const GlobalProvider = ({ children }) => {
       ladder: {
         ...(userSettings?.ladder || DEFAULT_SETTINGS.ladder),
         showFirstBoard: value,
+      },
+    };
+    updateSettings(newSettings);
+  };
+
+  const setLadderMode = (value) => {
+    setLadderModeState(value);
+    const newSettings = {
+      ...userSettings,
+      ladder: {
+        ...(userSettings?.ladder || DEFAULT_SETTINGS.ladder),
+        mode: value,
       },
     };
     updateSettings(newSettings);
@@ -527,6 +534,8 @@ export const GlobalProvider = ({ children }) => {
     setSmartMode,
     showFirstBoard,
     setShowFirstBoard,
+    ladderMode,
+    setLadderMode,
     showAllNews,
     setShowAllNews,
     speechEnabled,

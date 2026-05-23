@@ -16,6 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from mootdx.quotes import Quotes
+from mootdx.utils.holiday import holiday
 
 
 class DataFetcher:
@@ -398,6 +399,7 @@ class DataFetcher:
         """
         获取股票当日分时数据（使用mootdx）
         在交易日早上9点之前返回昨天的数据
+        在非交易日返回最近交易日的数据
         """
         try:
             now = datetime.now()
@@ -405,17 +407,20 @@ class DataFetcher:
             market_open_time = datetime.strptime('09:25', '%H:%M').time()
             
             date_str = None
-            if current_time < market_open_time:
-                weekday = now.weekday()
-                if weekday == 0:
-                    days_to_subtract = 3
-                elif weekday == 6:
-                    days_to_subtract = 2
-                else:
-                    days_to_subtract = 1
+            
+            if holiday(date=now.strftime('%Y-%m-%d')):
+                check_date = now - timedelta(days=1)
+                while holiday(date=check_date.strftime('%Y-%m-%d')):
+                    check_date = check_date - timedelta(days=1)
                 
-                yesterday = now - timedelta(days=days_to_subtract)
-                date_str = yesterday.strftime('%Y%m%d')
+                date_str = check_date.strftime('%Y%m%d')
+                print(f"今天是非交易日，获取 {date_str} 的分时数据...")
+            elif current_time < market_open_time:
+                check_date = now - timedelta(days=1)
+                while holiday(date=check_date.strftime('%Y-%m-%d')):
+                    check_date = check_date - timedelta(days=1)
+                
+                date_str = check_date.strftime('%Y%m%d')
                 print(f"当前时间 {current_time} 早于开盘时间，获取 {date_str} 的分时数据...")
             
             print(f"从mootdx获取 {stock_code} 分时数据...")

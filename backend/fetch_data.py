@@ -144,6 +144,16 @@ class LimitUpFetcher:
             print(f"开始爬取 {date_str} 的数据...")
             print(f"{'='*80}")
             
+            # 保存next_change字段
+            next_change_backup = {}
+            old_stocks = session.query(LimitUpStock).filter(
+                LimitUpStock.trade_date == trade_date
+            ).all()
+            for stock in old_stocks:
+                if stock.next_change is not None:
+                    next_change_backup[stock.stock_code] = stock.next_change
+            print(f"✓ 已备份 {len(next_change_backup)} 只股票的next_change字段")
+            
             # 删除该日期的旧数据
             session.query(LimitUpStock).filter(
                 LimitUpStock.trade_date == trade_date
@@ -164,6 +174,20 @@ class LimitUpFetcher:
             success = self._process_and_save_data(
                 session, trade_date, ths_data
             )
+            
+            # 恢复next_change字段
+            if next_change_backup:
+                restored_count = 0
+                for stock_code, next_change in next_change_backup.items():
+                    stock = session.query(LimitUpStock).filter(
+                        LimitUpStock.stock_code == stock_code,
+                        LimitUpStock.trade_date == trade_date
+                    ).first()
+                    if stock:
+                        stock.next_change = next_change
+                        restored_count += 1
+                session.commit()
+                print(f"✓ 已恢复 {restored_count} 只股票的next_change字段")
             
             if success:
                 # 记录日志
@@ -350,11 +374,12 @@ class LimitUpFetcher:
                 stock_code = str(row.get("代码", ""))
                 stock_name = str(row.get("名称", ""))
                 
-                # 获取连板数（优先级：涨停梯队 > 板块强度 > high_days解析）
+                # 获取连板数（优先级：涨停梯队 > 默认首板）
+                # 注意：涨停池接口的high_days字段（如"5天4板"）不能准确反映连板数，不能使用
                 continuous_days = ths_continue_num_dict.get(stock_code, 0)
                 if continuous_days == 0:
-                    high_days_str = ths_high_days_dict.get(stock_code, row.get("高度板", "首板"))
-                    continuous_days = self.parse_continuous_days(high_days_str)
+                    # 如果涨停梯队接口没有数据，默认为首板
+                    continuous_days = 1
                 
                 # 获取涨停原因
                 limit_reason = ths_reason_dict.get(stock_code, '')
@@ -461,6 +486,86 @@ class LimitUpFetcher:
                 eighth_plus_board=ladder_stats[8]
             )
             session.add(stats)
+            
+            print("\n更新昨日涨停股票的次日涨跌幅...")
+            prev_trade_date = session.query(LadderStats.trade_date).filter(
+                LadderStats.trade_date < trade_date
+            ).order_by(LadderStats.trade_date.desc()).first()
+            
+            if prev_trade_date:
+                prev_date = prev_trade_date[0]
+                
+                from trade_calendar import trade_calendar
+                from datetime import datetime, timedelta
+                
+                now = datetime.now()
+                current_date = now.date()
+                
+                next_trading_day = None
+                for i in range(1, 31):
+                    d = prev_date + timedelta(days=i)
+                    if trade_calendar.is_trading_day(d):
+                        next_trading_day = d
+                        break
+                
+                should_update = next_trading_day and current_date < next_trading_day
+                
+                if should_update:
+                    print(f"当前日期 {current_date} < 下一个交易日 {next_trading_day}，更新next_change字段")
+                    yesterday_stocks = session.query(LimitUpStock).filter(
+                        LimitUpStock.trade_date == prev_date
+                    ).all()
+                    
+                    if yesterday_stocks:
+                        yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
+                        sh_codes = [code for code in yesterday_codes if code.startswith('6')]
+                        sz_codes = [code for code in yesterday_codes if code.startswith(('0', '3'))]
+                        
+                        quotes_dict = {}
+                        
+                        if sh_codes:
+                            try:
+                                from mootdx.quotes import Quotes
+                                client = Quotes.factory(market=1)
+                                quotes = client.quotes(symbol=sh_codes)
+                                
+                                if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                                    for idx, row in quotes.iterrows():
+                                        code = row['code']
+                                        quotes_dict[code] = {
+                                            'price': float(row.get('price', 0) or 0),
+                                            'prev_close': float(row.get('last_close', 0) or 0),
+                                        }
+                            except Exception as e:
+                                print(f"批量获取沪市实时行情失败: {e}")
+                        
+                        if sz_codes:
+                            try:
+                                from mootdx.quotes import Quotes
+                                client = Quotes.factory(market=0)
+                                quotes = client.quotes(symbol=sz_codes)
+                                
+                                if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                                    for idx, row in quotes.iterrows():
+                                        code = row['code']
+                                        quotes_dict[code] = {
+                                            'price': float(row.get('price', 0) or 0),
+                                            'prev_close': float(row.get('last_close', 0) or 0),
+                                        }
+                            except Exception as e:
+                                print(f"批量获取深市实时行情失败: {e}")
+                        
+                        updated_count = 0
+                        for stock in yesterday_stocks:
+                            quote = quotes_dict.get(stock.stock_code)
+                            if quote and quote['prev_close'] > 0:
+                                next_change = (quote['price'] - quote['prev_close']) / quote['prev_close'] * 100
+                                stock.next_change = Decimal(str(round(next_change, 4)))
+                                updated_count += 1
+                        
+                        print(f"✓ 更新了 {updated_count} 只昨日涨停股票的次日涨跌幅")
+                else:
+                    print(f"当前日期 {current_date} >= 下一个交易日 {next_trading_day}，不更新next_change字段")
             
             session.commit()
             

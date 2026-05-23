@@ -10,12 +10,22 @@ export const useAutoRefresh = ({
   callback,
 }) => {
   const intervalRef = useRef(null);
+  const callbackRef = useRef(callback);
+  const tradingDaysRef = useRef(tradingDays);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    tradingDaysRef.current = tradingDays;
+  }, [tradingDays]);
 
   const isInTradingTime = () => {
     const now = new Date();
     const today = dayjs().format('YYYYMMDD');
     
-    if (!tradingDays.includes(today)) {
+    if (!tradingDaysRef.current.includes(today)) {
       return false;
     }
     
@@ -33,14 +43,14 @@ export const useAutoRefresh = ({
   };
 
   useEffect(() => {
-    if (autoRefresh && callback) {
+    if (autoRefresh && callbackRef.current) {
       const shouldRefresh = smartMode ? isInTradingTime() : true;
       
       if (shouldRefresh) {
         intervalRef.current = setInterval(() => {
           const stillInTime = smartMode ? isInTradingTime() : true;
-          if (stillInTime && callback) {
-            callback();
+          if (stillInTime && callbackRef.current) {
+            callbackRef.current();
           }
         }, refreshInterval * 1000);
       }
@@ -52,7 +62,7 @@ export const useAutoRefresh = ({
         intervalRef.current = null;
       }
     };
-  }, [autoRefresh, refreshInterval, smartMode, currentPage, callback, tradingDays]);
+  }, [autoRefresh, refreshInterval, smartMode, currentPage]);
 
   useEffect(() => {
     if (smartMode && autoRefresh) {
@@ -61,10 +71,10 @@ export const useAutoRefresh = ({
         if (!inTime && intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
-        } else if (inTime && !intervalRef.current && callback) {
+        } else if (inTime && !intervalRef.current && callbackRef.current) {
           intervalRef.current = setInterval(() => {
-            if (isInTradingTime() && callback) {
-              callback();
+            if (isInTradingTime() && callbackRef.current) {
+              callbackRef.current();
             }
           }, refreshInterval * 1000);
         }
@@ -72,5 +82,5 @@ export const useAutoRefresh = ({
       
       return () => clearInterval(checkInterval);
     }
-  }, [smartMode, autoRefresh, refreshInterval, currentPage, callback, tradingDays]);
+  }, [smartMode, autoRefresh, refreshInterval, currentPage]);
 };
