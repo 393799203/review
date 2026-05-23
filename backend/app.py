@@ -3697,6 +3697,241 @@ def weixin_signature():
         })
 
 
+@app.route('/api/user/settings', methods=['GET', 'POST'])
+def handle_user_settings():
+    """获取或更新用户设置"""
+    session = get_db_session()
+    try:
+        uid = request.headers.get('X-User-Uid')
+        if not uid:
+            return jsonify({'success': False, 'error': '未登录'}), 401
+        
+        user = session.query(User).filter(User.uid == uid).first()
+        if not user:
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
+        
+        if request.method == 'GET':
+            import json
+            settings = {}
+            if user.settings:
+                try:
+                    settings = json.loads(user.settings)
+                except:
+                    settings = {}
+            
+            return jsonify({
+                'success': True,
+                'settings': settings
+            })
+        
+        elif request.method == 'POST':
+            import json
+            new_settings = request.get_json()
+            
+            current_settings = {}
+            if user.settings:
+                try:
+                    current_settings = json.loads(user.settings)
+                except:
+                    current_settings = {}
+            
+            current_settings.update(new_settings)
+            user.settings = json.dumps(current_settings, ensure_ascii=False)
+            session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': '设置已保存'
+            })
+    
+    except Exception as e:
+        print(f"处理用户设置失败: {e}")
+        session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@app.route('/api/ladder-comparison/<date_str>', methods=['GET'])
+def get_ladder_comparison(date_str):
+    """
+    获取连板晋级对比数据
+    
+    返回今天和昨天的涨停数据，前端自行对比
+    """
+    session = get_db_session()
+    try:
+        trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+        
+        if trade_date > datetime.now().date():
+            return jsonify({
+                'success': False,
+                'error': '无法获取未来日期的数据'
+            }), 200
+        
+        prev_trade_date = session.query(LadderStats.trade_date).filter(
+            LadderStats.trade_date < trade_date
+        ).order_by(desc(LadderStats.trade_date)).first()
+        
+        if not prev_trade_date:
+            return jsonify({
+                'success': False,
+                'error': '没有找到上一个交易日的数据'
+            }), 200
+        
+        prev_date = prev_trade_date[0]
+        
+        today_stocks = session.query(LimitUpStock).filter(
+            LimitUpStock.trade_date == trade_date
+        ).all()
+        
+        yesterday_stocks = session.query(LimitUpStock).filter(
+            LimitUpStock.trade_date == prev_date
+        ).all()
+        
+        if not today_stocks:
+            return jsonify({
+                'success': False,
+                'error': '该日期暂无涨停股票数据'
+            }), 200
+        
+        today_list = []
+        for stock in today_stocks:
+            today_list.append({
+                'code': stock.stock_code,
+                'name': stock.stock_name,
+                'continuous_days': stock.continuous_days,
+                'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
+                'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
+                'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
+                'change_percent': float(stock.change_percent) if stock.change_percent else 0.0,
+                'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0
+            })
+        
+        yesterday_list = []
+        for stock in yesterday_stocks:
+            yesterday_list.append({
+                'code': stock.stock_code,
+                'name': stock.stock_name,
+                'continuous_days': stock.continuous_days,
+                'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
+                'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
+                'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
+                'change_percent': float(stock.next_change) if stock.next_change else None
+            })
+        
+        latest_trade_date = session.query(LadderStats.trade_date).order_by(desc(LadderStats.trade_date)).first()
+        
+        print(f"最新交易日查询结果: {latest_trade_date}")
+        
+        should_fetch_realtime = False
+        if latest_trade_date:
+            latest_date = latest_trade_date[0]
+            print(f"最新交易日: {latest_date}, 用户选择日期: {trade_date}")
+            
+            if trade_date == latest_date:
+                from trade_calendar import trade_calendar
+                now = datetime.now()
+                current_date = now.date()
+                
+                print(f"当前日期: {current_date}, 前一交易日: {prev_date}")
+                
+                next_trading_day = None
+                for i in range(1, 31):
+                    d = prev_date + timedelta(days=i)
+                    if trade_calendar.is_trading_day(d):
+                        next_trading_day = d
+                        print(f"找到下一个交易日: {next_trading_day}")
+                        break
+                
+                if next_trading_day and current_date < next_trading_day:
+                    should_fetch_realtime = True
+                    print(f"满足实时获取条件: 当前日期 {current_date} < 下一个交易日 {next_trading_day}")
+                else:
+                    print(f"不满足实时获取条件: next_trading_day={next_trading_day}, current_date={current_date}")
+            else:
+                print(f"用户选择的日期 {trade_date} != 最新交易日 {latest_date}")
+        else:
+            print("没有找到最新交易日")
+        
+        if should_fetch_realtime:
+            yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
+            print(f"实时获取昨日涨停股票涨跌幅，股票数量: {len(yesterday_codes)}")
+        else:
+            yesterday_codes = []
+            print(f"从数据库读取历史数据，不实时获取")
+        
+        if yesterday_codes:
+            sh_codes = [code for code in yesterday_codes if code.startswith('6')]
+            sz_codes = [code for code in yesterday_codes if code.startswith(('0', '3'))]
+            
+            print(f"沪市股票: {len(sh_codes)} 只, 深市股票: {len(sz_codes)} 只")
+            
+            quotes_dict = {}
+            
+            if sh_codes:
+                try:
+                    client = Quotes.factory(market=1)
+                    quotes = client.quotes(symbol=sh_codes)
+                    
+                    print(f"沪市行情返回: {quotes is not None and hasattr(quotes, 'empty') and not quotes.empty}")
+                    
+                    if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                        for idx, row in quotes.iterrows():
+                            code = row['code']
+                            quotes_dict[code] = {
+                                'price': float(row.get('price', 0) or 0),
+                                'prev_close': float(row.get('last_close', 0) or 0),
+                            }
+                        print(f"成功获取沪市行情: {len(quotes_dict)} 只")
+                except Exception as e:
+                    print(f"批量获取沪市实时行情失败: {e}")
+            
+            if sz_codes:
+                try:
+                    client = Quotes.factory(market=0)
+                    quotes = client.quotes(symbol=sz_codes)
+                    
+                    print(f"深市行情返回: {quotes is not None and hasattr(quotes, 'empty') and not quotes.empty}")
+                    
+                    if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+                        for idx, row in quotes.iterrows():
+                            code = row['code']
+                            quotes_dict[code] = {
+                                'price': float(row.get('price', 0) or 0),
+                                'prev_close': float(row.get('last_close', 0) or 0),
+                            }
+                        print(f"成功获取深市行情: {len(quotes_dict)} 只")
+                except Exception as e:
+                    print(f"批量获取深市实时行情失败: {e}")
+            
+            for stock_data in yesterday_list:
+                quote = quotes_dict.get(stock_data['code'])
+                if quote and quote['prev_close'] > 0:
+                    stock_data['change_percent'] = (quote['price'] - quote['prev_close']) / quote['prev_close'] * 100
+        
+        return jsonify({
+            'success': True,
+            'today': {
+                'date': trade_date.strftime('%Y-%m-%d'),
+                'stocks': today_list
+            },
+            'yesterday': {
+                'date': prev_date.strftime('%Y-%m-%d'),
+                'stocks': yesterday_list
+            }
+        })
+        
+    except Exception as e:
+        print(f"获取连板晋级对比数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        session.close()
+
+
 if __name__ == '__main__':
     print("初始化数据库...")
     init_database()
@@ -3726,4 +3961,4 @@ if __name__ == '__main__':
     print("\n启动Web服务器...")
     print("访问地址: http://localhost:5001")
     
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=False)

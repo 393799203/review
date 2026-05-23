@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { message } from 'antd';
 import { stockApi } from '../services/api';
+import { DEFAULT_SETTINGS } from '../constants/settings';
 
 const AuthContext = createContext(null);
 
@@ -10,26 +11,6 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
-};
-
-const DEFAULT_SETTINGS = {
-  ladder: { autoRefresh: true, refreshInterval: 30, smartMode: true },
-  watchlist: { autoRefresh: true, refreshInterval: 30, smartMode: true },
-  statistics: { autoRefresh: false, refreshInterval: 30, smartMode: true },
-  news: { 
-    autoRefresh: true, 
-    refreshInterval: 30, 
-    smartMode: false, 
-    showAllNews: false,
-    speechEnabled: true,
-    speechSettings: {
-      voice: null,
-      rate: 1.0,
-      pitch: 1.0,
-      volume: 1.0
-    }
-  },
-  reports: { autoRefresh: true, refreshInterval: 300, smartMode: false },
 };
 
 export const AuthProvider = ({ children }) => {

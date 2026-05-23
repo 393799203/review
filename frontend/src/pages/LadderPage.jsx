@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
+import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -9,9 +9,11 @@ import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
 import axios from 'axios';
+import dayjs from 'dayjs';
 
 const LadderPage = () => {
-  const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard } = useGlobal();
+  const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode } = useGlobal();
+  const mode = ladderMode || 'ladder';
   const showFirstBoardProp = showFirstBoard;
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
@@ -41,6 +43,14 @@ const LadderPage = () => {
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [loading, setLoading] = useState(true);
   
+  const [comparisonData, setComparisonData] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonResult, setComparisonResult] = useState({
+    promoted: [],
+    maintained: [],
+    broken: []
+  });
+  
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
   const isLoadingFromDBRef = useRef(false);
@@ -65,8 +75,17 @@ const LadderPage = () => {
       loadData(currentDate);
       loadBlockStrengthData();
       loadDiffData();
+      if (mode === 'comparison') {
+        loadComparisonData();
+      }
     }
   }, [currentDate, refreshKey]);
+
+  useEffect(() => {
+    if (mode === 'comparison' && currentDate) {
+      loadComparisonData();
+    }
+  }, [mode]);
 
   useEffect(() => {
     if (nextDayBlocks.length === 0 && blockFilterDay === 'tomorrow') {
@@ -137,6 +156,78 @@ const LadderPage = () => {
     } catch (error) {
       console.error('保存对比结果失败:', error);
     }
+  };
+
+  const loadComparisonData = async () => {
+    if (mode !== 'comparison') return;
+    
+    setComparisonLoading(true);
+    try {
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
+      const dateStr = currentDate.replace(/-/g, '');
+      const response = await axios.get(`${API_BASE}/ladder-comparison/${dateStr}`);
+      
+      if (response.data.success) {
+        setComparisonData(response.data);
+        processComparisonData(response.data);
+      }
+    } catch (error) {
+      console.error('加载连板晋级对比数据失败:', error);
+      message.error('加载连板晋级对比数据失败');
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  const processComparisonData = (data) => {
+    if (!data) return;
+
+    const todayDict = {};
+    data.today.stocks.forEach(stock => {
+      todayDict[stock.code] = stock;
+    });
+
+    const yesterdayDict = {};
+    data.yesterday.stocks.forEach(stock => {
+      yesterdayDict[stock.code] = stock;
+    });
+
+    const promoted = [];
+    const maintained = [];
+    const broken = [];
+
+    Object.values(yesterdayDict).forEach(yesterdayStock => {
+      const todayStock = todayDict[yesterdayStock.code];
+
+      if (todayStock) {
+        if (todayStock.continuous_days > yesterdayStock.continuous_days) {
+          promoted.push({
+            ...todayStock,
+            yesterday_height: yesterdayStock.continuous_days,
+            status: 'promoted'
+          });
+        } else {
+          maintained.push({
+            ...todayStock,
+            yesterday_height: yesterdayStock.continuous_days,
+            status: 'maintained'
+          });
+        }
+      } else {
+        broken.push({
+          ...yesterdayStock,
+          today_height: 0,
+          status: 'broken'
+        });
+      }
+    });
+
+    promoted.sort((a, b) => b.continuous_days - a.continuous_days);
+    maintained.sort((a, b) => b.continuous_days - a.continuous_days);
+    broken.sort((a, b) => b.yesterday_height - a.yesterday_height);
+
+    setComparisonResult({ promoted, maintained, broken });
   };
 
   const clearDiffData = async () => {
@@ -458,7 +549,7 @@ const LadderPage = () => {
 
     if (isMobile) {
       return (
-        <Col span={24} key={stock.code}>
+        <Col span={6} key={stock.code}>
           <Card
           size="small"
           style={{
@@ -467,7 +558,7 @@ const LadderPage = () => {
             position: 'relative',
             overflow: 'hidden',
           }}
-          styles={{ body: { padding: '8px 10px' } }}
+          styles={{ body: { padding: '4px 6px' } }}
         >
           {stock.is_high_stock === 1 && (
             <div style={{
@@ -476,143 +567,58 @@ const LadderPage = () => {
               right: 0,
               background: 'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)',
               color: '#fff',
-              fontSize: 10,
-              padding: '2px 8px',
-              borderRadius: '0 0 0 8px',
+              fontSize: 8,
+              padding: '1px 4px',
+              borderRadius: '0 0 0 4px',
               fontWeight: 'bold',
-              boxShadow: '-2px 2px 4px rgba(0,0,0,0.1)',
+              boxShadow: '-1px 1px 2px rgba(0,0,0,0.1)',
             }}>
               龙头
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
-                <span 
-                  style={{ 
-                    fontWeight: 'bold', 
-                    fontSize: 14, 
-                    color: '#1890ff', 
-                    cursor: 'pointer',
-                    filter: enableBlur ? 'blur(5px)' : 'none',
-                    userSelect: enableBlur ? 'none' : 'auto'
-                  }}
-                  onClick={() => {
-                    setSelectedStock({ code: stock.code, name: stock.name });
-                    setKlineVisible(true);
-                  }}
-                >
-                  {stock.code}
-                </span>
-                <span 
-                  style={{ 
-                    fontWeight: 'bold', 
-                    fontSize: 14, 
-                    color: '#262626', 
-                    cursor: 'pointer',
-                    filter: enableBlur ? 'blur(5px)' : 'none',
-                    userSelect: enableBlur ? 'none' : 'auto'
-                  }}
-                  onClick={() => {
-                    setSelectedStock({ code: stock.code, name: stock.name });
-                    setKlineVisible(true);
-                  }}
-                >
-                  {stock.name}
-                </span>
-                  {stock.limit_up_type && (
-                    <Tag color={getLimitUpTypeColor(stock.limit_up_type)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.limit_up_type}</Tag>
-                  )}
-                  {stock.high_days && stock.high_days !== '首板' && (
-                    <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.high_days}</Tag>
-                  )}
-                  <div 
-                    style={{ 
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 20,
-                      height: 20,
-                      borderRadius: 3,
-                      background: '#722ed1',
-                      cursor: 'pointer',
-                      marginLeft: 4
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAnalysisStock({ code: stock.code, name: stock.name });
-                      setAnalysisVisible(true);
-                    }}
-                  >
-                    <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
-                  涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {displayReasons.map((reason, index) => (
-                    <Tag key={index} color="blue" style={{ fontSize: 10, marginBottom: 0 }}>
-                      {reason.trim()}
-                    </Tag>
-                  ))}
-                  {hasMore && (
-                    <Tag color="default" style={{ fontSize: 10, marginBottom: 0 }}>
-                      +{reasons.length - 3}
-                    </Tag>
-                  )}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', marginLeft: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#f5222d' }}>
-                  +{stock.change_percent.toFixed(2)}%
-                </div>
-                {stock.limit_up_price > 0 && (
-                  <div style={{ fontSize: 13, fontWeight: 'bold', color: '#f5222d' }}>¥{stock.limit_up_price.toFixed(2)}</div>
-                )}
-                {stock.block_name && (
-                  <Tooltip 
-                    title={
-                      stock.block_info && Object.keys(stock.block_info).length > 0 ? (
-                        <div>
-                          <div>板块涨跌幅: {stock.block_info.change_rate.toFixed(2)}%</div>
-                          <div>涨停家数: {stock.block_info.limit_up_num}</div>
-                          <div>连板家数: {stock.block_info.continuous_num}</div>
-                          {stock.block_info.high && <div>板块高度: {stock.block_info.high}</div>}
-                          <div>上榜天数: {stock.block_info.list_days}</div>
-                          {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
-                        </div>
-                      ) : null
-                    }
-                    placement="left"
-                  >
-                    <Tag 
-                      color="#722ed1" 
-                      style={{ 
-                        fontSize: 10, 
-                        marginTop: 4, 
-                        cursor: 'default',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
-                    >
-                      {stock.block_name}
-                      <EditOutlined 
-                        style={{ fontSize: 10, cursor: 'pointer' }} 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingStock(stock);
-                          setEditBlockVisible(true);
-                        }}
-                      />
-                    </Tag>
-                  </Tooltip>
-                )}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <span 
+                style={{ 
+                  fontWeight: 'bold', 
+                  fontSize: 10, 
+                  color: '#1890ff', 
+                  cursor: 'pointer',
+                  filter: enableBlur ? 'blur(5px)' : 'none',
+                  userSelect: enableBlur ? 'none' : 'auto'
+                }}
+                onClick={() => {
+                  setSelectedStock({ code: stock.code, name: stock.name });
+                  setKlineVisible(true);
+                }}
+              >
+                {stock.code}
+              </span>
+              <span 
+                style={{ 
+                  fontWeight: 'bold', 
+                  fontSize: 10, 
+                  color: '#262626', 
+                  cursor: 'pointer',
+                  filter: enableBlur ? 'blur(5px)' : 'none',
+                  userSelect: enableBlur ? 'none' : 'auto'
+                }}
+                onClick={() => {
+                  setSelectedStock({ code: stock.code, name: stock.name });
+                  setKlineVisible(true);
+                }}
+              >
+                {stock.name}
+              </span>
             </div>
-          </Card>
-        </Col>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 'bold', color: '#f5222d' }}>
+                +{stock.change_percent.toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </Card>
+      </Col>
       );
     }
     
@@ -986,24 +992,415 @@ const LadderPage = () => {
     );
   };
 
+  const renderComparisonContent = () => {
+    if (comparisonLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: '100px 0' }}>
+          <Spin size="large" />
+        </div>
+      );
+    }
+
+    if (!comparisonData) {
+      return <Empty description="暂无数据" />;
+    }
+
+    const yesterdayStocks = comparisonData.yesterday.stocks || [];
+    const todayStocks = comparisonData.today.stocks || [];
+
+    const yesterdayLadder = {};
+    yesterdayStocks.forEach(stock => {
+      const height = stock.continuous_days || 1;
+      if (!yesterdayLadder[height]) {
+        yesterdayLadder[height] = [];
+      }
+      yesterdayLadder[height].push(stock);
+    });
+
+    const todayLadder = {};
+    todayStocks.forEach(stock => {
+      const height = stock.continuous_days || 1;
+      if (!todayLadder[height]) {
+        todayLadder[height] = [];
+      }
+      todayLadder[height].push(stock);
+    });
+
+    const promotedLadder = {};
+    Object.keys(yesterdayLadder).forEach(height => {
+      const nextHeight = parseInt(height) + 1;
+      const stocks = yesterdayLadder[height];
+      const promotedStocks = [];
+      
+      stocks.forEach(stock => {
+        const todayStock = todayStocks.find(s => s.code === stock.code);
+        if (todayStock && todayStock.continuous_days === nextHeight) {
+          promotedStocks.push({
+            ...todayStock,
+            yesterday_height: parseInt(height)
+          });
+        }
+      });
+      
+      promotedLadder[nextHeight] = promotedStocks;
+    });
+
+    const firstBoardStocks = todayLadder[1] || [];
+
+    const renderStockCard = (stock, showYesterdayHeight = false, isRightColumn = false) => {
+      const isPromoted = !isRightColumn && promotedHeights.some(height => {
+        const stocks = promotedLadder[height] || [];
+        return stocks.some(s => s.code === stock.code);
+      });
+      
+      console.log('renderStockCard stock:', stock.code, 'change_percent:', stock.change_percent);
+      
+      return (
+        <div
+          key={stock.code}
+          style={{
+            padding: isMobile ? '3px 4px' : '8px 12px',
+            background: isPromoted ? '#fff1f0' : '#fafafa',
+            borderRadius: 4,
+            border: isPromoted ? '1px solid #ffa39e' : '1px solid #e8e8e8',
+            width: '100%'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 1 : 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 2 : 4, justifyContent: 'center' }}>
+              <span 
+                style={{ 
+                  fontWeight: 'bold', 
+                  fontSize: isMobile ? 10 : 13,
+                  cursor: 'pointer',
+                  color: '#1890ff'
+                }}
+                onClick={() => {
+                  setSelectedStock(stock);
+                  setKlineVisible(true);
+                }}
+              >
+                {stock.name}
+              </span>
+              <span style={{ color: '#999', fontSize: isMobile ? 8 : 11 }}>{stock.code}</span>
+            </div>
+            {stock.change_percent !== null && stock.change_percent !== undefined && (
+              <div style={{ 
+                fontSize: isMobile ? 10 : 12, 
+                fontWeight: 'bold',
+                color: stock.change_percent >= 0 ? '#f5222d' : '#52c41a',
+                textAlign: 'center'
+              }}>
+                {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const renderLadderColumn = (title, ladderData, showYesterdayHeight = false, heights = null, isRightColumn = false) => {
+      const displayHeights = heights || Object.keys(ladderData).map(Number).sort((a, b) => b - a);
+      
+      return (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#fff',
+            padding: isMobile ? '10px 12px' : '12px 16px',
+            borderRadius: '8px 8px 0 0',
+            fontWeight: 'bold',
+            fontSize: isMobile ? 13 : 14,
+            marginBottom: 12
+          }}>
+            {title}
+          </div>
+          {displayHeights.map(height => {
+            const stocks = ladderData[height] || [];
+            return (
+              <div key={height} style={{ marginBottom: isMobile ? 8 : 16, minHeight: isMobile ? 60 : 100 }}>
+                <div style={{ 
+                  background: '#e6f7ff',
+                  padding: isMobile ? '3px 8px' : '6px 12px',
+                  borderRadius: 4,
+                  marginBottom: isMobile ? 4 : 8,
+                  fontWeight: 'bold',
+                  fontSize: isMobile ? 11 : 13,
+                  color: '#1890ff',
+                  minHeight: isMobile ? 22 : 28,
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  {height}连板 ({stocks.length}只)
+                </div>
+                {stocks.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: isMobile ? 4 : 8 }}>
+                    {stocks.map(stock => renderStockCard(stock, showYesterdayHeight, isRightColumn))}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    padding: isMobile ? '6px' : '10px', 
+                    textAlign: 'center', 
+                    color: '#999',
+                    fontSize: isMobile ? 10 : 12,
+                    background: '#f5f5f5',
+                    borderRadius: 4
+                  }}>
+                    暂无股票
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    const yesterdayHeights = Object.keys(yesterdayLadder).map(Number).sort((a, b) => b - a);
+    const promotedHeights = yesterdayHeights.map(h => h + 1);
+    
+    const promotedCount = Object.values(promotedLadder).reduce((sum, stocks) => sum + stocks.length, 0);
+
+    return (
+      <div style={{ minHeight: '100vh' }}>
+        <div style={{ marginBottom: isMobile ? 12 : 24}}>
+          <Row gutter={isMobile ? [8, 8] : [16, 16]}>
+            <Col span={6}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 8,
+                padding: isMobile ? '8px' : '16px',
+                color: '#fff'
+              }}>
+                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 4 }}>今日涨停</div>
+                <div style={{ fontSize: isMobile ? 16 : 24, fontWeight: 'bold' }}>{todayStocks.length}<span style={{ fontSize: isMobile ? 10 : 14, marginLeft: 2 }}>只</span></div>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                borderRadius: 8,
+                padding: isMobile ? '8px' : '16px',
+                color: '#fff'
+              }}>
+                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 4 }}>昨日涨停</div>
+                <div style={{ fontSize: isMobile ? 16 : 24, fontWeight: 'bold' }}>{yesterdayStocks.length}<span style={{ fontSize: isMobile ? 10 : 14, marginLeft: 2 }}>只</span></div>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                borderRadius: 8,
+                padding: isMobile ? '8px' : '16px',
+                color: '#fff'
+              }}>
+                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 4 }}>晋级</div>
+                <div style={{ fontSize: isMobile ? 16 : 24, fontWeight: 'bold' }}>{promotedCount}<span style={{ fontSize: isMobile ? 10 : 14, marginLeft: 2 }}>只</span></div>
+              </div>
+            </Col>
+            <Col span={6}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                borderRadius: 8,
+                padding: isMobile ? '8px' : '16px',
+                color: '#fff'
+              }}>
+                <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 4 }}>今日首板</div>
+                <div style={{ fontSize: isMobile ? 16 : 24, fontWeight: 'bold' }}>{firstBoardStocks.length}<span style={{ fontSize: isMobile ? 10 : 14, marginLeft: 2 }}>只</span></div>
+              </div>
+            </Col>
+          </Row>
+        </div>
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 24, marginBottom: isMobile ? 12 : 16 }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              padding: isMobile ? '10px 12px' : '12px 16px',
+              borderRadius: '8px 8px 0 0',
+              fontWeight: 'bold',
+              fontSize: isMobile ? 13 : 14
+            }}>
+              昨日梯队
+            </div>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              padding: isMobile ? '10px 12px' : '12px 16px',
+              borderRadius: '8px 8px 0 0',
+              fontWeight: 'bold',
+              fontSize: isMobile ? 13 : 14
+            }}>
+              今日晋级
+            </div>
+          </div>
+          {yesterdayHeights.map((height, index) => {
+            const yesterdayStocks = yesterdayLadder[height] || [];
+            const nextHeight = height + 1;
+            const promotedStocks = promotedLadder[nextHeight] || [];
+            
+            return (
+              <div key={height} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 24, marginBottom: isMobile ? 12 : 16 }}>
+                <div>
+                  <div style={{ 
+                    background: '#e6f7ff',
+                    padding: isMobile ? '5px 10px' : '6px 12px',
+                    borderRadius: 4,
+                    marginBottom: 8,
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? 12 : 13,
+                    color: '#1890ff',
+                    minHeight: isMobile ? 26 : 28,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    {height}连板 ({yesterdayStocks.length}只)
+                  </div>
+                  {yesterdayStocks.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
+                      {yesterdayStocks.map(stock => renderStockCard(stock, false, false))}
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      padding: isMobile ? '8px' : '10px', 
+                      textAlign: 'center', 
+                      color: '#999',
+                      fontSize: isMobile ? 11 : 12,
+                      background: '#f5f5f5',
+                      borderRadius: 4
+                    }}>
+                      暂无股票
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ 
+                    background: '#e6f7ff',
+                    padding: isMobile ? '5px 10px' : '6px 12px',
+                    borderRadius: 4,
+                    marginBottom: 8,
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? 12 : 13,
+                    color: '#1890ff',
+                    minHeight: isMobile ? 26 : 28,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    {nextHeight}连板 ({promotedStocks.length}只)
+                  </div>
+                  {promotedStocks.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
+                      {promotedStocks.map(stock => renderStockCard(stock, true, true))}
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      padding: isMobile ? '8px' : '10px', 
+                      textAlign: 'center', 
+                      color: '#999',
+                      fontSize: isMobile ? 11 : 12,
+                      background: '#f5f5f5',
+                      borderRadius: 4
+                    }}>
+                      暂无股票
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {firstBoardStocks.length > 0 && (
+            <div style={{ marginTop: isMobile ? 12 : 24 }}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: '#fff',
+                padding: isMobile ? '10px 12px' : '12px 16px',
+                borderRadius: 8,
+                fontWeight: 'bold',
+                fontSize: isMobile ? 13 : 14,
+                marginBottom: 12
+              }}>
+                今日首板 ({firstBoardStocks.length}只)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(6, 1fr)', gap: isMobile ? 4 : 8 }}>
+                {firstBoardStocks.map(stock => (
+                  <div
+                    key={stock.code}
+                    style={{
+                      padding: isMobile ? '3px 4px' : '8px 12px',
+                      background: '#fafafa',
+                      borderRadius: 6,
+                      border: '1px solid #e8e8e8',
+                      transition: 'all 0.3s',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                    onClick={() => {
+                      setSelectedStock(stock);
+                      setKlineVisible(true);
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 1 : 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 2 : 4 }}>
+                        <span style={{ fontWeight: 'bold', fontSize: isMobile ? 10 : 13, color: '#1890ff' }}>
+                          {stock.name}
+                        </span>
+                        <span style={{ color: '#999', fontSize: isMobile ? 8 : 11 }}>
+                          {stock.code}
+                        </span>
+                      </div>
+                      {stock.change_percent !== null && stock.change_percent !== undefined && (
+                        <div style={{ 
+                          fontSize: isMobile ? 10 : 12, 
+                          fontWeight: 'bold',
+                          color: stock.change_percent >= 0 ? '#f5222d' : '#52c41a',
+                          textAlign: 'center'
+                        }}>
+                          {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
-      {isFirstLoad && loading ? (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          minHeight: '400px' 
-        }}>
-          <Spin size="large" description="加载中..." />
-        </div>
+      {mode === 'comparison' ? (
+        renderComparisonContent()
       ) : (
         <>
-          {renderStatistics()}
-          <div style={{ marginTop: isMobile ? 12 : 24 }}>
-            {renderLadderTitle()}
-            {renderLadder()}
-          </div>
+          {isFirstLoad && loading ? (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              minHeight: '400px' 
+            }}>
+              <Spin size="large" description="加载中..." />
+            </div>
+          ) : (
+            <>
+              {renderStatistics()}
+              <div style={{ marginTop: isMobile ? 12 : 24 }}>
+                {renderLadderTitle()}
+                {renderLadder()}
+              </div>
+            </>
+          )}
         </>
       )}
       
