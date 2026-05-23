@@ -1348,7 +1348,7 @@ const LadderPage = () => {
                     }}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 1 : 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 2 : 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 2 : 4, justifyContent: 'center' }}>
                         <span style={{ fontWeight: 'bold', fontSize: isMobile ? 10 : 13, color: '#1890ff' }}>
                           {stock.name}
                         </span>
