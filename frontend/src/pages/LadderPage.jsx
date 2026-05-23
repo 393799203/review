@@ -549,7 +549,7 @@ const LadderPage = () => {
 
     if (isMobile) {
       return (
-        <Col span={6} key={stock.code}>
+        <Col span={24} key={stock.code}>
           <Card
           size="small"
           style={{
@@ -558,7 +558,7 @@ const LadderPage = () => {
             position: 'relative',
             overflow: 'hidden',
           }}
-          styles={{ body: { padding: '4px 6px' } }}
+          styles={{ body: { padding: '8px 10px' } }}
         >
           {stock.is_high_stock === 1 && (
             <div style={{
@@ -567,58 +567,143 @@ const LadderPage = () => {
               right: 0,
               background: 'linear-gradient(135deg, #faad14 0%, #fa8c16 100%)',
               color: '#fff',
-              fontSize: 8,
-              padding: '1px 4px',
-              borderRadius: '0 0 0 4px',
+              fontSize: 10,
+              padding: '2px 8px',
+              borderRadius: '0 0 0 8px',
               fontWeight: 'bold',
-              boxShadow: '-1px 1px 2px rgba(0,0,0,0.1)',
+              boxShadow: '-2px 2px 4px rgba(0,0,0,0.1)',
             }}>
               龙头
             </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-              <span 
-                style={{ 
-                  fontWeight: 'bold', 
-                  fontSize: 10, 
-                  color: '#1890ff', 
-                  cursor: 'pointer',
-                  filter: enableBlur ? 'blur(5px)' : 'none',
-                  userSelect: enableBlur ? 'none' : 'auto'
-                }}
-                onClick={() => {
-                  setSelectedStock({ code: stock.code, name: stock.name });
-                  setKlineVisible(true);
-                }}
-              >
-                {stock.code}
-              </span>
-              <span 
-                style={{ 
-                  fontWeight: 'bold', 
-                  fontSize: 10, 
-                  color: '#262626', 
-                  cursor: 'pointer',
-                  filter: enableBlur ? 'blur(5px)' : 'none',
-                  userSelect: enableBlur ? 'none' : 'auto'
-                }}
-                onClick={() => {
-                  setSelectedStock({ code: stock.code, name: stock.name });
-                  setKlineVisible(true);
-                }}
-              >
-                {stock.name}
-              </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
+                <span 
+                  style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: 14, 
+                    color: '#1890ff', 
+                    cursor: 'pointer',
+                    filter: enableBlur ? 'blur(5px)' : 'none',
+                    userSelect: enableBlur ? 'none' : 'auto'
+                  }}
+                  onClick={() => {
+                    setSelectedStock({ code: stock.code, name: stock.name });
+                    setKlineVisible(true);
+                  }}
+                >
+                  {stock.code}
+                </span>
+                <span 
+                  style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: 14, 
+                    color: '#262626', 
+                    cursor: 'pointer',
+                    filter: enableBlur ? 'blur(5px)' : 'none',
+                    userSelect: enableBlur ? 'none' : 'auto'
+                  }}
+                  onClick={() => {
+                    setSelectedStock({ code: stock.code, name: stock.name });
+                    setKlineVisible(true);
+                  }}
+                >
+                  {stock.name}
+                </span>
+                  {stock.limit_up_type && (
+                    <Tag color={getLimitUpTypeColor(stock.limit_up_type)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.limit_up_type}</Tag>
+                  )}
+                  {stock.high_days && stock.high_days !== '首板' && (
+                    <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.high_days}</Tag>
+                  )}
+                  <div 
+                    style={{ 
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 3,
+                      background: '#722ed1',
+                      cursor: 'pointer',
+                      marginLeft: 4
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAnalysisStock({ code: stock.code, name: stock.name });
+                      setAnalysisVisible(true);
+                    }}
+                  >
+                    <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
+                  涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {displayReasons.map((reason, index) => (
+                    <Tag key={index} color="blue" style={{ fontSize: 10, marginBottom: 0 }}>
+                      {reason.trim()}
+                    </Tag>
+                  ))}
+                  {hasMore && (
+                    <Tag color="default" style={{ fontSize: 10, marginBottom: 0 }}>
+                      +{reasons.length - 3}
+                    </Tag>
+                  )}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', marginLeft: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#f5222d' }}>
+                  +{stock.change_percent.toFixed(2)}%
+                </div>
+                {stock.limit_up_price > 0 && (
+                  <div style={{ fontSize: 13, fontWeight: 'bold', color: '#f5222d' }}>¥{stock.limit_up_price.toFixed(2)}</div>
+                )}
+                {stock.block_name && (
+                  <Tooltip 
+                    title={
+                      stock.block_info && Object.keys(stock.block_info).length > 0 ? (
+                        <div>
+                          <div>板块涨跌幅: {stock.block_info.change_rate.toFixed(2)}%</div>
+                          <div>涨停家数: {stock.block_info.limit_up_num}</div>
+                          <div>连板家数: {stock.block_info.continuous_num}</div>
+                          {stock.block_info.high && <div>板块高度: {stock.block_info.high}</div>}
+                          <div>上榜天数: {stock.block_info.list_days}</div>
+                          {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
+                        </div>
+                      ) : null
+                    }
+                    placement="left"
+                  >
+                    <Tag 
+                      color="#722ed1" 
+                      style={{ 
+                        fontSize: 10, 
+                        marginTop: 4, 
+                        cursor: 'default',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      {stock.block_name}
+                      <EditOutlined 
+                        style={{ fontSize: 10, cursor: 'pointer' }} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingStock(stock);
+                          setEditBlockVisible(true);
+                        }}
+                      />
+                    </Tag>
+                  </Tooltip>
+                )}
+              </div>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 'bold', color: '#f5222d' }}>
-                +{stock.change_percent.toFixed(2)}%
-              </span>
-            </div>
-          </div>
-        </Card>
-      </Col>
+          </Card>
+        </Col>
       );
     }
     
