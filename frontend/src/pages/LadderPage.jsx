@@ -102,6 +102,15 @@ const LadderPage = () => {
     }
   }, [diffData]);
 
+  const sortByLimitUpTime = (stocks) => {
+    return [...stocks].sort((a, b) => {
+      if (!a.limit_up_time && !b.limit_up_time) return 0;
+      if (!a.limit_up_time) return 1;
+      if (!b.limit_up_time) return -1;
+      return a.limit_up_time.localeCompare(b.limit_up_time);
+    });
+  };
+
   const handleAnalysisClick = async (stock, tradeDate) => {
     const analysisKey = `${stock.code}_${tradeDate}`;
     
@@ -939,13 +948,7 @@ const LadderPage = () => {
         ? item.stocks.filter(stock => selectedBlocks.includes(stock.block_name))
         : item.stocks;
       
-      // 按照涨停时间排序（时间早的排在前面）
-      const sortedStocks = [...filteredStocks].sort((a, b) => {
-        if (!a.limit_up_time && !b.limit_up_time) return 0;
-        if (!a.limit_up_time) return 1;
-        if (!b.limit_up_time) return -1;
-        return a.limit_up_time.localeCompare(b.limit_up_time);
-      });
+      const sortedStocks = sortByLimitUpTime(filteredStocks);
       
       // 如果没有符合条件的股票，不显示这个梯队
       if (sortedStocks.length === 0) return null;
@@ -1156,6 +1159,10 @@ const LadderPage = () => {
       yesterdayLadder[height].push(stock);
     });
 
+    Object.keys(yesterdayLadder).forEach(height => {
+      yesterdayLadder[height] = sortByLimitUpTime(yesterdayLadder[height]);
+    });
+
     const todayLadder = {};
     todayStocks.forEach(stock => {
       const height = stock.continuous_days || 1;
@@ -1163,6 +1170,10 @@ const LadderPage = () => {
         todayLadder[height] = [];
       }
       todayLadder[height].push(stock);
+    });
+
+    Object.keys(todayLadder).forEach(height => {
+      todayLadder[height] = sortByLimitUpTime(todayLadder[height]);
     });
 
     const promotedLadder = {};
@@ -1182,6 +1193,10 @@ const LadderPage = () => {
       });
       
       promotedLadder[nextHeight] = promotedStocks;
+    });
+
+    Object.keys(promotedLadder).forEach(height => {
+      promotedLadder[height] = sortByLimitUpTime(promotedLadder[height]);
     });
 
     const firstBoardStocks = todayLadder[1] || [];
