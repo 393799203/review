@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, DiffOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -388,7 +388,6 @@ const MainLayout = ({ children }) => {
         >
           <div style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
             <img src="/favicon.svg" alt="logo" style={{ width: 22, height: 22 }} />
-            云雀AI
           </div>
           {renderHeaderRight()}
         </Header>
