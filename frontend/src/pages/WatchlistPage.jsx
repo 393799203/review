@@ -26,6 +26,8 @@ const WatchlistPage = () => {
   const [comfortStock, setComfortStock] = useState(null);
   const [comfortLoading, setComfortLoading] = useState(false);
   const [comfortResult, setComfortResult] = useState('');
+  const [analyzingStocks, setAnalyzingStocks] = useState(new Set());
+  const [completedAnalysis, setCompletedAnalysis] = useState(new Map());
 
   useEffect(() => {
     const checkMobile = () => {
@@ -140,9 +142,62 @@ const WatchlistPage = () => {
     }
   };
 
-  const handleAIAnalyze = (stock) => {
-    setAnalysisStock({ code: stock.stock_code.split('.')[0], name: stock.stock_name });
-    setAnalysisVisible(true);
+  const handleAIAnalyze = async (stock) => {
+    const stockCode = stock.stock_code.split('.')[0];
+    const analysisKey = stockCode;
+    
+    if (completedAnalysis.has(analysisKey)) {
+      setAnalysisStock({ code: stockCode, name: stock.stock_name });
+      setAnalysisVisible(true);
+      return;
+    }
+    
+    if (analyzingStocks.has(analysisKey)) {
+      message.info('该股票正在分析中，请稍后...');
+      return;
+    }
+    
+    try {
+      const checkResponse = await api.post('/stock/analyze', {
+        stock_code: stockCode,
+        stock_name: stock.stock_name,
+        check_only: true
+      }, { timeout: 5000 });
+      
+      if (checkResponse.data.success && checkResponse.data.has_cache) {
+        setCompletedAnalysis(prev => new Map(prev).set(analysisKey, checkResponse.data.data));
+        setAnalysisStock({ code: stockCode, name: stock.stock_name });
+        setAnalysisVisible(true);
+        return;
+      }
+    } catch (error) {
+      console.error('检查缓存失败:', error);
+    }
+    
+    setAnalyzingStocks(prev => new Set(prev).add(analysisKey));
+    message.info(`开始分析 ${stock.stock_name}，分析时间可能较长，请稍后...`);
+    
+    try {
+      const response = await api.post('/stock/analyze', {
+        stock_code: stockCode,
+        stock_name: stock.stock_name,
+        force: false
+      }, { timeout: 120000 });
+      
+      if (response.data.success) {
+        setCompletedAnalysis(prev => new Map(prev).set(analysisKey, response.data.data));
+        message.success(`${stock.stock_name} 分析完成，点击图标查看结果`);
+      }
+    } catch (error) {
+      console.error('分析失败:', error);
+      message.error('分析失败，请稍后重试');
+    } finally {
+      setAnalyzingStocks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(analysisKey);
+        return newSet;
+      });
+    }
   };
 
   const handleSearchStock = async (value) => {
@@ -279,6 +334,11 @@ const WatchlistPage = () => {
             ? (dayChangePct > 0 ? '#f5222d' : dayChangePct < 0 ? '#52c41a' : '#8c8c8c')
             : '#8c8c8c';
           
+          const stockCode = record.stock_code.split('.')[0];
+          const analysisKey = stockCode;
+          const isAnalyzing = analyzingStocks.has(analysisKey);
+          const isCompleted = completedAnalysis.has(analysisKey);
+          
           return (
             <Card
               key={record.id}
@@ -319,8 +379,8 @@ const WatchlistPage = () => {
                       size="small"
                       onClick={() => handleAIAnalyze(record)}
                       style={{ 
-                        background: '#722ed1', 
-                        borderColor: '#722ed1', 
+                        background: isCompleted ? '#52c41a' : isAnalyzing ? '#fa8c16' : '#722ed1', 
+                        borderColor: isCompleted ? '#52c41a' : isAnalyzing ? '#fa8c16' : '#722ed1', 
                         borderRadius: 3, 
                         padding: '0 6px', 
                         height: 18, 

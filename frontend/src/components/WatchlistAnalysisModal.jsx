@@ -100,6 +100,23 @@ const WatchlistAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
         <Empty description="暂无分析数据" />
       ) : (
         <div>
+          {analysisData.analysis_summary && (
+            <div style={{ 
+              padding: 10, 
+              background: '#fff7e6', 
+              borderRadius: 4,
+              fontSize: 12,
+              lineHeight: 1.6,
+              marginBottom: 12,
+              border: '1px solid #ffd591'
+            }}>
+              <strong style={{ color: '#fa8c16' }}>📝 分析摘要：</strong>
+              <div style={{ marginTop: 4, color: '#262626' }}>
+                {analysisData.analysis_summary}
+              </div>
+            </div>
+          )}
+          
           <Card size="small" style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div>
