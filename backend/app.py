@@ -3321,7 +3321,8 @@ def analyze_stock():
     {
         "stock_code": "股票代码",
         "stock_name": "股票名称",
-        "force": false
+        "force": false,
+        "check_only": false
     }
     """
     try:
@@ -3329,6 +3330,7 @@ def analyze_stock():
         stock_code = data.get('stock_code', '')
         stock_name = data.get('stock_name', '')
         force = data.get('force', False)
+        check_only = data.get('check_only', False)
         
         if not stock_code:
             return jsonify({
@@ -3350,11 +3352,18 @@ def analyze_stock():
                     analysis_data = json.loads(existing.analysis_result)
                     return jsonify({
                         'success': True,
+                        'has_cache': True,
                         'data': analysis_data,
                         'cached': True
                     })
                 except:
                     pass
+            
+            if check_only:
+                return jsonify({
+                    'success': True,
+                    'has_cache': False
+                })
         finally:
             session.close()
         
