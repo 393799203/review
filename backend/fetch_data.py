@@ -496,76 +496,25 @@ class LimitUpFetcher:
                 prev_date = prev_trade_date[0]
                 
                 from trade_calendar import trade_calendar
-                from datetime import datetime, timedelta
+                from quotes_utils import get_realtime_quotes, update_stocks_next_change
                 
-                now = datetime.now()
-                current_date = now.date()
-                
-                next_trading_day = None
-                for i in range(1, 31):
-                    d = prev_date + timedelta(days=i)
-                    if trade_calendar.is_trading_day(d):
-                        next_trading_day = d
-                        break
-                
-                should_update = next_trading_day and current_date < next_trading_day
+                should_update = trade_calendar.should_fetch_realtime_quotes(prev_date)
                 
                 if should_update:
-                    print(f"当前日期 {current_date} < 下一个交易日 {next_trading_day}，更新next_change字段")
+                    print(f"当前日期小于下一个交易日，更新next_change字段")
                     yesterday_stocks = session.query(LimitUpStock).filter(
                         LimitUpStock.trade_date == prev_date
                     ).all()
                     
                     if yesterday_stocks:
                         yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
-                        sh_codes = [code for code in yesterday_codes if code.startswith('6')]
-                        sz_codes = [code for code in yesterday_codes if code.startswith(('0', '3'))]
+                        quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
                         
-                        quotes_dict = {}
-                        
-                        if sh_codes:
-                            try:
-                                from mootdx.quotes import Quotes
-                                client = Quotes.factory(market=1)
-                                quotes = client.quotes(symbol=sh_codes)
-                                
-                                if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
-                                    for idx, row in quotes.iterrows():
-                                        code = row['code']
-                                        quotes_dict[code] = {
-                                            'price': float(row.get('price', 0) or 0),
-                                            'prev_close': float(row.get('last_close', 0) or 0),
-                                        }
-                            except Exception as e:
-                                print(f"批量获取沪市实时行情失败: {e}")
-                        
-                        if sz_codes:
-                            try:
-                                from mootdx.quotes import Quotes
-                                client = Quotes.factory(market=0)
-                                quotes = client.quotes(symbol=sz_codes)
-                                
-                                if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
-                                    for idx, row in quotes.iterrows():
-                                        code = row['code']
-                                        quotes_dict[code] = {
-                                            'price': float(row.get('price', 0) or 0),
-                                            'prev_close': float(row.get('last_close', 0) or 0),
-                                        }
-                            except Exception as e:
-                                print(f"批量获取深市实时行情失败: {e}")
-                        
-                        updated_count = 0
-                        for stock in yesterday_stocks:
-                            quote = quotes_dict.get(stock.stock_code)
-                            if quote and quote['prev_close'] > 0:
-                                next_change = (quote['price'] - quote['prev_close']) / quote['prev_close'] * 100
-                                stock.next_change = Decimal(str(round(next_change, 4)))
-                                updated_count += 1
-                        
+                        updated_count = update_stocks_next_change(yesterday_stocks, quotes_dict, debug=True)
                         print(f"✓ 更新了 {updated_count} 只昨日涨停股票的次日涨跌幅")
                 else:
-                    print(f"当前日期 {current_date} >= 下一个交易日 {next_trading_day}，不更新next_change字段")
+                    next_trading_day = trade_calendar.get_next_trading_day(prev_date)
+                    print(f"当前日期 >= 下一个交易日 {next_trading_day}，不更新next_change字段")
             
             session.commit()
             

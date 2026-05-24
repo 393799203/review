@@ -81,6 +81,43 @@ class TradeCalendar:
         
         return trading_days
     
+    def get_next_trading_day(self, date: datetime, max_days: int = 31) -> datetime:
+        """
+        获取指定日期后的下一个交易日
+        
+        Args:
+            date: 日期对象
+            max_days: 最大查找天数，默认31天
+            
+        Returns:
+            下一个交易日，如果找不到返回None
+        """
+        for i in range(1, max_days + 1):
+            next_date = date + timedelta(days=i)
+            if self.is_trading_day(next_date):
+                return next_date
+        return None
+    
+    def should_fetch_realtime_quotes(self, trade_date: datetime) -> bool:
+        """
+        判断是否需要实时获取行情数据
+        
+        Args:
+            trade_date: 交易日期
+            
+        Returns:
+            是否需要实时获取行情
+        """
+        now = datetime.now()
+        current_date = now.date()
+        
+        next_trading_day = self.get_next_trading_day(trade_date)
+        
+        if next_trading_day and current_date < next_trading_day:
+            return True
+        
+        return False
+    
     def get_adjacent_trading_days(self, date_str: str, prev_count: int = 31, next_count: int = 18) -> dict:
         """
         获取指定日期前后的交易日

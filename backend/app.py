@@ -3831,24 +3831,15 @@ def get_ladder_comparison(date_str):
             
             if trade_date == latest_date:
                 from trade_calendar import trade_calendar
-                now = datetime.now()
-                current_date = now.date()
+                from quotes_utils import get_realtime_quotes, update_stock_data_change_percent
                 
-                print(f"当前日期: {current_date}, 前一交易日: {prev_date}")
+                should_fetch_realtime = trade_calendar.should_fetch_realtime_quotes(prev_date)
                 
-                next_trading_day = None
-                for i in range(1, 31):
-                    d = prev_date + timedelta(days=i)
-                    if trade_calendar.is_trading_day(d):
-                        next_trading_day = d
-                        print(f"找到下一个交易日: {next_trading_day}")
-                        break
-                
-                if next_trading_day and current_date < next_trading_day:
-                    should_fetch_realtime = True
-                    print(f"满足实时获取条件: 当前日期 {current_date} < 下一个交易日 {next_trading_day}")
+                if should_fetch_realtime:
+                    print(f"满足实时获取条件: 当前日期 < 下一个交易日")
                 else:
-                    print(f"不满足实时获取条件: next_trading_day={next_trading_day}, current_date={current_date}")
+                    next_trading_day = trade_calendar.get_next_trading_day(prev_date)
+                    print(f"不满足实时获取条件: 下一个交易日={next_trading_day}")
             else:
                 print(f"用户选择的日期 {trade_date} != 最新交易日 {latest_date}")
         else:
@@ -3857,58 +3848,11 @@ def get_ladder_comparison(date_str):
         if should_fetch_realtime:
             yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
             print(f"实时获取昨日涨停股票涨跌幅，股票数量: {len(yesterday_codes)}")
+            
+            quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
+            update_stock_data_change_percent(yesterday_list, quotes_dict)
         else:
-            yesterday_codes = []
             print(f"从数据库读取历史数据，不实时获取")
-        
-        if yesterday_codes:
-            sh_codes = [code for code in yesterday_codes if code.startswith('6')]
-            sz_codes = [code for code in yesterday_codes if code.startswith(('0', '3'))]
-            
-            print(f"沪市股票: {len(sh_codes)} 只, 深市股票: {len(sz_codes)} 只")
-            
-            quotes_dict = {}
-            
-            if sh_codes:
-                try:
-                    client = Quotes.factory(market=1)
-                    quotes = client.quotes(symbol=sh_codes)
-                    
-                    print(f"沪市行情返回: {quotes is not None and hasattr(quotes, 'empty') and not quotes.empty}")
-                    
-                    if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
-                        for idx, row in quotes.iterrows():
-                            code = row['code']
-                            quotes_dict[code] = {
-                                'price': float(row.get('price', 0) or 0),
-                                'prev_close': float(row.get('last_close', 0) or 0),
-                            }
-                        print(f"成功获取沪市行情: {len(quotes_dict)} 只")
-                except Exception as e:
-                    print(f"批量获取沪市实时行情失败: {e}")
-            
-            if sz_codes:
-                try:
-                    client = Quotes.factory(market=0)
-                    quotes = client.quotes(symbol=sz_codes)
-                    
-                    print(f"深市行情返回: {quotes is not None and hasattr(quotes, 'empty') and not quotes.empty}")
-                    
-                    if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
-                        for idx, row in quotes.iterrows():
-                            code = row['code']
-                            quotes_dict[code] = {
-                                'price': float(row.get('price', 0) or 0),
-                                'prev_close': float(row.get('last_close', 0) or 0),
-                            }
-                        print(f"成功获取深市行情: {len(quotes_dict)} 只")
-                except Exception as e:
-                    print(f"批量获取深市实时行情失败: {e}")
-            
-            for stock_data in yesterday_list:
-                quote = quotes_dict.get(stock_data['code'])
-                if quote and quote['prev_close'] > 0:
-                    stock_data['change_percent'] = (quote['price'] - quote['prev_close']) / quote['prev_close'] * 100
         
         return jsonify({
             'success': True,
