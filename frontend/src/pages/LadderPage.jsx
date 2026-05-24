@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -1434,9 +1434,11 @@ const LadderPage = () => {
                     color: '#1890ff',
                     minHeight: isMobile ? 26 : 28,
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
                   }}>
-                    {height}连板 ({yesterdayStocks.length}只)
+                    <span>{height}连板 ({yesterdayStocks.length}只)</span>
+                    <ArrowRightOutlined style={{ fontSize: isMobile ? 12 : 14, color: '#52c41a' }} />
                   </div>
                   {yesterdayStocks.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
