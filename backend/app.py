@@ -1913,6 +1913,7 @@ def analyze_limit_up_reason(stock_code):
     """
     force = request.args.get('force', 'false').lower() == 'true'
     date_str = request.args.get('date', None)
+    check_only = request.args.get('check_only', 'false').lower() == 'true'
     
     session = get_db_session()
     try:
@@ -1961,6 +1962,37 @@ def analyze_limit_up_reason(stock_code):
             AIAnalysisResult.stock_code == stock_code,
             AIAnalysisResult.trade_date == stock_data['trade_date']
         ).first()
+        
+        # 如果只是检查缓存，直接返回结果
+        if check_only:
+            if cached_result:
+                analysis = json.loads(cached_result.analysis_result)
+                return jsonify({
+                    'success': True,
+                    'has_cache': True,
+                    'data': {
+                        'stock_code': stock_data['stock_code'],
+                        'stock_name': stock_data['stock_name'],
+                        'trade_date': stock_data['trade_date'].strftime('%Y-%m-%d'),
+                        'limit_up_reason': stock_data['limit_up_reason'],
+                        'continuous_days': stock_data['continuous_days'],
+                        'sectors': analysis.get('sectors', []),
+                        'speculation_logic': analysis.get('speculation_logic', []),
+                        'stock_attribute': analysis.get('stock_attribute', None),
+                        'market_heat': analysis.get('market_heat', 0),
+                        'recommendation_score': analysis.get('recommendation_score', 0),
+                        'recommendation_reason': analysis.get('recommendation_reason', ''),
+                        'analysis_summary': analysis.get('analysis_summary', ''),
+                        'keywords': analysis.get('keywords', []),
+                        'trading_advice': analysis.get('trading_advice', None),
+                        'holding_advice': analysis.get('holding_advice', None)
+                    }
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'has_cache': False
+                })
         
         if cached_result and not force:
             print(f"从缓存读取 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']} 的分析结果")

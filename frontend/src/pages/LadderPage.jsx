@@ -117,6 +117,20 @@ const LadderPage = () => {
       return;
     }
     
+    try {
+      const checkResponse = await stockApi.analyzeStock(stock.code, false, tradeDate, true);
+      
+      if (checkResponse.data.success && checkResponse.data.has_cache) {
+        setCompletedAnalysis(prev => new Map(prev).set(analysisKey, checkResponse.data.data));
+        setAnalysisStock({ code: stock.code, name: stock.name });
+        setAnalysisDate(tradeDate);
+        setAnalysisVisible(true);
+        return;
+      }
+    } catch (error) {
+      console.error('检查缓存失败:', error);
+    }
+    
     setAnalyzingStocks(prev => new Set(prev).add(analysisKey));
     message.info(`开始分析 ${stock.name}，分析时间可能较长，请稍后...`);
     
@@ -124,15 +138,8 @@ const LadderPage = () => {
       const response = await stockApi.analyzeStock(stock.code, false, tradeDate);
       
       if (response.data.success) {
-        if (response.data.cached) {
-          setCompletedAnalysis(prev => new Map(prev).set(analysisKey, response.data.data));
-          setAnalysisStock({ code: stock.code, name: stock.name });
-          setAnalysisDate(tradeDate);
-          setAnalysisVisible(true);
-        } else {
-          setCompletedAnalysis(prev => new Map(prev).set(analysisKey, response.data.data));
-          message.success(`${stock.name} 分析完成，点击图标查看结果`);
-        }
+        setCompletedAnalysis(prev => new Map(prev).set(analysisKey, response.data.data));
+        message.success(`${stock.name} 分析完成，点击图标查看结果`);
       }
     } catch (error) {
       console.error('分析失败:', error);

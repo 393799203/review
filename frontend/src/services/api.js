@@ -80,12 +80,15 @@ export const stockApi = {
 
   getStockQuote: (stockCode) => api.get(`/stock/quote/${stockCode}`),
 
-  analyzeStock: (stockCode, force = false, date = null) => {
+  analyzeStock: (stockCode, force = false, date = null, checkOnly = false) => {
     let url = `/stock/analyze/${stockCode}?force=${force}`;
     if (date) {
       url += `&date=${date}`;
     }
-    return api.get(url, { timeout: 120000 });
+    if (checkOnly) {
+      url += `&check_only=true`;
+    }
+    return api.get(url, { timeout: checkOnly ? 5000 : 120000 });
   },
 
   batchAnalyzeStocks: (stocks) => api.post('/stocks/analyze', { stocks }, { timeout: 120000 }),
