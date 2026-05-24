@@ -80,7 +80,13 @@ export const stockApi = {
 
   getStockQuote: (stockCode) => api.get(`/stock/quote/${stockCode}`),
 
-  analyzeStock: (stockCode, force = false) => api.get(`/stock/analyze/${stockCode}?force=${force}`, { timeout: 120000 }),
+  analyzeStock: (stockCode, force = false, date = null) => {
+    let url = `/stock/analyze/${stockCode}?force=${force}`;
+    if (date) {
+      url += `&date=${date}`;
+    }
+    return api.get(url, { timeout: 120000 });
+  },
 
   batchAnalyzeStocks: (stocks) => api.post('/stocks/analyze', { stocks }, { timeout: 120000 }),
 

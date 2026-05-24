@@ -3,7 +3,7 @@ import { Modal, Card, Tag, Spin, Rate, Progress, Divider, Empty, Alert, Button }
 import { StockOutlined, FireOutlined, RobotOutlined, TrophyOutlined, DollarOutlined, WarningOutlined, TagsOutlined, ReloadOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 
-const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
+const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [analysisData, setAnalysisData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -22,12 +22,12 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, onClose }) => {
       setAnalysisData(null); // 清空之前的数据
       loadAnalysisData();
     }
-  }, [visible, stockCode]);
+  }, [visible, stockCode, tradeDate]);
 
   const loadAnalysisData = async (force = false) => {
     try {
       setLoading(true);
-      const response = await stockApi.analyzeStock(stockCode, force);
+      const response = await stockApi.analyzeStock(stockCode, force, tradeDate);
       
       if (response.data.success) {
         setAnalysisData(response.data.data);

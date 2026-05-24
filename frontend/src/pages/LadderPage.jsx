@@ -36,6 +36,7 @@ const LadderPage = () => {
 
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [analysisStock, setAnalysisStock] = useState(null);
+  const [analysisDate, setAnalysisDate] = useState(null);
 
   const [blockFilterDay, setBlockFilterDay] = useState('today');
   const [blockStrengthData, setBlockStrengthData] = useState({});
@@ -632,6 +633,7 @@ const LadderPage = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       setAnalysisStock({ code: stock.code, name: stock.name });
+                      setAnalysisDate(currentDate.replace(/-/g, ''));
                       setAnalysisVisible(true);
                     }}
                   >
@@ -781,6 +783,7 @@ const LadderPage = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     setAnalysisStock({ code: stock.code, name: stock.name });
+                    setAnalysisDate(currentDate.replace(/-/g, ''));
                     setAnalysisVisible(true);
                   }}
                 >
@@ -1132,7 +1135,7 @@ const LadderPage = () => {
 
     const firstBoardStocks = todayLadder[1] || [];
 
-    const renderStockCard = (stock, showYesterdayHeight = false, isRightColumn = false) => {
+    const renderStockCard = (stock, showYesterdayHeight = false, isRightColumn = false, tradeDate = null) => {
       const isPromoted = !isRightColumn && promotedHeights.some(height => {
         const stocks = promotedLadder[height] || [];
         return stocks.some(s => s.code === stock.code);
@@ -1169,16 +1172,37 @@ const LadderPage = () => {
               </span>
               <span style={{ color: '#999', fontSize: isMobile ? 8 : 11 }}>{stock.code}</span>
             </div>
-            {stock.change_percent !== null && stock.change_percent !== undefined && (
-              <div style={{ 
-                fontSize: isMobile ? 10 : 12, 
-                fontWeight: 'bold',
-                color: stock.change_percent >= 0 ? '#f5222d' : '#52c41a',
-                textAlign: 'center'
-              }}>
-                {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 2 : 4 }}>
+              {stock.change_percent !== null && stock.change_percent !== undefined && (
+                <div style={{ 
+                  fontSize: isMobile ? 10 : 12, 
+                  fontWeight: 'bold',
+                  color: stock.change_percent >= 0 ? '#f5222d' : '#52c41a'
+                }}>
+                  {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+                </div>
+              )}
+              <div 
+                style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: isMobile ? 16 : 20,
+                  height: isMobile ? 16 : 20,
+                  borderRadius: 3,
+                  background: '#722ed1',
+                  cursor: 'pointer'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAnalysisStock({ code: stock.code, name: stock.name });
+                  setAnalysisDate(tradeDate);
+                  setAnalysisVisible(true);
+                }}
+              >
+                <RobotOutlined style={{ fontSize: isMobile ? 9 : 11, color: '#fff' }} />
               </div>
-            )}
+            </div>
           </div>
         </div>
       );
@@ -1343,7 +1367,7 @@ const LadderPage = () => {
                   </div>
                   {yesterdayStocks.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
-                      {yesterdayStocks.map(stock => renderStockCard(stock, false, false))}
+                      {yesterdayStocks.map(stock => renderStockCard(stock, false, false, comparisonData.yesterday.date.replace(/-/g, '')))}
                     </div>
                   ) : (
                     <div style={{ 
@@ -1375,7 +1399,7 @@ const LadderPage = () => {
                   </div>
                   {promotedStocks.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
-                      {promotedStocks.map(stock => renderStockCard(stock, true, true))}
+                      {promotedStocks.map(stock => renderStockCard(stock, true, true, comparisonData.today.date.replace(/-/g, '')))}
                     </div>
                   ) : (
                     <div style={{ 
@@ -1441,16 +1465,37 @@ const LadderPage = () => {
                           {stock.code}
                         </span>
                       </div>
-                      {stock.change_percent !== null && stock.change_percent !== undefined && (
-                        <div style={{ 
-                          fontSize: isMobile ? 10 : 12, 
-                          fontWeight: 'bold',
-                          color: stock.change_percent >= 0 ? '#f5222d' : '#52c41a',
-                          textAlign: 'center'
-                        }}>
-                          {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 2 : 4 }}>
+                        {stock.change_percent !== null && stock.change_percent !== undefined && (
+                          <div style={{ 
+                            fontSize: isMobile ? 10 : 12, 
+                            fontWeight: 'bold',
+                            color: stock.change_percent >= 0 ? '#f5222d' : '#52c41a'
+                          }}>
+                            {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+                          </div>
+                        )}
+                        <div 
+                          style={{ 
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: isMobile ? 16 : 20,
+                            height: isMobile ? 16 : 20,
+                            borderRadius: 3,
+                            background: '#722ed1',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAnalysisStock({ code: stock.code, name: stock.name });
+                            setAnalysisDate(comparisonData.today.date.replace(/-/g, ''));
+                            setAnalysisVisible(true);
+                          }}
+                        >
+                          <RobotOutlined style={{ fontSize: isMobile ? 9 : 11, color: '#fff' }} />
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1539,9 +1584,11 @@ const LadderPage = () => {
         visible={analysisVisible}
         stockCode={analysisStock?.code}
         stockName={analysisStock?.name}
+        tradeDate={analysisDate}
         onClose={() => {
           setAnalysisVisible(false);
           setAnalysisStock(null);
+          setAnalysisDate(null);
         }}
       />
       
