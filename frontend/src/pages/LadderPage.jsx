@@ -37,6 +37,8 @@ const LadderPage = () => {
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [analysisStock, setAnalysisStock] = useState(null);
   const [analysisDate, setAnalysisDate] = useState(null);
+  const [analyzingStocks, setAnalyzingStocks] = useState(new Set());
+  const [completedAnalysis, setCompletedAnalysis] = useState(new Map());
 
   const [blockFilterDay, setBlockFilterDay] = useState('today');
   const [blockStrengthData, setBlockStrengthData] = useState({});
@@ -99,6 +101,50 @@ const LadderPage = () => {
       saveDiffData(diffData);
     }
   }, [diffData]);
+
+  const handleAnalysisClick = async (stock, tradeDate) => {
+    const analysisKey = `${stock.code}_${tradeDate}`;
+    
+    if (completedAnalysis.has(analysisKey)) {
+      setAnalysisStock({ code: stock.code, name: stock.name });
+      setAnalysisDate(tradeDate);
+      setAnalysisVisible(true);
+      return;
+    }
+    
+    if (analyzingStocks.has(analysisKey)) {
+      message.info('该股票正在分析中，请稍后...');
+      return;
+    }
+    
+    setAnalyzingStocks(prev => new Set(prev).add(analysisKey));
+    message.info(`开始分析 ${stock.name}，分析时间可能较长，请稍后...`);
+    
+    try {
+      const response = await stockApi.analyzeStock(stock.code, false, tradeDate);
+      
+      if (response.data.success) {
+        if (response.data.cached) {
+          setCompletedAnalysis(prev => new Map(prev).set(analysisKey, response.data.data));
+          setAnalysisStock({ code: stock.code, name: stock.name });
+          setAnalysisDate(tradeDate);
+          setAnalysisVisible(true);
+        } else {
+          setCompletedAnalysis(prev => new Map(prev).set(analysisKey, response.data.data));
+          message.success(`${stock.name} 分析完成，点击图标查看结果`);
+        }
+      }
+    } catch (error) {
+      console.error('分析失败:', error);
+      message.error('分析失败，请稍后重试');
+    } finally {
+      setAnalyzingStocks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(analysisKey);
+        return newSet;
+      });
+    }
+  };
 
   const loadBlockStrengthData = async () => {
     try {
@@ -626,15 +672,14 @@ const LadderPage = () => {
                       width: 20,
                       height: 20,
                       borderRadius: 3,
-                      background: '#722ed1',
+                      background: completedAnalysis.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#52c41a' : 
+                                  analyzingStocks.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#fa8c16' : '#722ed1',
                       cursor: 'pointer',
                       marginLeft: 4
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setAnalysisStock({ code: stock.code, name: stock.name });
-                      setAnalysisDate(currentDate.replace(/-/g, ''));
-                      setAnalysisVisible(true);
+                      handleAnalysisClick(stock, currentDate.replace(/-/g, ''));
                     }}
                   >
                     <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
@@ -777,14 +822,13 @@ const LadderPage = () => {
                     width: 20,
                     height: 20,
                     borderRadius: 3,
-                    background: '#722ed1',
+                    background: completedAnalysis.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#52c41a' : 
+                                analyzingStocks.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#fa8c16' : '#722ed1',
                     cursor: 'pointer'
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setAnalysisStock({ code: stock.code, name: stock.name });
-                    setAnalysisDate(currentDate.replace(/-/g, ''));
-                    setAnalysisVisible(true);
+                    handleAnalysisClick(stock, currentDate.replace(/-/g, ''));
                   }}
                 >
                   <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
@@ -1190,14 +1234,13 @@ const LadderPage = () => {
                   width: isMobile ? 16 : 20,
                   height: isMobile ? 16 : 20,
                   borderRadius: 3,
-                  background: '#722ed1',
+                  background: completedAnalysis.has(`${stock.code}_${tradeDate}`) ? '#52c41a' : 
+                              analyzingStocks.has(`${stock.code}_${tradeDate}`) ? '#fa8c16' : '#722ed1',
                   cursor: 'pointer'
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setAnalysisStock({ code: stock.code, name: stock.name });
-                  setAnalysisDate(tradeDate);
-                  setAnalysisVisible(true);
+                  handleAnalysisClick(stock, tradeDate);
                 }}
               >
                 <RobotOutlined style={{ fontSize: isMobile ? 9 : 11, color: '#fff' }} />
@@ -1483,14 +1526,13 @@ const LadderPage = () => {
                             width: isMobile ? 16 : 20,
                             height: isMobile ? 16 : 20,
                             borderRadius: 3,
-                            background: '#722ed1',
+                            background: completedAnalysis.has(`${stock.code}_${comparisonData.today.date.replace(/-/g, '')}`) ? '#52c41a' : 
+                                        analyzingStocks.has(`${stock.code}_${comparisonData.today.date.replace(/-/g, '')}`) ? '#fa8c16' : '#722ed1',
                             cursor: 'pointer'
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setAnalysisStock({ code: stock.code, name: stock.name });
-                            setAnalysisDate(comparisonData.today.date.replace(/-/g, ''));
-                            setAnalysisVisible(true);
+                            handleAnalysisClick(stock, comparisonData.today.date.replace(/-/g, ''));
                           }}
                         >
                           <RobotOutlined style={{ fontSize: isMobile ? 9 : 11, color: '#fff' }} />
@@ -1585,6 +1627,7 @@ const LadderPage = () => {
         stockCode={analysisStock?.code}
         stockName={analysisStock?.name}
         tradeDate={analysisDate}
+        analysisData={analysisDate && analysisStock ? completedAnalysis.get(`${analysisStock.code}_${analysisDate}`) : null}
         onClose={() => {
           setAnalysisVisible(false);
           setAnalysisStock(null);
