@@ -600,8 +600,6 @@ const LadderPage = () => {
     const blockRankColor = getBlockRankColor(stock.block_name);
     
     const reasons = stock.reason ? stock.reason.split('+').filter(r => r.trim()) : ['未分类'];
-    const displayReasons = reasons.slice(0, isMobile ? 3 : 5);
-    const hasMore = reasons.length > (isMobile ? 3 : 5);
     
     const hasDetailReason = stock.detail_reason && stock.detail_reason.trim();
     
@@ -705,16 +703,30 @@ const LadderPage = () => {
                   涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {displayReasons.map((reason, index) => (
-                    <Tag key={index} color="blue" style={{ fontSize: 10, marginBottom: 0 }}>
-                      {reason.trim()}
-                    </Tag>
+                  {reasons.map((reason, index) => (
+                    <Tooltip 
+                      key={index}
+                      title={
+                        hasDetailReason ? (
+                          <div style={{ whiteSpace: 'pre-wrap' }}>
+                            {filterDisclaimer(stock.detail_reason)}
+                          </div>
+                        ) : null
+                      }
+                      placement="top"
+                    >
+                      <Tag 
+                        color="blue" 
+                        style={{ 
+                          fontSize: 10, 
+                          marginBottom: 0,
+                          cursor: hasDetailReason ? 'pointer' : 'default'
+                        }}
+                      >
+                        {reason.trim()}
+                      </Tag>
+                    </Tooltip>
                   ))}
-                  {hasMore && (
-                    <Tag color="default" style={{ fontSize: 10, marginBottom: 0 }}>
-                      +{reasons.length - 3}
-                    </Tag>
-                  )}
                 </div>
               </div>
               <div style={{ textAlign: 'right', marginLeft: 10 }}>
@@ -903,7 +915,7 @@ const LadderPage = () => {
             </div>
           </div>
           <div style={{ marginTop: 8 }}>
-            {displayReasons.map((reason, index) => (
+            {reasons.map((reason, index) => (
               <Tooltip 
                 key={index} 
                 title={
@@ -921,11 +933,6 @@ const LadderPage = () => {
                 </Tag>
               </Tooltip>
             ))}
-            {hasMore && (
-              <Tag color="default" style={{ marginBottom: 4, fontSize: 11 }}>
-                +{reasons.length - 5}
-              </Tag>
-            )}
           </div>
         </Card>
       </Col>
