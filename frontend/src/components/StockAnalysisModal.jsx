@@ -61,6 +61,7 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, analysis
 
   return (
       <Modal
+        key={`${stockCode}-${tradeDate}`}
         title={
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 30 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
