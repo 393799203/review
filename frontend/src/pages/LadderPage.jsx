@@ -714,6 +714,7 @@ const LadderPage = () => {
                         ) : null
                       }
                       placement="top"
+                      styles={{ root: { maxWidth: '390px' } }}
                     >
                       <Tag 
                         color="blue" 
