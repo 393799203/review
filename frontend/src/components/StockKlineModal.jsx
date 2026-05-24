@@ -913,6 +913,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
 
   return (
     <Modal
+      key={stockCode}
       title={null}
       open={visible}
       onCancel={onClose}
