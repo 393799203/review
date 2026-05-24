@@ -1418,7 +1418,7 @@ const LadderPage = () => {
             );
           })}
 
-          {firstBoardStocks.length > 0 && (
+          {showFirstBoardProp && firstBoardStocks.length > 0 && (
             <div style={{ marginTop: isMobile ? 12 : 24 }}>
               <div style={{ 
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
