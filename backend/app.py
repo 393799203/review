@@ -952,26 +952,13 @@ def get_block_strength_continuous():
 
         target_days = []
 
-        # 找前一个交易日作为"昨日"
-        yesterday = None
-        for i in range(1, 31):
-            d = base_date - timedelta(days=i)
-            if trade_calendar.is_trading_day(d):
-                yesterday = d
-                break
+        yesterday = trade_calendar.get_prev_trading_day(base_date)
         if yesterday:
             target_days.append(('yesterday', yesterday))
 
-        # 传入的日期作为"今日"
         target_days.append(('today', base_date))
 
-        # 找下一个交易日作为"明日"
-        tomorrow = None
-        for i in range(1, 31):
-            d = base_date + timedelta(days=i)
-            if trade_calendar.is_trading_day(d):
-                tomorrow = d
-                break
+        tomorrow = trade_calendar.get_next_trading_day(base_date)
         if tomorrow:
             target_days.append(('tomorrow', tomorrow))
 
@@ -1919,18 +1906,36 @@ def analyze_limit_up_reason(stock_code):
     Args:
         stock_code: 股票代码
         force: 是否强制重新分析（跳过缓存）
+        date: 可选，指定日期（YYYYMMDD格式），如果不指定则查询最近一次涨停记录
         
     Returns:
         分析结果
     """
     force = request.args.get('force', 'false').lower() == 'true'
+    date_str = request.args.get('date', None)
     
     session = get_db_session()
     try:
-        # 查询最近一次涨停记录
-        stock = session.query(LimitUpStock).filter(
-            LimitUpStock.stock_code == stock_code
-        ).order_by(desc(LimitUpStock.trade_date)).first()
+        # 查询涨停记录
+        if date_str:
+            # 如果指定了日期，查询该日期的涨停记录
+            try:
+                trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+            except:
+                return jsonify({
+                    'success': False,
+                    'error': '日期格式错误，应为YYYYMMDD格式'
+                }), 400
+            
+            stock = session.query(LimitUpStock).filter(
+                LimitUpStock.stock_code == stock_code,
+                LimitUpStock.trade_date == trade_date
+            ).first()
+        else:
+            # 如果没有指定日期，查询最近一次涨停记录
+            stock = session.query(LimitUpStock).filter(
+                LimitUpStock.stock_code == stock_code
+            ).order_by(desc(LimitUpStock.trade_date)).first()
         
         if not stock:
             return jsonify({
