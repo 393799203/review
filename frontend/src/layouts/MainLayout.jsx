@@ -194,7 +194,7 @@ const MainLayout = ({ children }) => {
             onChange={(value) => setSmartMode(value === 'trading')}
             style={{ width: '100%' }}
             options={[
-              { value: 'trading', label: '交易时段 (9:15-11:30, 13:00-15:00)' },
+              { value: 'trading', label: '交易日 9:30-11:30, 13:00-15:00' },
               { value: 'all', label: '全天' },
             ]}
           />
