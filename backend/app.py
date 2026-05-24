@@ -1965,11 +1965,14 @@ def analyze_limit_up_reason(stock_code):
         if cached_result and not force:
             print(f"从缓存读取 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']} 的分析结果")
             analysis = json.loads(cached_result.analysis_result)
+            cached = True
         else:
             if force and cached_result:
                 print(f"强制重新分析 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']}")
             else:
                 print(f"缓存未命中,开始分析 {stock_data['stock_name']}({stock_code}) {stock_data['trade_date']}")
+            
+            cached = False
             
             # 初始化分析器
             analyzer = LimitUpReasonAnalyzer()
@@ -2011,6 +2014,7 @@ def analyze_limit_up_reason(stock_code):
         
         return jsonify({
             'success': True,
+            'cached': cached,
             'data': {
                 'stock_code': stock_data['stock_code'],
                 'stock_name': stock_data['stock_name'],

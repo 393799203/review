@@ -3,7 +3,7 @@ import { Modal, Card, Tag, Spin, Rate, Progress, Divider, Empty, Alert, Button }
 import { StockOutlined, FireOutlined, RobotOutlined, TrophyOutlined, DollarOutlined, WarningOutlined, TagsOutlined, ReloadOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 
-const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, onClose }) => {
+const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, analysisData: propAnalysisData, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [analysisData, setAnalysisData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -19,10 +19,14 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, onClose 
 
   useEffect(() => {
     if (visible && stockCode) {
-      setAnalysisData(null); // 清空之前的数据
-      loadAnalysisData();
+      if (propAnalysisData) {
+        setAnalysisData(propAnalysisData);
+      } else {
+        setAnalysisData(null);
+        loadAnalysisData();
+      }
     }
-  }, [visible, stockCode, tradeDate]);
+  }, [visible, stockCode, tradeDate, propAnalysisData]);
 
   const loadAnalysisData = async (force = false) => {
     try {
@@ -183,6 +187,23 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, onClose 
               </div>
             )}
           </Card>
+
+          {analysisData.analysis_summary && (
+            <div style={{ 
+              padding: 10, 
+              background: '#fff7e6', 
+              borderRadius: 4,
+              fontSize: 12,
+              lineHeight: 1.6,
+              marginBottom: 12,
+              border: '1px solid #ffd591'
+            }}>
+              <strong style={{ color: '#fa8c16' }}>📝 分析摘要：</strong>
+              <div style={{ marginTop: 4, color: '#262626' }}>
+                {analysisData.analysis_summary}
+              </div>
+            </div>
+          )}
 
           <Card 
             title={<span style={{ fontSize: 13, fontWeight: 'bold' }}>涨停原因 & 炒作逻辑</span>}
@@ -508,21 +529,6 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, onClose 
               </div>
             </Card>
           )}
-
-          <Divider style={{ margin: '8px 0' }} />
-
-          <div style={{ 
-            padding: 8, 
-            background: '#f5f5f5', 
-            borderRadius: 4,
-            fontSize: 12,
-            lineHeight: 1.6
-          }}>
-            <strong>分析摘要：</strong>
-            <div style={{ marginTop: 4 }}>
-              {analysisData.analysis_summary}
-            </div>
-          </div>
         </div>
       )}
     </Modal>
