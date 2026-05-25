@@ -133,6 +133,14 @@ class TradeCalendar:
         if next_trading_day and current_date < next_trading_day:
             return True
         
+        if next_trading_day and current_date == next_trading_day:
+            if self.is_trading_day(current_date):
+                trading_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+                trading_end = now.replace(hour=15, minute=0, second=0, microsecond=0)
+                
+                if trading_start <= now <= trading_end:
+                    return True
+        
         return False
     
     def get_adjacent_trading_days(self, date_str: str, prev_count: int = 31, next_count: int = 18) -> dict:

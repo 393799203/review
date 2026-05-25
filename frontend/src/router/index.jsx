@@ -9,6 +9,7 @@ import StatisticsPage from '../pages/StatisticsPage';
 import NewsPage from '../pages/NewsPage';
 import ReportPage from '../pages/ReportPage';
 import UserDashboardPage from '../pages/UserDashboardPage';
+import HotStocksPage from '../pages/HotStocksPage';
 import AuthPage from '../pages/AuthPage';
 
 const ProtectedRoute = ({ children }) => {
@@ -82,6 +83,7 @@ const AppRouter = () => {
                       <Route path="/statistics" element={<StatisticsPage />} />
                       <Route path="/news" element={<NewsPage />} />
                       <Route path="/reports" element={<ReportPage />} />
+                      <Route path="/hot-stocks" element={<HotStocksPage />} />
                       <Route 
                         path="/user" 
                         element={

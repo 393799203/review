@@ -9,7 +9,6 @@ import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
 import axios from 'axios';
-import dayjs from 'dayjs';
 
 const LadderPage = () => {
   const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode } = useGlobal();
@@ -18,8 +17,6 @@ const LadderPage = () => {
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [yesterdayData, setYesterdayData] = useState(null);
-  const [nextDayBlocks, setNextDayBlocks] = useState([]);
-  const [nextDayDate, setNextDayDate] = useState(null);
   const [selectedBlocks, setSelectedBlocks] = useState([]);
   const [previousSelectedBlocks, setPreviousSelectedBlocks] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -87,14 +84,17 @@ const LadderPage = () => {
   useEffect(() => {
     if (mode === 'comparison' && currentDate) {
       loadComparisonData();
+    } else if (mode === 'ladder' && currentDate) {
+      loadData(currentDate);
     }
   }, [mode]);
 
   useEffect(() => {
-    if (nextDayBlocks.length === 0 && blockFilterDay === 'tomorrow') {
+    const tomorrowBlocks = blockStrengthData.tomorrow?.blocks || [];
+    if (tomorrowBlocks.length === 0 && blockFilterDay === 'tomorrow') {
       setBlockFilterDay('today');
     }
-  }, [nextDayBlocks, blockFilterDay]);
+  }, [blockStrengthData, blockFilterDay]);
 
   useEffect(() => {
     if (!isLoadingFromDBRef.current && (diffData.added.length > 0 || diffData.removed.length > 0)) {
@@ -318,6 +318,10 @@ const LadderPage = () => {
       if (response.data.success) {
         const data = response.data.data;
         
+        if (response.data.message) {
+          message.info(response.data.message);
+        }
+        
         const currentStocks = [];
         data.ladder.forEach(item => {
           item.stocks.forEach(stock => {
@@ -373,8 +377,6 @@ const LadderPage = () => {
         setLadderData(data.ladder);
         setStatistics(data.statistics);
         setYesterdayData(data.yesterday);
-        setNextDayBlocks(data.next_day_blocks || []);
-        setNextDayDate(data.next_day_date || null);
         previousStocksRef.current = currentStocks;
         setPreviousStocks(currentStocks);
       } else {
@@ -383,8 +385,6 @@ const LadderPage = () => {
         setLadderData([]);
         setStatistics({});
         setYesterdayData(null);
-        setNextDayBlocks([]);
-        setNextDayDate(null);
       }
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message || '加载数据失败';
@@ -392,8 +392,6 @@ const LadderPage = () => {
       setLadderData([]);
       setStatistics({});
       setYesterdayData(null);
-      setNextDayBlocks([]);
-      setNextDayDate(null);
     } finally {
       setLoading(false);
       if (isFirstLoad) {
@@ -1045,7 +1043,7 @@ const LadderPage = () => {
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>板块日期：</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {['yesterday', 'today', ...(nextDayBlocks.length > 0 ? ['tomorrow'] : [])].map((day) => {
+            {['yesterday', 'today', ...((blockStrengthData.tomorrow?.blocks || []).length > 0 ? ['tomorrow'] : [])].map((day) => {
               const dayLabel = { yesterday: '前日', today: '当日', tomorrow: '次日' };
               const dayColor = { yesterday: '#722ed1', today: '#1890ff', tomorrow: '#52c41a' };
               return (
@@ -1143,7 +1141,7 @@ const LadderPage = () => {
   };
 
   const renderComparisonContent = () => {
-    if (comparisonLoading) {
+    if (comparisonLoading && !comparisonData) {
       return (
         <div style={{ textAlign: 'center', padding: '100px 0' }}>
           <Spin size="large" />
@@ -1421,6 +1419,12 @@ const LadderPage = () => {
             const nextHeight = height + 1;
             const promotedStocks = promotedLadder[nextHeight] || [];
             
+            const avgChangePercent = yesterdayStocks.length > 0 
+              ? yesterdayStocks.reduce((sum, stock) => {
+                  return sum + (stock.change_percent !== null && stock.change_percent !== undefined ? stock.change_percent : 0);
+                }, 0) / yesterdayStocks.filter(s => s.change_percent !== null && s.change_percent !== undefined).length
+              : null;
+            
             return (
               <div key={height} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 24, marginBottom: isMobile ? 12 : 16 }}>
                 <div>
@@ -1437,7 +1441,18 @@ const LadderPage = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}>
-                    <span>{height}连板 ({yesterdayStocks.length}只)</span>
+                    <span>
+                      {height}连板 ({yesterdayStocks.length}只)
+                      {avgChangePercent !== null && !isNaN(avgChangePercent) && (
+                        <span style={{ 
+                          marginLeft: 8, 
+                          fontSize: isMobile ? 11 : 12,
+                          color: avgChangePercent >= 0 ? '#f5222d' : '#52c41a'
+                        }}>
+                          溢价{avgChangePercent >= 0 ? '+' : ''}{avgChangePercent.toFixed(2)}%
+                        </span>
+                      )}
+                    </span>
                     <ArrowRightOutlined style={{ fontSize: isMobile ? 12 : 14, color: '#52c41a' }} />
                   </div>
                   {yesterdayStocks.length > 0 ? (
@@ -1614,7 +1629,7 @@ const LadderPage = () => {
           onClose={() => setWencaiVisible(false)}
           dateStr={currentDate}
           type="breakout"
-          nextDayBlocks={nextDayBlocks}
+          nextDayBlocks={blockStrengthData.tomorrow?.blocks || []}
           enableBlur={enableBlur}
         />
       )}

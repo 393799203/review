@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Radio, Divider } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, RiseOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Radio, Divider, Button } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, RiseOutlined, LoadingOutlined, TeamOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 
 const StatisticsPage = () => {
+  const navigate = useNavigate();
   const { refreshKey } = useGlobal();
   const [period, setPeriod] = useState('day');
   const [data, setData] = useState([]);
@@ -582,6 +584,29 @@ const StatisticsPage = () => {
           </Col>
         </Row>
       )}
+      
+      <div
+        style={{
+          position: 'fixed',
+          right: 16,
+          bottom: 56,
+          zIndex: 1000,
+        }}
+      >
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<TeamOutlined style={{ fontSize: 20 }} />}
+          onClick={() => navigate('/user')}
+          style={{ 
+            width: 56, 
+            height: 56,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+          }}
+          title="用户看板"
+        />
+      </div>
     </div>
   );
 };

@@ -150,31 +150,84 @@ def get_data_by_date(date_str):
             LadderStats.trade_date == trade_date
         ).first()
         
-        # 如果没有数据，触发同步
+        now = datetime.now()
+        is_today = trade_date == now.date()
+        trading_start_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        
         if not stocks or not stats:
-            print(f"日期 {date_str} 没有数据，触发同步...")
-            from fetch_data import LimitUpFetcher
-            
-            fetcher = LimitUpFetcher(data_fetcher=data_fetcher)
-            success = fetcher.fetch_and_save(date_str)
-            
-            if success:
-                # 重新查询数据
-                stocks = session.query(LimitUpStock).filter(
-                    LimitUpStock.trade_date == trade_date
-                ).order_by(desc(LimitUpStock.seal_amount)).all()
+            if is_today and now < trading_start_time:
+                yesterday_data = None
+                try:
+                    from trade_calendar import trade_calendar
+                    prev_trading_days = trade_calendar.get_recent_trading_days(2, end_date=trade_date)
+                    
+                    if prev_trading_days and len(prev_trading_days) >= 2:
+                        prev_date_str = prev_trading_days[1]
+                        prev_date = datetime.strptime(prev_date_str, '%Y%m%d').date()
+                        
+                        prev_stocks = session.query(LimitUpStock).filter(
+                            LimitUpStock.trade_date == prev_date
+                        ).all()
+                        
+                        if prev_stocks:
+                            max_level = 0
+                            for stock in prev_stocks:
+                                level = min(stock.continuous_days, 8)
+                                if level > max_level:
+                                    max_level = level
+                            
+                            level_labels = {
+                                1: "首板", 2: "2连板", 3: "3连板", 4: "4连板",
+                                5: "5连板", 6: "6连板", 7: "7连板", 8: "8连板及以上"
+                            }
+                            
+                            yesterday_data = {
+                                'date': prev_date_str,
+                                'max_level': max_level,
+                                'label': level_labels.get(max_level, f"{max_level}连板")
+                            }
+                except Exception as e:
+                    print(f"获取昨天数据失败: {e}")
                 
-                stats = session.query(LadderStats).filter(
-                    LadderStats.trade_date == trade_date
-                ).first()
-                
-                print(f"日期 {date_str} 数据同步成功，获取到 {len(stocks)} 只股票")
-            else:
-                print(f"日期 {date_str} 数据同步失败")
                 return jsonify({
-                    'success': False,
-                    'error': '该日期暂无涨停股票数据'
+                    'success': True,
+                    'data': {
+                        'ladder': [],
+                        'statistics': {
+                            'total_count': 0,
+                            'first_board': 0,
+                            'second_board': 0,
+                            'third_board': 0,
+                            'fourth_board': 0,
+                            'fifth_plus_board': 0
+                        },
+                        'yesterday': yesterday_data
+                    },
+                    'message': '今日暂无数据'
                 }), 200
+            else:
+                print(f"日期 {date_str} 没有数据，触发同步...")
+                from fetch_data import LimitUpFetcher
+                
+                fetcher = LimitUpFetcher(data_fetcher=data_fetcher)
+                success = fetcher.fetch_and_save(date_str)
+                
+                if success:
+                    stocks = session.query(LimitUpStock).filter(
+                        LimitUpStock.trade_date == trade_date
+                    ).order_by(desc(LimitUpStock.seal_amount)).all()
+                    
+                    stats = session.query(LadderStats).filter(
+                        LadderStats.trade_date == trade_date
+                    ).first()
+                    
+                    print(f"日期 {date_str} 数据同步成功，获取到 {len(stocks)} 只股票")
+                else:
+                    print(f"日期 {date_str} 数据同步失败")
+                    return jsonify({
+                        'success': False,
+                        'error': '该日期暂无涨停股票数据'
+                    }), 200
         
         ladder_dict = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: []}
         
@@ -241,40 +294,13 @@ def get_data_by_date(date_str):
                                stats.seventh_board + stats.eighth_plus_board) if stats else 0
         }
         
-        # 获取次日板块强度排名
-        next_day_blocks = []
-        next_day_date = None
-        try:
-            from trade_calendar import trade_calendar
-            
-            start_date = trade_date + timedelta(days=1)
-            end_date = trade_date + timedelta(days=7)
-            trading_days = trade_calendar.get_trading_days(start_date, end_date)
-            
-            if trading_days:
-                next_date = datetime.strptime(trading_days[0], '%Y%m%d').date()
-                next_day_date = trading_days[0]  # 保存下一个交易日的日期字符串
-                next_blocks = session.query(Block).filter(
-                    Block.trade_date == next_date
-                ).order_by(Block.limit_up_num.desc()).all()
-                
-                for rank, block in enumerate(next_blocks, 1):
-                    next_day_blocks.append({
-                        'block_name': block.block_name,
-                        'rank': rank,
-                        'limit_up_num': block.limit_up_num
-                    })
-        except Exception as e:
-            print(f"获取次日板块强度失败: {e}")
-        
-        # 获取昨天的最高连板数据
         yesterday_data = None
         try:
             from trade_calendar import trade_calendar
             prev_trading_days = trade_calendar.get_recent_trading_days(2, end_date=trade_date)
             
             if prev_trading_days and len(prev_trading_days) >= 2:
-                prev_date_str = prev_trading_days[1]  # 第二个元素是前一个交易日
+                prev_date_str = prev_trading_days[1]
                 
                 prev_date = datetime.strptime(prev_date_str, '%Y%m%d').date()
                 
@@ -307,9 +333,7 @@ def get_data_by_date(date_str):
             'data': {
                 'ladder': ladder,
                 'statistics': statistics,
-                'yesterday': yesterday_data,
-                'next_day_blocks': next_day_blocks,
-                'next_day_date': next_day_date
+                'yesterday': yesterday_data
             },
             'date': date_str
         })
@@ -3839,24 +3863,32 @@ def get_ladder_comparison(date_str):
             LimitUpStock.trade_date == prev_date
         ).all()
         
-        if not today_stocks:
-            return jsonify({
-                'success': False,
-                'error': '该日期暂无涨停股票数据'
-            }), 200
+        now = datetime.now()
+        is_today = trade_date == now.date()
         
-        today_list = []
-        for stock in today_stocks:
-            today_list.append({
-                'code': stock.stock_code,
-                'name': stock.stock_name,
-                'continuous_days': stock.continuous_days,
-                'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
-                'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
-                'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
-                'change_percent': float(stock.change_percent) if stock.change_percent else 0.0,
-                'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0
-            })
+        trading_start_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        
+        if not today_stocks:
+            if is_today and now < trading_start_time:
+                today_list = []
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': '该日期暂无涨停股票数据'
+                }), 200
+        else:
+            today_list = []
+            for stock in today_stocks:
+                today_list.append({
+                    'code': stock.stock_code,
+                    'name': stock.stock_name,
+                    'continuous_days': stock.continuous_days,
+                    'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
+                    'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
+                    'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
+                    'change_percent': float(stock.change_percent) if stock.change_percent else 0.0,
+                    'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0
+                })
         
         yesterday_list = []
         for stock in yesterday_stocks:
@@ -3925,6 +3957,98 @@ def get_ladder_comparison(date_str):
     finally:
         session.close()
 
+
+@app.route('/api/hot-stocks', methods=['GET'])
+def get_hot_stocks():
+    """
+    获取同花顺热股数据
+    
+    Args:
+        list_type: 榜单类型 (normal/value/trend)
+        
+    Returns:
+        热股列表数据
+    """
+    list_type = request.args.get('list_type', 'normal')
+    
+    valid_types = ['normal', 'value', 'trend']
+    if list_type not in valid_types:
+        return jsonify({
+            'success': False,
+            'error': f'无效的榜单类型，可选值: {", ".join(valid_types)}'
+        }), 400
+    
+    try:
+        if list_type == 'normal':
+            url = 'https://dq.10jqka.com.cn/fuyao/hot_list_data/out/hot_list/v1/stock?stock_type=a&type=hour&list_type=normal'
+        elif list_type == 'value':
+            url = 'https://dq.10jqka.com.cn/fuyao/hot_list_data/out/hot_list/v1/stock?stock_type=a&type=day&list_type=value'
+        else:
+            url = 'https://dq.10jqka.com.cn/fuyao/hot_list_data/out/hot_list/v1/stock?stock_type=a&type=day&list_type=trend'
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': 'https://dq.10jqka.com.cn/',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get('status_code') == 0:
+            stock_list = data.get('data', {}).get('stock_list', [])
+            
+            processed_stocks = []
+            for stock in stock_list:
+                processed_stocks.append({
+                    'code': stock.get('code', ''),
+                    'name': stock.get('name', ''),
+                    'price': float(stock.get('price', 0)) if stock.get('price') else 0.0,
+                    'change_percent': float(stock.get('rise_and_fall', 0)) if stock.get('rise_and_fall') else 0.0,
+                    'volume_ratio': float(stock.get('volume_ratio', 0)) if stock.get('volume_ratio') else None,
+                    'turnover_rate': float(stock.get('turnover_rate', 0)) if stock.get('turnover_rate') else None,
+                    'market_value': stock.get('market_value', ''),
+                    'industry': ', '.join(stock.get('tag', {}).get('concept_tag', [])) if stock.get('tag', {}).get('concept_tag') else '',
+                    'reason': stock.get('analyse', ''),
+                    'rank': stock.get('order', 0),
+                    'hot_value': int(float(stock.get('rate', 0))) if stock.get('rate') else 0,
+                    'heat_degree': stock.get('heat_degree', 0),
+                    'popularity_tag': stock.get('tag', {}).get('popularity_tag', ''),
+                    'analyse_title': stock.get('analyse_title', ''),
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': processed_stocks,
+                'list_type': list_type,
+                'count': len(processed_stocks)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': data.get('status_msg', '获取数据失败')
+            }), 200
+            
+    except requests.exceptions.Timeout:
+        return jsonify({
+            'success': False,
+            'error': '请求超时，请稍后重试'
+        }), 200
+    except requests.exceptions.RequestException as e:
+        print(f"请求同花顺热股数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'网络请求失败: {str(e)}'
+        }), 200
+    except Exception as e:
+        print(f"获取同花顺热股数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     print("初始化数据库...")
