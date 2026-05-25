@@ -566,15 +566,6 @@ const MainLayout = ({ children }) => {
           }}
         >
           <div style={{ fontSize: 18, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
-            A股涨停复盘系统
-            <Button
-              type="link"
-              icon={<HeartOutlined />}
-              onClick={handleAddFavorite}
-              style={{ padding: '0 8px', height: 'auto', fontSize: 13 }}
-            >
-              一键收藏
-            </Button>
             {location.pathname === '/' && (
               <Button.Group>
                 <Button 
@@ -593,6 +584,14 @@ const MainLayout = ({ children }) => {
                 </Button>
               </Button.Group>
             )}
+            <Button
+              type="link"
+              icon={<HeartOutlined />}
+              onClick={handleAddFavorite}
+              style={{ padding: '0 8px', height: 'auto', fontSize: 13 }}
+            >
+              一键收藏
+            </Button>
           </div>
           {renderHeaderRight()}
         </Header>
