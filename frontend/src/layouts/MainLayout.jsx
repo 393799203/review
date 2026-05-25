@@ -11,7 +11,6 @@ import { refreshHotStocksData } from '../pages/HotStocksPage';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import SpeechSettings from '../components/SpeechSettings';
 import dayjs from 'dayjs';
-import api from '../services/api';
 
 const { Sider, Content, Header } = Layout;
 

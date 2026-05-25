@@ -117,9 +117,11 @@ const BlockStrengthModal = ({ visible, onClose, date }) => {
         <span style={{ color: '#f5222d', fontWeight: 'bold', marginRight: 8, flexShrink: 0 }}>
           {block.limit_up_num}涨停
         </span>
-        <span style={{ color: '#fa8c16', fontWeight: 'bold', marginRight: 8, flexShrink: 0 }}>
-          {block.continuous_plate_num || 0}连板
-        </span>
+        {block.continuous_plate_num > 0 && (
+          <span style={{ color: '#fa8c16', fontWeight: 'bold', marginRight: 8, flexShrink: 0 }}>
+            {block.continuous_plate_num}只连板
+          </span>
+        )}
         <span
           style={{
             color: block.change_rate > 0 ? '#f5222d' : block.change_rate < 0 ? '#52c41a' : '#666',
