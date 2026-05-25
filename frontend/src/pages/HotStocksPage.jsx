@@ -141,9 +141,9 @@ const HotStocksPage = () => {
             </div>
           </div>
           
-          {reasons.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-              {reasons.slice(0, 2).map((reason, i) => (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1 }}>
+              {reasons.length > 0 && reasons.slice(0, 2).map((reason, i) => (
                 <Tag 
                   key={i}
                   style={{ 
@@ -159,12 +159,7 @@ const HotStocksPage = () => {
                   {reason.trim().length > 8 ? reason.trim().substring(0, 8) + '...' : reason.trim()}
                 </Tag>
               ))}
-            </div>
-          )}
-          
-          {reasons.length === 0 && stock.industry && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-              {stock.industry.split(', ').slice(0, 2).map((tag, i) => (
+              {reasons.length === 0 && stock.industry && stock.industry.split(', ').slice(0, 2).map((tag, i) => (
                 <Tag 
                   key={i}
                   style={{ 
@@ -181,7 +176,12 @@ const HotStocksPage = () => {
                 </Tag>
               ))}
             </div>
-          )}
+            {stock.popularity_tag && (
+              <Tag color="orange" style={{ fontSize: 8, padding: '1px 4px', margin: 0, marginLeft: 4 }}>
+                {stock.popularity_tag}
+              </Tag>
+            )}
+          </div>
         </div>
       );
     }
@@ -191,38 +191,38 @@ const HotStocksPage = () => {
         key={stock.code} 
         size="small"
         style={{ 
-          marginBottom: 8,
+          marginBottom: 0,
           borderLeft: `3px solid ${index < 3 ? '#ff4d4f' : '#1890ff'}`,
           background: '#fff',
           boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
           transition: 'all 0.3s'
         }}
-        styles={{ body: { padding: '10px 12px' } }}
+        styles={{ body: { padding: '8px 10px' } }}
         hoverable
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ 
-              width: 24, 
-              height: 24, 
+              width: 20, 
+              height: 20, 
               borderRadius: '50%', 
               background: index < 3 ? 'linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)' : 'linear-gradient(135deg, #1890ff 0%, #40a9ff 100%)',
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
               color: '#fff',
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 'bold',
               flexShrink: 0
             }}>
               {index + 1}
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span 
                   style={{ 
                     fontWeight: 600, 
-                    fontSize: 14, 
+                    fontSize: 13, 
                     color: '#1890ff',
                     cursor: 'pointer'
                   }}
@@ -233,14 +233,9 @@ const HotStocksPage = () => {
                 >
                   {stock.name}
                 </span>
-                {stock.popularity_tag && (
-                  <Tag color="orange" style={{ fontSize: 10, padding: '2px 6px', margin: 0 }}>
-                    {stock.popularity_tag}
-                  </Tag>
-                )}
               </div>
               <div 
-                style={{ fontSize: 11, color: '#8c8c8c', cursor: 'pointer' }}
+                style={{ fontSize: 10, color: '#8c8c8c', cursor: 'pointer' }}
                 onClick={() => {
                   setSelectedStock({ code: stock.code, name: stock.name });
                   setKlineVisible(true);
@@ -251,78 +246,68 @@ const HotStocksPage = () => {
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
+            <div style={{ color: changeColor, fontWeight: 600, fontSize: 14 }}>
+              {stock.change_percent > 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+            </div>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: 4, 
-              justifyContent: 'flex-end',
-              marginBottom: 4
+              gap: 2, 
+              justifyContent: 'flex-end'
             }}>
-              <FireOutlined style={{ fontSize: 14, color: '#ff4d4f' }} />
+              <FireOutlined style={{ fontSize: 12, color: '#ff4d4f' }} />
               <span style={{ 
-                fontSize: 13, 
+                fontSize: 11, 
                 fontWeight: 600, 
-                color: '#ff4d4f',
-                background: 'linear-gradient(135deg, #fff1f0 0%, #ffccc7 100%)',
-                padding: '2px 8px',
-                borderRadius: 12
+                color: '#ff4d4f'
               }}>
-                {stock.hot_value ? stock.hot_value.toLocaleString() : 0}
+                {stock.hot_value ? (stock.hot_value > 9999 ? `${(stock.hot_value / 10000).toFixed(1)}万` : stock.hot_value.toLocaleString()) : 0}
               </span>
-            </div>
-            <div style={{ color: changeColor, fontWeight: 600, fontSize: 15 }}>
-              {stock.change_percent > 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
             </div>
           </div>
         </div>
         
-        {reasons.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-            {reasons.map((reason, i) => (
-              <Tooltip
-                key={i}
-                title={hasDetailReason ? <div style={{ whiteSpace: 'pre-wrap' }}>{filterDisclaimer(stock.reason)}</div> : null}
-                placement="top"
-                styles={{ root: { maxWidth: '390px' } }}
-              >
-                <Tag 
-                  color="blue"
-                  style={{ 
-                    fontSize: 10, 
-                    marginBottom: 0,
-                    cursor: hasDetailReason ? 'pointer' : 'default'
-                  }}
-                >
-                  {reason.trim()}
-                </Tag>
-              </Tooltip>
-            ))}
-          </div>
-        )}
-        
-        {stock.industry && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {stock.industry.split(', ').slice(0, 3).map((tag, i) => (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1 }}>
+            {reasons.length > 0 && reasons.slice(0, 2).map((reason, i) => (
               <Tag 
                 key={i}
                 style={{ 
-                  fontSize: 10, 
-                  marginBottom: 0,
-                  background: '#fafafa',
-                  border: '1px solid #d9d9d9',
-                  color: '#595959'
+                  fontSize: 9, 
+                  margin: 0, 
+                  padding: '1px 4px',
+                  borderRadius: 2,
+                  background: '#e6f7ff',
+                  border: 'none',
+                  color: '#1890ff'
+                }}
+              >
+                {reason.trim().length > 8 ? reason.trim().substring(0, 8) + '...' : reason.trim()}
+              </Tag>
+            ))}
+            {reasons.length === 0 && stock.industry && stock.industry.split(', ').slice(0, 2).map((tag, i) => (
+              <Tag 
+                key={i}
+                style={{ 
+                  fontSize: 9, 
+                  margin: 0, 
+                  padding: '1px 4px',
+                  borderRadius: 2,
+                  background: '#f9f0ff',
+                  border: 'none',
+                  color: '#722ed1'
                 }}
               >
                 {tag}
               </Tag>
             ))}
-            {stock.industry.split(', ').length > 3 && (
-              <span style={{ fontSize: 10, color: '#8c8c8c' }}>
-                +{stock.industry.split(', ').length - 3}
-              </span>
-            )}
           </div>
-        )}
+          {stock.popularity_tag && (
+            <Tag color="orange" style={{ fontSize: 8, padding: '1px 4px', margin: 0, marginLeft: 4 }}>
+              {stock.popularity_tag}
+            </Tag>
+          )}
+        </div>
       </Card>
     );
   };
@@ -356,12 +341,10 @@ const HotStocksPage = () => {
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
               暂无数据
             </div>
-          ) : isMobile ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: isMobile ? 8 : 12 }}>
               {displayData.map((stock, index) => renderStockCard(stock, index))}
             </div>
-          ) : (
-            displayData.map((stock, index) => renderStockCard(stock, index))
           )}
         </div>
       </div>
