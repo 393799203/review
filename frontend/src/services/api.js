@@ -104,6 +104,8 @@ export const stockApi = {
   updateSettings: (settings) => api.put('/auth/settings', { settings }),
 
   logout: () => api.post('/auth/logout'),
+
+  getHotStocks: (listType = 'normal') => api.get(`/hot-stocks?list_type=${listType}`),
 };
 
 export default api;

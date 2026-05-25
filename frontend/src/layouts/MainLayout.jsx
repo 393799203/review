@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, DiffOutlined } from '@ant-design/icons';
+import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio } from 'antd';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
 import { refreshNewsData } from '../pages/NewsPage';
 import { refreshReportsData } from '../pages/ReportPage';
 import { refreshUserDashboard } from '../pages/UserDashboardPage';
+import { refreshHotStocksData } from '../pages/HotStocksPage';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import SpeechSettings from '../components/SpeechSettings';
 import dayjs from 'dayjs';
+import api from '../services/api';
 
 const { Sider, Content, Header } = Layout;
 
@@ -36,10 +38,10 @@ const MainLayout = ({ children }) => {
     setSmartMode,
     showFirstBoard,
     setShowFirstBoard,
-    ladderMode,
-    setLadderMode,
     showAllNews,
     setShowAllNews,
+    ladderMode,
+    setLadderMode,
     loadPageSettings,
     handleDateChange,
     handlePrevDay,
@@ -97,8 +99,9 @@ const MainLayout = ({ children }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleLadderModeChange = (mode) => {
-    setLadderMode(mode);
+  const handleLadderModeChange = async (e) => {
+    const newMode = e.target.value;
+    setLadderMode(newMode);
   };
 
   const menuItems = [
@@ -118,6 +121,11 @@ const MainLayout = ({ children }) => {
       label: '研报解读',
     },
     {
+      key: '/hot-stocks',
+      icon: <FireOutlined />,
+      label: '热门榜单',
+    },
+    {
       key: '/watchlist',
       icon: <StarOutlined />,
       label: '自选回溯',
@@ -129,20 +137,7 @@ const MainLayout = ({ children }) => {
     },
   ];
 
-  const adminMenuItems = isAdmin ? [
-    {
-      type: 'divider',
-      key: 'admin-divider',
-      style: { 
-        borderColor: 'rgba(255, 255, 255, 0.1)'
-      }
-    },
-    {
-      key: '/user',
-      icon: <TeamOutlined />,
-      label: '用户看板',
-    },
-  ] : [];
+  const adminMenuItems = isAdmin ? [] : [];
 
   const allMenuItems = [...menuItems, ...adminMenuItems];
 
@@ -177,6 +172,7 @@ const MainLayout = ({ children }) => {
 
   const isLatestDate = currentDate === latestDate;
   const isLadderPage = location.pathname === '/';
+  const isHotStocksPage = location.pathname === '/hot-stocks';
 
   const renderHeaderRight = () => {
     const isWatchlistPage = location.pathname === '/watchlist';
@@ -194,7 +190,7 @@ const MainLayout = ({ children }) => {
             onChange={(value) => setSmartMode(value === 'trading')}
             style={{ width: '100%' }}
             options={[
-              { value: 'trading', label: '交易日 9:30-11:30, 13:00-15:00' },
+              { value: 'trading', label: '交易时段 (9:15-11:30, 13:00-15:00)' },
               { value: 'all', label: '全天' },
             ]}
           />
@@ -232,6 +228,7 @@ const MainLayout = ({ children }) => {
       if (isNewsPage) return refreshNewsData;
       if (isReportsPage) return refreshReportsData;
       if (isUserDashboardPage) return refreshUserDashboard;
+      if (isHotStocksPage) return refreshHotStocksData;
       return refreshCurrentData;
     };
 
@@ -239,13 +236,15 @@ const MainLayout = ({ children }) => {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isLadderPage && (
+            <Button 
+              size="small"
+              type="primary"
+              icon={ladderMode === 'ladder' ? <RiseOutlined /> : <AppstoreOutlined />}
+              onClick={() => handleLadderModeChange({ target: { value: ladderMode === 'ladder' ? 'comparison' : 'ladder' } })}
+            />
+          )}
+          {(isLadderPage || isHotStocksPage) && (
             <>
-              <Button 
-                size="small"
-                type="primary"
-                icon={ladderMode === 'ladder' ? <RiseOutlined /> : <AppstoreOutlined />}
-                onClick={() => handleLadderModeChange(ladderMode === 'ladder' ? 'comparison' : 'ladder')}
-              />
               <Button onClick={handlePrevDay} size="small">前</Button>
               <DatePicker
                 value={currentDate ? dayjs(currentDate, 'YYYYMMDD') : null}
@@ -257,15 +256,17 @@ const MainLayout = ({ children }) => {
                 style={{ width: 100 }}
               />
               {!isLatestDate && <Button onClick={handleNextDay} size="small">后</Button>}
-              <Switch
-                checked={showFirstBoard}
-                onChange={setShowFirstBoard}
-                size="small"
-                checkedChildren="首"
-                unCheckedChildren="首"
-                style={{ marginLeft: 4 }}
-              />
             </>
+          )}
+          {isLadderPage && (
+            <Switch
+              checked={showFirstBoard}
+              onChange={setShowFirstBoard}
+              size="small"
+              checkedChildren="首"
+              unCheckedChildren="首"
+              style={{ marginLeft: 4 }}
+            />
           )}
           {isNewsPage && (
             <>
@@ -309,7 +310,7 @@ const MainLayout = ({ children }) => {
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {isLadderPage && (
+        {(isLadderPage || isHotStocksPage) && (
           <>
             <Button onClick={handlePrevDay}>前一天</Button>
             <DatePicker
@@ -321,6 +322,10 @@ const MainLayout = ({ children }) => {
               placement="bottomLeft"
             />
             {!isLatestDate && <Button onClick={handleNextDay}>后一天</Button>}
+          </>
+        )}
+        {isLadderPage && (
+          <>
             <span style={{ marginLeft: 8 }}>显示首板:</span>
             <Switch checked={showFirstBoard} onChange={setShowFirstBoard} />
           </>
@@ -571,18 +576,18 @@ const MainLayout = ({ children }) => {
               一键收藏
             </Button>
             {location.pathname === '/' && (
-              <Button.Group style={{ marginLeft: 8 }}>
+              <Button.Group>
                 <Button 
                   type={ladderMode === 'ladder' ? 'primary' : 'default'}
                   icon={<RiseOutlined />}
-                  onClick={() => handleLadderModeChange('ladder')}
+                  onClick={() => handleLadderModeChange({ target: { value: 'ladder' } })}
                 >
                   涨停天梯
                 </Button>
                 <Button 
                   type={ladderMode === 'comparison' ? 'primary' : 'default'}
                   icon={<AppstoreOutlined />}
-                  onClick={() => handleLadderModeChange('comparison')}
+                  onClick={() => handleLadderModeChange({ target: { value: 'comparison' } })}
                 >
                   晋级对比
                 </Button>
