@@ -102,11 +102,7 @@ const MarketAlertBar = () => {
       let alertType = null;
 
       if (prevAlert) {
-        if (prevAlert.status === 'close' && alert.status === 'close' && !prevAlert.hasShownFirstTime) {
-          status = 'new';
-          changed = true;
-          alertType = 'limit_up';
-        } else if (prevAlert.status === 'close' && alert.status === 'open') {
+        if (prevAlert.status === 'close' && alert.status === 'open') {
           status = 'open';
           changed = true;
           alertType = 'break板';
@@ -114,7 +110,7 @@ const MarketAlertBar = () => {
           status = 'reclose';
           changed = true;
           alertType = '回封';
-        } else if (prevAlert.status === 'close' && alert.status === 'close' && prevAlert.hasShownFirstTime) {
+        } else if (prevAlert.status === 'close' && alert.status === 'close') {
           status = 'still_close';
           changed = false;
         } else if (prevAlert.status === 'open' && alert.status === 'open') {
