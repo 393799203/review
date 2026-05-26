@@ -1335,10 +1335,9 @@ const LadderPage = () => {
             const nextHeight = height + 1;
             const promotedStocks = promotedLadder[nextHeight] || [];
             
-            const avgChangePercent = yesterdayStocks.length > 0 
-              ? yesterdayStocks.reduce((sum, stock) => {
-                  return sum + (stock.change_percent !== null && stock.change_percent !== undefined ? stock.change_percent : 0);
-                }, 0) / yesterdayStocks.filter(s => s.change_percent !== null && s.change_percent !== undefined).length
+            const filteredStocks = yesterdayStocks.filter(s => s.change_percent !== null && s.change_percent !== undefined && s.change_percent < 10);
+            const avgChangePercent = filteredStocks.length > 0 
+              ? filteredStocks.reduce((sum, stock) => sum + stock.change_percent, 0) / filteredStocks.length
               : null;
             
             return (
