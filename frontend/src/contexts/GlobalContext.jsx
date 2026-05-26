@@ -415,39 +415,26 @@ export const GlobalProvider = ({ children }) => {
     if (date) {
       const dateStr = date.format('YYYYMMDD');
       setCurrentDate(dateStr);
-      loadTradingDays(dateStr);
     }
   };
 
-  const handlePrevDay = async () => {
-    if (!currentDate) return;
+  const handlePrevDay = () => {
+    if (!currentDate || tradingDays.length === 0) return;
     
-    try {
-      const response = await stockApi.getAdjacentTradingDays(currentDate);
-      
-      if (response.data.success && response.data.data.prev) {
-        const prevDate = response.data.data.prev;
-        setCurrentDate(prevDate);
-        loadTradingDays(prevDate);
-      }
-    } catch (error) {
-      message.error('获取前一交易日失败');
+    const currentIndex = tradingDays.indexOf(currentDate);
+    if (currentIndex > 0) {
+      const prevDate = tradingDays[currentIndex - 1];
+      setCurrentDate(prevDate);
     }
   };
 
-  const handleNextDay = async () => {
-    if (!currentDate) return;
+  const handleNextDay = () => {
+    if (!currentDate || tradingDays.length === 0) return;
     
-    try {
-      const response = await stockApi.getAdjacentTradingDays(currentDate);
-      
-      if (response.data.success && response.data.data.next) {
-        const nextDate = response.data.data.next;
-        setCurrentDate(nextDate);
-        loadTradingDays(nextDate);
-      }
-    } catch (error) {
-      message.error('获取后一交易日失败');
+    const currentIndex = tradingDays.indexOf(currentDate);
+    if (currentIndex < tradingDays.length - 1) {
+      const nextDate = tradingDays[currentIndex + 1];
+      setCurrentDate(nextDate);
     }
   };
 

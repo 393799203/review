@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Tag, Spin, message, Button, Collapse, Empty, Input } from 'antd';
 import { RobotOutlined, ThunderboltOutlined, FireOutlined, SoundOutlined, LoadingOutlined, UpOutlined, SearchOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import StockKlineModal from '../components/StockKlineModal';
 
@@ -351,9 +351,7 @@ const NewsPage = () => {
     try {
       setRefreshing(true);
       setLoading(true);
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      const response = await axios.get(`${API_BASE}/news/cls-telegraph${force ? '?force=true' : ''}`);
+      const response = await api.get(`/news/cls-telegraph${force ? '?force=true' : ''}`);
 
       if (response.data.success) {
         const newData = response.data.data;
@@ -424,13 +422,11 @@ const NewsPage = () => {
     
     try {
       setLoadingMore(true);
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
       
       const lastNews = newsList[newsList.length - 1];
       const lastCtime = lastNews.ctime;
       
-      const response = await axios.get(`${API_BASE}/news/cls-telegraph?last_ctime=${encodeURIComponent(lastCtime)}&limit=50`);
+      const response = await api.get(`/news/cls-telegraph?last_ctime=${encodeURIComponent(lastCtime)}&limit=50`);
 
       if (response.data.success) {
         const newData = response.data.data;
@@ -467,9 +463,7 @@ const NewsPage = () => {
 
     try {
       setAnalyzingIds(prev => new Set([...prev, news.id]));
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      const response = await axios.post(`${API_BASE}/news/analyze`, {
+      const response = await api.post('/news/analyze', {
         news_id: news.id,
         title: news.title,
         content: news.content,

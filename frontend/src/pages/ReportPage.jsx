@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Table, Tag, Spin, Input, Button, Empty, Tooltip, Modal } from 'antd';
 import { FileTextOutlined, RobotOutlined, ThunderboltOutlined, InfoCircleOutlined, UpOutlined, SearchOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
 
 let loadReportsRef = null;
@@ -67,7 +67,7 @@ const ReportPage = () => {
     }
     
     try {
-      const response = await axios.get('/api/reports', {
+      const response = await api.get('/reports', {
         params: {
           page: page,
           pageSize: 50,
@@ -160,9 +160,7 @@ const ReportPage = () => {
 
     try {
       setAnalyzingIds(prev => new Set([...prev, report.infoCode]));
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      const response = await axios.post(`${API_BASE}/reports/analyze`, {
+      const response = await api.post('/reports/analyze', {
         info_code: report.infoCode,
         title: report.title,
         stock_name: report.stockName,

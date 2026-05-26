@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
 import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined } from '@ant-design/icons';
-import { stockApi } from '../services/api';
+import api, { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
 import BlockStrengthModal from '../components/BlockStrengthModal';
 import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
-import axios from 'axios';
+import PremiumTrendModal from '../components/PremiumTrendModal';
 
 const LadderPage = () => {
   const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode } = useGlobal();
@@ -51,6 +51,9 @@ const LadderPage = () => {
     broken: []
   });
   
+  const [premiumTrendVisible, setPremiumTrendVisible] = useState(false);
+  const [selectedContinuousDays, setSelectedContinuousDays] = useState(null);
+  
   const lastDateRef = useRef('');
   const previousStocksRef = useRef([]);
   const isLoadingFromDBRef = useRef(false);
@@ -71,23 +74,24 @@ const LadderPage = () => {
         previousStocksRef.current = [];
         setPreviousStocks([]);
       }
-      lastDateRef.current = currentDate;
-      loadData(currentDate);
-      loadBlockStrengthData();
-      loadDiffData();
+      
+      // 根据模式加载不同的数据
       if (mode === 'comparison') {
+        // 晋级对比模式：只加载对比数据
         loadComparisonData();
+      } else {
+        // 涨停天梯模式：加载天梯数据
+        loadData(currentDate);
       }
+      
+      // 无论什么模式，切换日期时都加载对比结果
+      if (lastDateRef.current !== currentDate) {
+        loadDiffData();
+      }
+      
+      lastDateRef.current = currentDate;
     }
-  }, [currentDate, refreshKey]);
-
-  useEffect(() => {
-    if (mode === 'comparison' && currentDate) {
-      loadComparisonData();
-    } else if (mode === 'ladder' && currentDate) {
-      loadData(currentDate);
-    }
-  }, [mode]);
+  }, [currentDate, refreshKey, mode]);
 
   useEffect(() => {
     const tomorrowBlocks = blockStrengthData.tomorrow?.blocks || [];
@@ -164,9 +168,7 @@ const LadderPage = () => {
 
   const loadBlockStrengthData = async () => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      const response = await axios.get(`${API_BASE}/block-strength/continuous?date=${currentDate}`);
+      const response = await api.get(`/block-strength/continuous?date=${currentDate}`);
       if (response.data.success) {
         setBlockStrengthData(response.data.data);
         setSelectedBlocks([]);
@@ -178,9 +180,7 @@ const LadderPage = () => {
 
   const loadDiffData = async () => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      const response = await axios.get(`${API_BASE}/stock-diff/load/${currentDate}`);
+      const response = await api.get(`/stock-diff/load/${currentDate}`);
       if (response.data.success) {
         const data = response.data.data;
         isLoadingFromDBRef.current = true;
@@ -209,9 +209,7 @@ const LadderPage = () => {
 
   const saveDiffData = async (data) => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      await axios.post(`${API_BASE}/stock-diff/save`, {
+      await api.post('/stock-diff/save', {
         trade_date: currentDate,
         added: data.added,
         removed: data.removed
@@ -226,10 +224,8 @@ const LadderPage = () => {
     
     setComparisonLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
       const dateStr = currentDate.replace(/-/g, '');
-      const response = await axios.get(`${API_BASE}/ladder-comparison/${dateStr}`);
+      const response = await api.get(`/ladder-comparison/${dateStr}`);
       
       if (response.data.success) {
         setComparisonData(response.data);
@@ -295,20 +291,21 @@ const LadderPage = () => {
 
   const clearDiffData = async () => {
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      await axios.delete(`${API_BASE}/stock-diff/clear/${currentDate}`);
+      await api.delete(`/stock-diff/clear/${currentDate}`);
       setDiffData({ added: [], removed: [] });
     } catch (error) {
       console.error('清空对比结果失败:', error);
     }
   };
 
+  const lastBlockDateRef = useRef('');
+
   useEffect(() => {
-    if (currentDate) {
+    if (currentDate && mode === 'ladder' && lastBlockDateRef.current !== currentDate) {
       loadBlockStrengthData();
+      lastBlockDateRef.current = currentDate;
     }
-  }, [blockFilterDay]);
+  }, [currentDate, mode]);
 
   const loadData = async (dateStr) => {
     try {
@@ -334,27 +331,26 @@ const LadderPage = () => {
           });
         });
         
+        let newDiffData = { added: [], removed: [] };
+        
         if (lastDateRef.current === dateStr && previousStocksRef.current.length > 0) {
           const previousCodes = new Set(previousStocksRef.current.map(s => s.code));
           const currentCodes = new Set(currentStocks.map(s => s.code));
           
           const added = currentStocks.filter(s => !previousCodes.has(s.code));
-          
           const removed = previousStocksRef.current.filter(s => !currentCodes.has(s.code));
           
           if (added.length > 0 || removed.length > 0) {
-            setDiffData(prev => {
-              const existingAddedCodes = new Set(prev.added.map(s => s.code));
-              const existingRemovedCodes = new Set(prev.removed.map(s => s.code));
-              
-              const newAdded = added.filter(s => !existingAddedCodes.has(s.code));
-              const newRemoved = removed.filter(s => !existingRemovedCodes.has(s.code));
-              
-              return {
-                added: [...prev.added, ...newAdded],
-                removed: [...prev.removed, ...newRemoved],
-              };
-            });
+            const existingAddedCodes = new Set(diffData.added.map(s => s.code));
+            const existingRemovedCodes = new Set(diffData.removed.map(s => s.code));
+            
+            const newAdded = added.filter(s => !existingAddedCodes.has(s.code));
+            const newRemoved = removed.filter(s => !existingRemovedCodes.has(s.code));
+            
+            newDiffData = {
+              added: [...diffData.added, ...newAdded],
+              removed: [...diffData.removed, ...newRemoved],
+            };
             
             if (!isFirstLoad) {
               const addedCount = added.length;
@@ -374,17 +370,28 @@ const LadderPage = () => {
           }
         }
         
+        // 批量更新状态，减少重新渲染次数
         setLadderData(data.ladder);
         setStatistics(data.statistics);
         setYesterdayData(data.yesterday);
         previousStocksRef.current = currentStocks;
         setPreviousStocks(currentStocks);
+        
+        if (newDiffData.added.length > 0 || newDiffData.removed.length > 0) {
+          setDiffData(newDiffData);
+        }
+        
+        setLoading(false);
+        if (isFirstLoad) {
+          setIsFirstLoad(false);
+        }
       } else {
         const errorMsg = response.data.error || '加载数据失败';
         message.error(errorMsg);
         setLadderData([]);
         setStatistics({});
         setYesterdayData(null);
+        setLoading(false);
       }
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message || '加载数据失败';
@@ -392,11 +399,7 @@ const LadderPage = () => {
       setLadderData([]);
       setStatistics({});
       setYesterdayData(null);
-    } finally {
       setLoading(false);
-      if (isFirstLoad) {
-        setIsFirstLoad(false);
-      }
     }
   };
 
@@ -1444,11 +1447,19 @@ const LadderPage = () => {
                     <span>
                       {height}连板 ({yesterdayStocks.length}只)
                       {avgChangePercent !== null && !isNaN(avgChangePercent) && (
-                        <span style={{ 
-                          marginLeft: 8, 
-                          fontSize: isMobile ? 11 : 12,
-                          color: avgChangePercent >= 0 ? '#f5222d' : '#52c41a'
-                        }}>
+                        <span 
+                          style={{ 
+                            marginLeft: 8, 
+                            fontSize: isMobile ? 11 : 12,
+                            color: avgChangePercent >= 0 ? '#f5222d' : '#52c41a',
+                            cursor: 'pointer',
+                            textDecoration: 'underline'
+                          }}
+                          onClick={() => {
+                            setSelectedContinuousDays(height);
+                            setPremiumTrendVisible(true);
+                          }}
+                        >
                           溢价{avgChangePercent >= 0 ? '+' : ''}{avgChangePercent.toFixed(2)}%
                         </span>
                       )}
@@ -1679,6 +1690,16 @@ const LadderPage = () => {
           setAnalysisVisible(false);
           setAnalysisStock(null);
           setAnalysisDate(null);
+        }}
+      />
+      
+      <PremiumTrendModal
+        visible={premiumTrendVisible}
+        continuousDays={selectedContinuousDays}
+        date={comparisonData?.today?.date?.replace(/-/g, '')}
+        onClose={() => {
+          setPremiumTrendVisible(false);
+          setSelectedContinuousDays(null);
         }}
       />
       

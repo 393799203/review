@@ -13,7 +13,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models import DatabaseConfig, LimitUpStock, LadderStats, FetchLog, Block
-from data_fetcher import DataFetcher
+from core.data_fetcher import DataFetcher
 
 
 class LimitUpFetcher:
@@ -501,20 +501,59 @@ class LimitUpFetcher:
                 should_update = trade_calendar.should_fetch_realtime_quotes(prev_date)
                 
                 if should_update:
-                    print(f"当前日期小于下一个交易日，更新next_change字段")
-                    yesterday_stocks = session.query(LimitUpStock).filter(
-                        LimitUpStock.trade_date == prev_date
-                    ).all()
+                    now = datetime.now()
+                    current_date = now.date()
+                    next_trading_day = trade_calendar.get_next_trading_day(prev_date)
                     
-                    if yesterday_stocks:
-                        yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
-                        quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
+                    if next_trading_day and current_date == next_trading_day:
+                        call_auction_start = now.replace(hour=9, minute=15, second=0, microsecond=0)
                         
-                        updated_count = update_stocks_next_change(yesterday_stocks, quotes_dict, debug=True)
-                        print(f"✓ 更新了 {updated_count} 只昨日涨停股票的次日涨跌幅")
+                        if now < call_auction_start:
+                            print(f"当前时间在9:15之前，更新前两日涨停股票的次日涨跌幅")
+                            prev_prev_trade_date = session.query(LadderStats.trade_date).filter(
+                                LadderStats.trade_date < prev_date
+                            ).order_by(LadderStats.trade_date.desc()).first()
+                            
+                            if prev_prev_trade_date:
+                                prev_prev_date = prev_prev_trade_date[0]
+                                
+                                prev_prev_stocks = session.query(LimitUpStock).filter(
+                                    LimitUpStock.trade_date == prev_prev_date
+                                ).all()
+                                
+                                if prev_prev_stocks:
+                                    prev_prev_codes = [stock.stock_code for stock in prev_prev_stocks]
+                                    quotes_dict = get_realtime_quotes(prev_prev_codes, debug=True)
+                                    
+                                    updated_count = update_stocks_next_change(prev_prev_stocks, quotes_dict, debug=True)
+                                    print(f"✓ 更新了 {updated_count} 只 {prev_prev_date} 涨停股票的次日涨跌幅（{prev_date}的收盘价）")
+                        else:
+                            print(f"当前时间在交易时间内或收盘后，更新 {prev_date} 涨停股票的次日涨跌幅")
+                            yesterday_stocks = session.query(LimitUpStock).filter(
+                                LimitUpStock.trade_date == prev_date
+                            ).all()
+                            
+                            if yesterday_stocks:
+                                yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
+                                quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
+                                
+                                updated_count = update_stocks_next_change(yesterday_stocks, quotes_dict, debug=True)
+                                print(f"✓ 更新了 {updated_count} 只 {prev_date} 涨停股票的次日涨跌幅（{trade_date}的价格）")
+                    else:
+                        print(f"当前日期小于下一个交易日，更新 {prev_date} 涨停股票的次日涨跌幅")
+                        yesterday_stocks = session.query(LimitUpStock).filter(
+                            LimitUpStock.trade_date == prev_date
+                        ).all()
+                        
+                        if yesterday_stocks:
+                            yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
+                            quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
+                            
+                            updated_count = update_stocks_next_change(yesterday_stocks, quotes_dict, debug=True)
+                            print(f"✓ 更新了 {updated_count} 只 {prev_date} 涨停股票的次日涨跌幅")
                 else:
                     next_trading_day = trade_calendar.get_next_trading_day(prev_date)
-                    print(f"当前日期 >= 下一个交易日 {next_trading_day}，不更新next_change字段")
+                    print(f"当前时间 < 下一个交易日 {next_trading_day} 的9:15，不更新next_change字段")
             
             session.commit()
             
