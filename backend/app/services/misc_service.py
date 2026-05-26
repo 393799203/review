@@ -53,22 +53,6 @@ class MiscService(BaseService):
             
             yesterday_list = self._format_stock_list(yesterday_stocks, include_next_change=True)
             
-            latest_trade_date = self.misc_repository.get_latest_trade_date()
-            
-            should_fetch_realtime = False
-            if latest_trade_date and trade_date == latest_trade_date:
-                from core.trade_calendar import trade_calendar
-                should_fetch_realtime = trade_calendar.should_fetch_realtime_quotes(prev_date)
-                
-                if should_fetch_realtime:
-                    from core.quotes_utils import get_realtime_quotes, update_stock_data_change_percent
-                    
-                    yesterday_codes = [stock.stock_code for stock in yesterday_stocks]
-                    print(f"实时获取昨日涨停股票涨跌幅,股票数量: {len(yesterday_codes)}")
-                    
-                    quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
-                    update_stock_data_change_percent(yesterday_list, quotes_dict)
-            
             yesterday_premium = {}
             for stock in yesterday_list:
                 height = stock.get('continuous_days', 1)
