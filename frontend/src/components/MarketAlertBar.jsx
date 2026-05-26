@@ -8,7 +8,7 @@ const DISPLAY_DURATION = 10000;
 const FADE_DURATION = 300;
 
 const MarketAlertBar = () => {
-  const { marketAlerts } = useGlobal();
+  const { marketAlerts, currentDate } = useGlobal();
   const [alerts, setAlerts] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -19,6 +19,7 @@ const MarketAlertBar = () => {
   const fadeTimerRef = useRef(null);
   const prevAlertsRef = useRef([]);
   const isFirstLoadRef = useRef(true);
+  const prevDateRef = useRef('');
 
   useEffect(() => {
     const checkMobile = () => {
@@ -63,7 +64,8 @@ const MarketAlertBar = () => {
         }));
 
       if (alertsToSave.length > 0) {
-        stockApi.saveMarketAlerts(alertsToSave).catch(err => {
+        const today = new Date().toISOString().split('T')[0];
+        stockApi.saveMarketAlerts(alertsToSave, today).catch(err => {
           console.error('保存市场动态失败:', err);
         });
       }
@@ -82,6 +84,13 @@ const MarketAlertBar = () => {
     if (isFirstLoadRef.current && prevAlerts.length === 0) {
       prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
       isFirstLoadRef.current = false;
+      prevDateRef.current = currentDate;
+      return;
+    }
+
+    if (currentDate && prevDateRef.current !== currentDate) {
+      prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
+      prevDateRef.current = currentDate;
       return;
     }
 
