@@ -20,7 +20,7 @@ from mootdx.quotes import Quotes
 load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, StockDiffRecord, ClsNews, UserWencaiStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, ClsNews, UserWencaiStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
 from core.data_fetcher import DataFetcher
 from core.statistics_api import register_statistics_routes
 from core.limit_up_analyzer import LimitUpReasonAnalyzer
@@ -35,7 +35,6 @@ from app.controllers.news_controller import news_controller
 from app.controllers.ai_controller import ai_controller
 from app.controllers.report_controller import report_controller
 from app.controllers.stock_data_controller import stock_data_controller
-from app.controllers.stock_diff_controller import stock_diff_controller
 from app.controllers.misc_controller import misc_controller
 from app.controllers.base_routes_controller import base_routes_controller
 from app.controllers.admin_controller import admin_controller
@@ -347,24 +346,6 @@ def get_stock_intraday(stock_code):
     return stock_data_controller.get_intraday_data(stock_code)
 
 
-# ==================== 股票对比相关路由 ====================
-
-@app.route('/api/stock-diff/save', methods=['POST'])
-def save_stock_diff():
-    """保存股票对比结果"""
-    return stock_diff_controller.save_stock_diff()
-
-@app.route('/api/stock-diff/load/<date_str>', methods=['GET'])
-def load_stock_diff(date_str):
-    """加载股票对比结果"""
-    return stock_diff_controller.load_stock_diff(date_str)
-
-@app.route('/api/stock-diff/clear/<date_str>', methods=['DELETE'])
-def clear_stock_diff(date_str):
-    """清空指定日期的股票对比结果"""
-    return stock_diff_controller.clear_stock_diff(date_str)
-
-
 # ==================== 其他辅助接口路由 ====================
 
 @app.route('/api/ladder-comparison/<date_str>', methods=['GET'])
@@ -381,6 +362,24 @@ def get_premium_trend(continuous_days):
 def get_hot_stocks():
     """获取同花顺热股数据"""
     return misc_controller.get_hot_stocks()
+
+
+@app.route('/api/market-alerts/latest', methods=['GET'])
+def get_market_alerts():
+    """获取市场动态消息"""
+    return misc_controller.get_market_alerts()
+
+
+@app.route('/api/market-alerts/save', methods=['POST'])
+def save_market_alerts():
+    """保存市场动态消息"""
+    return misc_controller.save_market_alerts()
+
+
+@app.route('/api/market-alerts/history', methods=['GET'])
+def get_market_alerts_history():
+    """获取历史市场动态消息"""
+    return misc_controller.get_market_alerts_history()
 
 
 # ==================== 基础路由 ====================
@@ -429,4 +428,4 @@ def weixin_signature():
 if __name__ == '__main__':
     init_ths_session()
     
-    app.run(host='0.0.0.0', port=5001, debug=False)
+    app.run(host='0.0.0.0', port=5001, debug=True)

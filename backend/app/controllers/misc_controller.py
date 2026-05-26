@@ -45,9 +45,9 @@ class MiscController(BaseController):
         """获取同花顺热股数据"""
         try:
             list_type = self.get_query_param('list_type', 'normal')
-            
+
             success, message, data = self.misc_service.get_hot_stocks(list_type)
-            
+
             if success:
                 from flask import jsonify
                 return jsonify({
@@ -58,7 +58,55 @@ class MiscController(BaseController):
                 })
             else:
                 return self.error(message, 400 if '无效' in message else 500)
-                
+
+        except Exception as e:
+            return self.error(str(e), 500)
+
+    def get_market_alerts(self):
+        """获取市场动态消息"""
+        try:
+            success, message, data = self.misc_service.get_market_alerts()
+
+            if success:
+                return self.success(data=data or [])
+            else:
+                return self.error(message, 500)
+
+        except Exception as e:
+            return self.error(str(e), 500)
+
+    def save_market_alerts(self):
+        """保存市场动态消息"""
+        try:
+            alerts_data = self.get_json_data()
+            if not alerts_data:
+                return self.error('没有数据', 400)
+
+            trade_date = self.get_query_param('trade_date')
+
+            success, message, data = self.misc_service.save_market_alerts(alerts_data, trade_date)
+
+            if success:
+                return self.success(message=message, data=data)
+            else:
+                return self.error(message, 500)
+
+        except Exception as e:
+            return self.error(str(e), 500)
+
+    def get_market_alerts_history(self):
+        """获取历史市场动态消息"""
+        try:
+            trade_date = self.get_query_param('trade_date')
+            limit = int(self.get_query_param('limit', 100))
+
+            success, message, data = self.misc_service.get_market_alerts_history(trade_date, limit)
+
+            if success:
+                return self.success(data=data or [])
+            else:
+                return self.error(message, 500)
+
         except Exception as e:
             return self.error(str(e), 500)
 

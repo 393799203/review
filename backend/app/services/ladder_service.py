@@ -41,11 +41,12 @@ class LadderService(BaseService):
             if trade_date > datetime.now().date():
                 return False, '无法获取未来日期的数据', None
             
+            now = datetime.now()
+            is_today = trade_date == now.date()
+            
             stocks = self.stock_repository.get_stocks_by_date(trade_date)
             stats = self.stock_repository.get_stats_by_date(trade_date)
             
-            now = datetime.now()
-            is_today = trade_date == now.date()
             trading_start_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
             
             if not stocks or not stats:
@@ -81,23 +82,48 @@ class LadderService(BaseService):
             return False, str(e), None
     
     def _build_ladder(self, stocks: List[LimitUpStock]) -> List[Dict]:
-        """构建连板天梯"""
-        ladder_dict = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: []}
+        """构建连板天梯数据"""
+        ladder_dict = {}
         
         for stock in stocks:
-            stock_data = self._format_stock_data(stock)
-            days = stock.continuous_days
-            level = min(days, 8)
-            ladder_dict[level].append(stock_data)
+            level = stock.continuous_days
+            
+            if level not in ladder_dict:
+                ladder_dict[level] = {
+                    'level': level,
+                    'label': self.LEVEL_LABELS.get(level, f"{level}连板"),
+                    'stocks': []
+                }
+            
+            stock_data = {
+                'code': stock.stock_code,
+                'name': stock.stock_name,
+                'limit_up_time': stock.limit_up_time.strftime('%H:%M') if stock.limit_up_time else '',
+                'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
+                'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
+                'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
+                'change_percent': float(stock.change_percent) if stock.change_percent else 0.0,
+                'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0,
+                'reason': stock.limit_up_reason or '',
+                'limit_up_type': stock.limit_up_type or '',
+                'high_days': stock.high_days or '',
+                'detail_reason': stock.ths_reason_info or '',
+                'block_name': stock.block.block_name if stock.block else '',
+                'block_info': {
+                    'change_rate': float(stock.block.change_rate) if stock.block and stock.block.change_rate else 0.0,
+                    'limit_up_num': stock.block.limit_up_num or 0 if stock.block else 0,
+                    'continuous_num': stock.block.continuous_plate_num or 0 if stock.block else 0,
+                    'high': stock.block.high or '' if stock.block else '',
+                    'list_days': stock.block.list_days or 0 if stock.block else 0,
+                    'high_stock_name': stock.block.high_stock_name or '' if stock.block else ''
+                },
+                'is_high_stock': stock.is_high_stock or 0,
+                'current_status': stock.current_status or 'close'
+            }
+            
+            ladder_dict[level]['stocks'].append(stock_data)
         
-        ladder = []
-        for level in sorted(ladder_dict.keys(), reverse=True):
-            if ladder_dict[level]:
-                ladder.append({
-                    "level": level,
-                    "label": self.LEVEL_LABELS[level],
-                    "stocks": ladder_dict[level]
-                })
+        ladder = sorted(ladder_dict.values(), key=lambda x: x['level'], reverse=True)
         
         return ladder
     

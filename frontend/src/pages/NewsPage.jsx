@@ -318,7 +318,7 @@ const NewsPage = () => {
     setIsSearchMode(true);
     
     try {
-      const response = await axios.get('/api/news/cls-telegraph', {
+      const response = await api.get('/news/cls-telegraph', {
         params: { keyword: keyword.trim() }
       });
       

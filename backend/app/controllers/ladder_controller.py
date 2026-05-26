@@ -255,6 +255,16 @@ class LadderController(BaseController):
     def refresh_data(self, date_str: str):
         """刷新数据"""
         try:
+            if not date_str:
+                return self.error('日期参数不能为空', 400)
+            
+            # 验证日期格式
+            try:
+                from datetime import datetime
+                datetime.strptime(date_str, '%Y%m%d')
+            except ValueError:
+                return self.error('日期格式错误，请使用 YYYYMMDD 格式', 400)
+            
             if not self.data_fetcher:
                 return self.error('数据抓取器未初始化', 500)
             

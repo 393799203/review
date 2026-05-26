@@ -129,3 +129,26 @@ COMMENT ON COLUMN users.vip_expire_date IS 'VIP到期日期';
 COMMENT ON COLUMN users.settings IS '用户设置JSON';
 COMMENT ON COLUMN users.is_active IS '是否激活（1:激活，0:未激活）';
 COMMENT ON COLUMN users.last_login IS '最后登录时间';
+
+-- 市场动态消息表
+CREATE TABLE market_alerts (
+    id SERIAL PRIMARY KEY,
+    trade_date DATE NOT NULL,
+    stock_code VARCHAR(20) NOT NULL,
+    stock_name VARCHAR(100) NOT NULL,
+    continuous_days INTEGER DEFAULT 1,
+    alert_time VARCHAR(10),
+    alert_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 创建索引
+CREATE INDEX idx_alerts_trade_date ON market_alerts(trade_date);
+CREATE INDEX idx_alerts_stock_code ON market_alerts(stock_code);
+CREATE INDEX idx_alerts_created_at ON market_alerts(created_at);
+
+-- 表注释
+COMMENT ON TABLE market_alerts IS '市场动态消息表';
+COMMENT ON COLUMN market_alerts.alert_type IS '告警类型(limit_up/break板/回封)';
+COMMENT ON COLUMN market_alerts.status IS '状态(close/open/new/reclose)';

@@ -9,9 +9,10 @@ import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
 import PremiumTrendModal from '../components/PremiumTrendModal';
+import MarketAlertBar from '../components/MarketAlertBar';
 
 const LadderPage = () => {
-  const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode } = useGlobal();
+  const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode, marketAlerts, setMarketAlerts } = useGlobal();
   const mode = ladderMode || 'ladder';
   const showFirstBoardProp = showFirstBoard;
   const [ladderData, setLadderData] = useState([]);
@@ -26,10 +27,6 @@ const LadderPage = () => {
   const [editingStock, setEditingStock] = useState(null);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
-
-  const [previousStocks, setPreviousStocks] = useState([]);
-  const [diffVisible, setDiffVisible] = useState(false);
-  const [diffData, setDiffData] = useState({ added: [], removed: [] });
 
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [analysisStock, setAnalysisStock] = useState(null);
@@ -53,10 +50,6 @@ const LadderPage = () => {
   
   const [premiumTrendVisible, setPremiumTrendVisible] = useState(false);
   const [selectedContinuousDays, setSelectedContinuousDays] = useState(null);
-  
-  const lastDateRef = useRef('');
-  const previousStocksRef = useRef([]);
-  const isLoadingFromDBRef = useRef(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -69,27 +62,11 @@ const LadderPage = () => {
 
   useEffect(() => {
     if (currentDate) {
-      if (lastDateRef.current && lastDateRef.current !== currentDate) {
-        setDiffData({ added: [], removed: [] });
-        previousStocksRef.current = [];
-        setPreviousStocks([]);
-      }
-      
-      // 根据模式加载不同的数据
       if (mode === 'comparison') {
-        // 晋级对比模式：只加载对比数据
         loadComparisonData();
       } else {
-        // 涨停天梯模式：加载天梯数据
         loadData(currentDate);
       }
-      
-      // 无论什么模式，切换日期时都加载对比结果
-      if (lastDateRef.current !== currentDate) {
-        loadDiffData();
-      }
-      
-      lastDateRef.current = currentDate;
     }
   }, [currentDate, refreshKey, mode]);
 
@@ -99,12 +76,6 @@ const LadderPage = () => {
       setBlockFilterDay('today');
     }
   }, [blockStrengthData, blockFilterDay]);
-
-  useEffect(() => {
-    if (!isLoadingFromDBRef.current && (diffData.added.length > 0 || diffData.removed.length > 0)) {
-      saveDiffData(diffData);
-    }
-  }, [diffData]);
 
   const sortByLimitUpTime = (stocks) => {
     return [...stocks].sort((a, b) => {
@@ -178,58 +149,21 @@ const LadderPage = () => {
     }
   };
 
-  const loadDiffData = async () => {
-    try {
-      const response = await api.get(`/stock-diff/load/${currentDate}`);
-      if (response.data.success) {
-        const data = response.data.data;
-        isLoadingFromDBRef.current = true;
-        setDiffData({
-          added: data.added.map(s => ({
-            code: s.code,
-            name: s.name,
-            level: s.level,
-            limitUpTime: s.limitUpTime
-          })),
-          removed: data.removed.map(s => ({
-            code: s.code,
-            name: s.name,
-            level: s.level,
-            limitUpTime: s.limitUpTime
-          }))
-        });
-        setTimeout(() => {
-          isLoadingFromDBRef.current = false;
-        }, 100);
-      }
-    } catch (error) {
-      console.error('加载对比结果失败:', error);
-    }
-  };
-
-  const saveDiffData = async (data) => {
-    try {
-      await api.post('/stock-diff/save', {
-        trade_date: currentDate,
-        added: data.added,
-        removed: data.removed
-      });
-    } catch (error) {
-      console.error('保存对比结果失败:', error);
-    }
-  };
-
   const loadComparisonData = async () => {
     if (mode !== 'comparison') return;
-    
+
     setComparisonLoading(true);
     try {
       const dateStr = currentDate.replace(/-/g, '');
       const response = await api.get(`/ladder-comparison/${dateStr}`);
-      
+
       if (response.data.success) {
         setComparisonData(response.data);
         processComparisonData(response.data);
+
+        const todayStocks = response.data.today?.stocks || [];
+        const newAlerts = extractAlertsFromStocks(todayStocks, marketAlerts || []);
+        setMarketAlerts(newAlerts);
       }
     } catch (error) {
       console.error('加载连板晋级对比数据失败:', error);
@@ -289,13 +223,18 @@ const LadderPage = () => {
     setComparisonResult({ promoted, maintained, broken });
   };
 
-  const clearDiffData = async () => {
-    try {
-      await api.delete(`/stock-diff/clear/${currentDate}`);
-      setDiffData({ added: [], removed: [] });
-    } catch (error) {
-      console.error('清空对比结果失败:', error);
-    }
+  const extractAlertsFromStocks = (stocks, prevAlerts = []) => {
+    return stocks.map(stock => {
+      const prevAlert = prevAlerts.find(p => p.code === stock.code);
+      return {
+        code: stock.code,
+        name: stock.name,
+        continuous_days: stock.continuous_days || stock.level,
+        time: stock.limit_up_time || stock.limitUpTime,
+        status: stock.current_status,
+        hasShownFirstTime: prevAlert ? true : false
+      };
+    });
   };
 
   const lastBlockDateRef = useRef('');
@@ -314,11 +253,11 @@ const LadderPage = () => {
 
       if (response.data.success) {
         const data = response.data.data;
-        
+
         if (response.data.message) {
           message.info(response.data.message);
         }
-        
+
         const currentStocks = [];
         data.ladder.forEach(item => {
           item.stocks.forEach(stock => {
@@ -326,61 +265,19 @@ const LadderPage = () => {
               code: stock.code,
               name: stock.name,
               level: item.level,
-              limitUpTime: stock.limit_up_time,
+              limit_up_time: stock.limit_up_time,
+              current_status: stock.current_status
             });
           });
         });
-        
-        let newDiffData = { added: [], removed: [] };
-        
-        if (lastDateRef.current === dateStr && previousStocksRef.current.length > 0) {
-          const previousCodes = new Set(previousStocksRef.current.map(s => s.code));
-          const currentCodes = new Set(currentStocks.map(s => s.code));
-          
-          const added = currentStocks.filter(s => !previousCodes.has(s.code));
-          const removed = previousStocksRef.current.filter(s => !currentCodes.has(s.code));
-          
-          if (added.length > 0 || removed.length > 0) {
-            const existingAddedCodes = new Set(diffData.added.map(s => s.code));
-            const existingRemovedCodes = new Set(diffData.removed.map(s => s.code));
-            
-            const newAdded = added.filter(s => !existingAddedCodes.has(s.code));
-            const newRemoved = removed.filter(s => !existingRemovedCodes.has(s.code));
-            
-            newDiffData = {
-              added: [...diffData.added, ...newAdded],
-              removed: [...diffData.removed, ...newRemoved],
-            };
-            
-            if (!isFirstLoad) {
-              const addedCount = added.length;
-              const removedCount = removed.length;
-              let msg = '';
-              if (addedCount > 0 && removedCount > 0) {
-                msg = `新增 ${addedCount} 只涨停，减少 ${removedCount} 只`;
-              } else if (addedCount > 0) {
-                msg = `新增 ${addedCount} 只涨停`;
-              } else if (removedCount > 0) {
-                msg = `减少 ${removedCount} 只涨停`;
-              }
-              if (msg) {
-                message.success(msg);
-              }
-            }
-          }
-        }
-        
-        // 批量更新状态，减少重新渲染次数
+
         setLadderData(data.ladder);
         setStatistics(data.statistics);
         setYesterdayData(data.yesterday);
-        previousStocksRef.current = currentStocks;
-        setPreviousStocks(currentStocks);
-        
-        if (newDiffData.added.length > 0 || newDiffData.removed.length > 0) {
-          setDiffData(newDiffData);
-        }
-        
+
+        const newAlerts = extractAlertsFromStocks(currentStocks, marketAlerts || []);
+        setMarketAlerts(newAlerts);
+
         setLoading(false);
         if (isFirstLoad) {
           setIsFirstLoad(false);
@@ -638,9 +535,9 @@ const LadderPage = () => {
               龙头
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', overflow: 'visible' }}>
+            <div style={{ flex: 1, minWidth: 0, overflow: 'visible' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'nowrap', overflow: 'visible' }}>
                 <span 
                   style={{ 
                     fontWeight: 'bold', 
@@ -648,7 +545,8 @@ const LadderPage = () => {
                     color: '#1890ff', 
                     cursor: 'pointer',
                     filter: enableBlur ? 'blur(5px)' : 'none',
-                    userSelect: enableBlur ? 'none' : 'auto'
+                    userSelect: enableBlur ? 'none' : 'auto',
+                    whiteSpace: 'nowrap'
                   }}
                   onClick={() => {
                     setSelectedStock({ code: stock.code, name: stock.name });
@@ -664,7 +562,8 @@ const LadderPage = () => {
                     color: '#262626', 
                     cursor: 'pointer',
                     filter: enableBlur ? 'blur(5px)' : 'none',
-                    userSelect: enableBlur ? 'none' : 'auto'
+                    userSelect: enableBlur ? 'none' : 'auto',
+                    whiteSpace: 'nowrap'
                   }}
                   onClick={() => {
                     setSelectedStock({ code: stock.code, name: stock.name });
@@ -674,10 +573,10 @@ const LadderPage = () => {
                   {stock.name}
                 </span>
                   {stock.limit_up_type && (
-                    <Tag color={getLimitUpTypeColor(stock.limit_up_type)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.limit_up_type}</Tag>
+                    <Tag color={getLimitUpTypeColor(stock.limit_up_type)} style={{ fontSize: 10, margin: 0, padding: '0 4px', flexShrink: 0 }}>{stock.limit_up_type}</Tag>
                   )}
                   {stock.high_days && stock.high_days !== '首板' && (
-                    <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.high_days}</Tag>
+                    <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px', flexShrink: 0 }}>{stock.high_days}</Tag>
                   )}
                   <div 
                     style={{ 
@@ -690,7 +589,8 @@ const LadderPage = () => {
                       background: completedAnalysis.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#52c41a' : 
                                   analyzingStocks.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#fa8c16' : '#722ed1',
                       cursor: 'pointer',
-                      marginLeft: 4
+                      marginLeft: 4,
+                      flexShrink: 0
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -699,9 +599,9 @@ const LadderPage = () => {
                   >
                     <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
                   </div>
-                </div>
+              </div>
                 <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
-                  涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿
+                  涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | 换手: {stock.turnover_rate?.toFixed(2) || '-'}%
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {reasons.map((reason, index) => (
@@ -812,8 +712,8 @@ const LadderPage = () => {
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'nowrap', flexShrink: 0 }}>
                 <span 
                   style={{ 
                     fontWeight: 'bold', 
@@ -821,7 +721,8 @@ const LadderPage = () => {
                     color: '#1890ff', 
                     cursor: 'pointer',
                     filter: enableBlur ? 'blur(5px)' : 'none',
-                    userSelect: enableBlur ? 'none' : 'auto'
+                    userSelect: enableBlur ? 'none' : 'auto',
+                    whiteSpace: 'nowrap'
                   }}
                   onClick={() => {
                     setSelectedStock({ code: stock.code, name: stock.name });
@@ -837,11 +738,21 @@ const LadderPage = () => {
                   <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{stock.high_days}</Tag>
                 )}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 'bold', color: '#262626', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{
-                  filter: enableBlur ? 'blur(5px)' : 'none',
-                  userSelect: enableBlur ? 'none' : 'auto'
-                }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <span 
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: 15,
+                    color: '#262626',
+                    filter: enableBlur ? 'blur(5px)' : 'none',
+                    userSelect: enableBlur ? 'none' : 'auto',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onClick={() => {
+                    setSelectedStock({ code: stock.code, name: stock.name });
+                    setKlineVisible(true);
+                  }}
+                >
                   {stock.name}
                 </span>
                 <div 
@@ -854,7 +765,8 @@ const LadderPage = () => {
                     borderRadius: 3,
                     background: completedAnalysis.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#52c41a' : 
                                 analyzingStocks.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#fa8c16' : '#722ed1',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    flexShrink: 0
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -864,8 +776,8 @@ const LadderPage = () => {
                   <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: '#666' }}>
-                <strong>涨停:</strong> {stock.limit_up_time || '-'} | <strong>封单:</strong> {(stock.seal_amount_wan / 10000).toFixed(2)}亿
+              <div style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>
+                <strong>涨停:</strong> {stock.limit_up_time || '-'} | <strong>封单:</strong> {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | <strong>换手:</strong> {stock.turnover_rate?.toFixed(2) || '-'}%
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -954,10 +866,12 @@ const LadderPage = () => {
 
       // 根据选中的板块过滤股票
       const filteredStocks = selectedBlocks.length > 0
-        ? item.stocks.filter(stock => selectedBlocks.includes(stock.block_name))
-        : item.stocks;
+        ? item.stocks.filter(stock => selectedBlocks.includes(stock.block_name) && stock.current_status === 'close')
+        : item.stocks.filter(stock => stock.current_status === 'close');
       
-      const sortedStocks = sortByLimitUpTime(filteredStocks);
+      const displayStocks = filteredStocks;
+      
+      const sortedStocks = sortByLimitUpTime(displayStocks);
       
       // 如果没有符合条件的股票，不显示这个梯队
       if (sortedStocks.length === 0) return null;
@@ -1158,6 +1072,7 @@ const LadderPage = () => {
 
     const yesterdayStocks = comparisonData.yesterday.stocks || [];
     const todayStocks = comparisonData.today.stocks || [];
+    const displayTodayStocks = todayStocks.filter(stock => stock.current_status === 'close');
 
     const yesterdayLadder = {};
     yesterdayStocks.forEach(stock => {
@@ -1173,7 +1088,7 @@ const LadderPage = () => {
     });
 
     const todayLadder = {};
-    todayStocks.forEach(stock => {
+    displayTodayStocks.forEach(stock => {
       const height = stock.continuous_days || 1;
       if (!todayLadder[height]) {
         todayLadder[height] = [];
@@ -1192,7 +1107,7 @@ const LadderPage = () => {
       const promotedStocks = [];
       
       stocks.forEach(stock => {
-        const todayStock = todayStocks.find(s => s.code === stock.code);
+        const todayStock = displayTodayStocks.find(s => s.code === stock.code);
         if (todayStock && todayStock.continuous_days === nextHeight) {
           promotedStocks.push({
             ...todayStock,
@@ -1208,15 +1123,13 @@ const LadderPage = () => {
       promotedLadder[height] = sortByLimitUpTime(promotedLadder[height]);
     });
 
-    const firstBoardStocks = todayLadder[1] || [];
+    const firstBoardStocks = displayTodayStocks.filter(stock => stock.continuous_days === 1);
 
     const renderStockCard = (stock, showYesterdayHeight = false, isRightColumn = false, tradeDate = null) => {
       const isPromoted = !isRightColumn && promotedHeights.some(height => {
         const stocks = promotedLadder[height] || [];
         return stocks.some(s => s.code === stock.code);
       });
-      
-      console.log('renderStockCard stock:', stock.code, 'change_percent:', stock.change_percent);
       
       return (
         <div
@@ -1356,7 +1269,7 @@ const LadderPage = () => {
                 color: '#fff'
               }}>
                 <div style={{ fontSize: isMobile ? 10 : 14, opacity: 0.9, marginBottom: 4 }}>今日涨停</div>
-                <div style={{ fontSize: isMobile ? 16 : 24, fontWeight: 'bold' }}>{todayStocks.length}<span style={{ fontSize: isMobile ? 10 : 14, marginLeft: 2 }}>只</span></div>
+                <div style={{ fontSize: isMobile ? 16 : 24, fontWeight: 'bold' }}>{displayTodayStocks.length}<span style={{ fontSize: isMobile ? 10 : 14, marginLeft: 2 }}>只</span></div>
               </div>
             </Col>
             <Col span={6}>
@@ -1609,6 +1522,7 @@ const LadderPage = () => {
 
   return (
     <>
+      <MarketAlertBar />
       {mode === 'comparison' ? (
         renderComparisonContent()
       ) : (
@@ -1702,83 +1616,6 @@ const LadderPage = () => {
           setSelectedContinuousDays(null);
         }}
       />
-      
-      <Modal
-        title="刷新对比结果"
-        open={diffVisible}
-        onCancel={() => setDiffVisible(false)}
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={clearDiffData}>
-              清空记录
-            </Button>
-            <Button type="primary" onClick={() => setDiffVisible(false)}>
-              关闭
-            </Button>
-          </div>
-        }
-        width={800}
-      >
-        <div>
-          {diffData.added.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <h4 style={{ color: '#52c41a', marginBottom: 8 }}>
-                上板股票 ({diffData.added.length}只)
-              </h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {diffData.added.map((stock, index) => (
-                  <Tag key={index} color="green">
-                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {!isMobile && (stock.limitUpTime || '-')}
-                  </Tag>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {diffData.removed.length > 0 && (
-            <div>
-              <h4 style={{ color: '#ff4d4f', marginBottom: 8 }}>
-                减少股票 ({diffData.removed.length}只)
-              </h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {diffData.removed.map((stock, index) => (
-                  <Tag key={index} color="red">
-                    {stock.code.split('.')[0]} {stock.name} ({stock.level}连板) {!isMobile && (stock.limitUpTime || '-')}
-                  </Tag>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {diffData.added.length === 0 && diffData.removed.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#8c8c8c', padding: 20 }}>
-              暂无变化
-            </div>
-          )}
-        </div>
-      </Modal>
-      
-      {autoRefresh && (
-        <div
-          style={{
-            position: 'fixed',
-            right: 16,
-            bottom: 56,
-            zIndex: 1000,
-          }}
-        >
-          <Badge count={diffData.added.length + diffData.removed.length} showZero={false}>
-            <Button
-              type="primary"
-              shape="circle"
-              size="large"
-              icon={<DiffOutlined style={{ fontSize: 24 }} />}
-              onClick={() => setDiffVisible(true)}
-              style={{ width: 56, height: 56 }}
-            />
-          </Badge>
-        </div>
-      )}
     </>
   );
 };
