@@ -135,10 +135,9 @@ class TradeCalendar:
         
         if next_trading_day and current_date == next_trading_day:
             if self.is_trading_day(current_date):
-                trading_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
-                trading_end = now.replace(hour=15, minute=0, second=0, microsecond=0)
+                call_auction_start = now.replace(hour=9, minute=15, second=0, microsecond=0)
                 
-                if trading_start <= now <= trading_end:
+                if now >= call_auction_start:
                     return True
         
         return False

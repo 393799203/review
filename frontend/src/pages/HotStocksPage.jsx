@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Card, Tag, Spin, message, Row, Col, Tooltip } from 'antd';
 import { RiseOutlined, FallOutlined, FireOutlined, DollarOutlined, LineChartOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import StockKlineModal from '../components/StockKlineModal';
-
-const isDev = import.meta.env.DEV;
-const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
 
 let loadAllDataRef = null;
 
@@ -41,7 +38,7 @@ const HotStocksPage = () => {
     setLoading(true);
     try {
       const promises = ['normal', 'value', 'trend'].map(type => 
-        axios.get(`${API_BASE}/hot-stocks?list_type=${type}`)
+        api.get(`/hot-stocks?list_type=${type}`)
       );
       
       const responses = await Promise.all(promises);
@@ -356,25 +353,25 @@ const HotStocksPage = () => {
       {isMobile ? (
         <div>
           <div style={{ marginBottom: 16 }}>
-            {renderColumn('大家都在看', <FireOutlined style={{ color: '#ff4d4f' }} />, stocksData.normal, '#fff1f0')}
+            {renderColumn('大家都在看(每小时更新)', <FireOutlined style={{ color: '#ff4d4f' }} />, stocksData.normal, '#fff1f0')}
           </div>
           <div style={{ marginBottom: 16 }}>
-            {renderColumn('价值派', <DollarOutlined style={{ color: '#52c41a' }} />, stocksData.value, '#f6ffed')}
+            {renderColumn('价值派(每天更新)', <DollarOutlined style={{ color: '#52c41a' }} />, stocksData.value, '#f6ffed')}
           </div>
           <div>
-            {renderColumn('趋势派', <LineChartOutlined style={{ color: '#1890ff' }} />, stocksData.trend, '#e6f7ff')}
+            {renderColumn('趋势派(每天更新)', <LineChartOutlined style={{ color: '#1890ff' }} />, stocksData.trend, '#e6f7ff')}
           </div>
         </div>
       ) : (
         <Row gutter={16}>
           <Col span={8}>
-            {renderColumn('大家都在看', <FireOutlined style={{ color: '#ff4d4f' }} />, stocksData.normal, '#fff1f0')}
+            {renderColumn('大家都在看(每小时更新)', <FireOutlined style={{ color: '#ff4d4f' }} />, stocksData.normal, '#fff1f0')}
           </Col>
           <Col span={8}>
-            {renderColumn('价值派', <DollarOutlined style={{ color: '#52c41a' }} />, stocksData.value, '#f6ffed')}
+            {renderColumn('价值派(每天更新)', <DollarOutlined style={{ color: '#52c41a' }} />, stocksData.value, '#f6ffed')}
           </Col>
           <Col span={8}>
-            {renderColumn('趋势派', <LineChartOutlined style={{ color: '#1890ff' }} />, stocksData.trend, '#e6f7ff')}
+            {renderColumn('趋势派(每天更新)', <LineChartOutlined style={{ color: '#1890ff' }} />, stocksData.trend, '#e6f7ff')}
           </Col>
         </Row>
       )}

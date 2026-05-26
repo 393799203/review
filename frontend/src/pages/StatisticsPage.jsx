@@ -401,7 +401,7 @@ const StatisticsPage = () => {
                       value={getTotalProfit()}
                       precision={2}
                       prefix="¥"
-                      valueStyle={{ fontSize: 14, color: getTotalProfit() >= 0 ? '#f5222d' : '#52c41a' }}
+                      styles={{ content: { fontSize: 14, color: getTotalProfit() >= 0 ? '#f5222d' : '#52c41a' } }}
                     />
                   </Card>
                 </Col>
@@ -411,7 +411,7 @@ const StatisticsPage = () => {
                       title={<span style={{ fontSize: 10 }}>交易笔数</span>}
                       value={getTotalCount()}
                       suffix="笔"
-                      valueStyle={{ fontSize: 14 }}
+                      styles={{ content: { fontSize: 14 } }}
                     />
                   </Card>
                 </Col>
@@ -421,7 +421,7 @@ const StatisticsPage = () => {
                       title={<span style={{ fontSize: 10 }}>胜率</span>}
                       value={getWinRate()}
                       suffix="%"
-                      valueStyle={{ fontSize: 14, color: '#1890ff' }}
+                      styles={{ content: { fontSize: 14, color: '#1890ff' } }}
                     />
                   </Card>
                 </Col>
@@ -435,7 +435,7 @@ const StatisticsPage = () => {
                       value={getAverageProfit()}
                       precision={2}
                       prefix="¥"
-                      valueStyle={{ fontSize: 14, color: getAverageProfit() >= 0 ? '#f5222d' : '#52c41a' }}
+                      styles={{ content: { fontSize: 14, color: getAverageProfit() >= 0 ? '#f5222d' : '#52c41a' } }}
                     />
                   </Card>
                 </Col>
@@ -446,7 +446,7 @@ const StatisticsPage = () => {
                       value={getMaxProfit()}
                       precision={2}
                       prefix={<><TrophyOutlined style={{ color: '#f5222d' }} /> ¥</>}
-                      valueStyle={{ fontSize: 13, color: '#f5222d' }}
+                      styles={{ content: { fontSize: 13, color: '#f5222d' } }}
                     />
                   </Card>
                 </Col>
@@ -457,7 +457,7 @@ const StatisticsPage = () => {
                       value={Math.abs(getMaxLoss())}
                       precision={2}
                       prefix={<><FallOutlined style={{ color: '#52c41a' }} /> ¥</>}
-                      valueStyle={{ fontSize: 13, color: '#52c41a' }}
+                      styles={{ content: { fontSize: 13, color: '#52c41a' } }}
                     />
                   </Card>
                 </Col>
@@ -471,7 +471,7 @@ const StatisticsPage = () => {
                       value={getWinCount()}
                       suffix="笔"
                       prefix={<ArrowUpOutlined style={{ color: '#f5222d' }} />}
-                      valueStyle={{ fontSize: 13, color: '#f5222d' }}
+                      styles={{ content: { fontSize: 13, color: '#f5222d' } }}
                     />
                   </Card>
                 </Col>
@@ -482,7 +482,7 @@ const StatisticsPage = () => {
                       value={getLossCount()}
                       suffix="笔"
                       prefix={<ArrowDownOutlined style={{ color: '#52c41a' }} />}
-                      valueStyle={{ fontSize: 13, color: '#52c41a' }}
+                      styles={{ content: { fontSize: 13, color: '#52c41a' } }}
                     />
                   </Card>
                 </Col>
@@ -492,7 +492,7 @@ const StatisticsPage = () => {
                       title={<span style={{ fontSize: 10 }}>盈亏比</span>}
                       value={getProfitLossRatio()}
                       suffix={getProfitLossRatio() === '-' ? '' : ':1'}
-                      valueStyle={{ fontSize: 13, color: '#1890ff' }}
+                      styles={{ content: { fontSize: 13, color: '#1890ff' } }}
                     />
                   </Card>
                 </Col>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Card, Row, Col, Spin, message } from 'antd';
 import { BarChartOutlined, FireOutlined, ThunderboltOutlined, RiseOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../services/api';
 
 const BlockStrengthModal = ({ visible, onClose, date }) => {
   const [loading, setLoading] = useState(false);
@@ -26,14 +26,11 @@ const BlockStrengthModal = ({ visible, onClose, date }) => {
   const loadBlockStrength = async () => {
     setLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-
       const url = date
-        ? `${API_BASE}/block-strength/continuous?date=${date}`
-        : `${API_BASE}/block-strength/continuous`;
+        ? `/block-strength/continuous?date=${date}`
+        : '/block-strength/continuous';
 
-      const response = await axios.get(url);
+      const response = await api.get(url);
 
       if (response.data.success) {
         setData(response.data.data);

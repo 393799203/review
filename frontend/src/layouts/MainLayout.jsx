@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio } from 'antd';
+import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio, Space } from 'antd';
 import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
@@ -56,6 +56,8 @@ const MainLayout = ({ children }) => {
     smartMode,
     currentPage,
     tradingDays,
+    currentDate,
+    latestDate,
     callback: refreshCallback,
   });
 
@@ -566,7 +568,7 @@ const MainLayout = ({ children }) => {
         >
           <div style={{ fontSize: 18, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
             {location.pathname === '/' && (
-              <Button.Group>
+              <Space.Compact>
                 <Button 
                   type={ladderMode === 'ladder' ? 'primary' : 'default'}
                   icon={<RiseOutlined />}
@@ -581,7 +583,7 @@ const MainLayout = ({ children }) => {
                 >
                   晋级对比
                 </Button>
-              </Button.Group>
+              </Space.Compact>
             )}
             <Button
               type="link"

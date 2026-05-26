@@ -342,7 +342,7 @@ const UserDashboardPage = () => {
               title="用户数"
               value={getTotalUsers()}
               prefix={<UserOutlined />}
-              valueStyle={{ color: '#1890ff', fontSize: 18 }}
+              styles={{ content: { color: '#1890ff', fontSize: 18 } }}
             />
           </Card>
         </Col>
@@ -352,7 +352,7 @@ const UserDashboardPage = () => {
               title="在线"
               value={onlineCount}
               prefix={<EyeOutlined />}
-              valueStyle={{ color: '#52c41a', fontSize: 18 }}
+              styles={{ content: { color: '#52c41a', fontSize: 18 } }}
             />
           </Card>
         </Col>
@@ -362,7 +362,7 @@ const UserDashboardPage = () => {
               title="登录次数"
               value={getTotalLogins()}
               prefix={<LoginOutlined />}
-              valueStyle={{ color: '#722ed1', fontSize: 18 }}
+              styles={{ content: { color: '#722ed1', fontSize: 18 } }}
             />
           </Card>
         </Col>
@@ -372,7 +372,7 @@ const UserDashboardPage = () => {
               title="今日活跃"
               value={getActiveUsersToday()}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: '#faad14', fontSize: 18 }}
+              styles={{ content: { color: '#faad14', fontSize: 18 } }}
             />
           </Card>
         </Col>

@@ -796,7 +796,7 @@ const WatchlistPage = () => {
             </div>
             
             <AutoComplete
-              style={{ width: isMobile ? 180 : 250 }}
+              style={{ width: isMobile ? 180 : 250, height: 24 }}
               value={searchKeyword}
               options={searchResults.map(stock => ({
                 value: stock.code,
@@ -821,7 +821,6 @@ const WatchlistPage = () => {
               onSearch={handleSearchStock}
               onChange={setSearchKeyword}
               placeholder="搜索股票代码或名称"
-              size="small"
             >
               <Input 
                 suffix={searching ? <LoadingOutlined spin /> : <SearchOutlined />}

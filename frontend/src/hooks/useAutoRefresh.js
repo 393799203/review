@@ -7,6 +7,8 @@ export const useAutoRefresh = ({
   smartMode,
   currentPage,
   tradingDays,
+  currentDate,
+  latestDate,
   callback,
 }) => {
   const intervalRef = useRef(null);
@@ -42,8 +44,17 @@ export const useAutoRefresh = ({
            (currentTime >= afternoonStart && currentTime <= afternoonEnd);
   };
 
+  const shouldEnableAutoRefresh = () => {
+    if (!currentDate || !latestDate) {
+      return false;
+    }
+    return currentDate === latestDate;
+  };
+
   useEffect(() => {
-    if (autoRefresh && callbackRef.current) {
+    const isLatestDate = shouldEnableAutoRefresh();
+    
+    if (autoRefresh && isLatestDate && callbackRef.current) {
       const shouldRefresh = smartMode ? isInTradingTime() : true;
       
       if (shouldRefresh) {
@@ -62,10 +73,12 @@ export const useAutoRefresh = ({
         intervalRef.current = null;
       }
     };
-  }, [autoRefresh, refreshInterval, smartMode, currentPage]);
+  }, [autoRefresh, refreshInterval, smartMode, currentPage, currentDate, latestDate]);
 
   useEffect(() => {
-    if (smartMode && autoRefresh) {
+    const isLatestDate = shouldEnableAutoRefresh();
+    
+    if (smartMode && autoRefresh && isLatestDate) {
       const checkInterval = setInterval(() => {
         const inTime = isInTradingTime();
         if (!inTime && intervalRef.current) {
@@ -82,5 +95,5 @@ export const useAutoRefresh = ({
       
       return () => clearInterval(checkInterval);
     }
-  }, [smartMode, autoRefresh, refreshInterval, currentPage]);
+  }, [smartMode, autoRefresh, refreshInterval, currentPage, currentDate, latestDate]);
 };

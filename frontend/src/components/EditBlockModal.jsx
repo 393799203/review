@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Select, message, Spin } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../services/api';
 
 const EditBlockModal = ({ visible, onClose, stockCode, stockName, currentBlock, dateStr, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -28,10 +28,7 @@ const EditBlockModal = ({ visible, onClose, stockCode, stockName, currentBlock, 
   const loadBlocks = async () => {
     setLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.get(`${API_BASE}/block-strength/${dateStr}`);
+      const response = await api.get(`/block-strength/${dateStr}`);
       
       if (response.data.success) {
         setBlocks(response.data.data.blocks || []);
@@ -53,10 +50,7 @@ const EditBlockModal = ({ visible, onClose, stockCode, stockName, currentBlock, 
 
     setLoading(true);
     try {
-      const isDev = import.meta.env.DEV;
-      const API_BASE = isDev ? 'http://localhost:5001/api' : '/api';
-      
-      const response = await axios.put(`${API_BASE}/stock/block`, {
+      const response = await api.put('/stock/block', {
         stock_code: stockCode,
         trade_date: dateStr,
         block_name: selectedBlock
