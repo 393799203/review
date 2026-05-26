@@ -79,6 +79,7 @@ class LimitUpStock(Base):
     amount = Column(Numeric(20, 2))
     is_high_stock = Column(Integer, default=0)
     next_change = Column(Numeric(10, 4))
+    current_status = Column(String(20), default='close')
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -261,25 +262,6 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-class StockDiffRecord(Base):
-    """股票对比记录表"""
-    __tablename__ = 'stock_diff_records'
-    __table_args__ = (
-        Index('idx_diff_date', 'trade_date'),
-        Index('idx_diff_type', 'diff_type'),
-        Index('idx_diff_date_type', 'trade_date', 'diff_type'),
-    )
-    
-    id = Column(Integer, primary_key=True)
-    trade_date = Column(Date, nullable=False)
-    diff_type = Column(String(10), nullable=False)  # 'added' 或 'removed'
-    stock_code = Column(String(10), nullable=False)
-    stock_name = Column(String(50), nullable=False)
-    level = Column(Integer, default=1)  # 连板数
-    limit_up_time = Column(Time)  # 涨停时间
-    created_at = Column(DateTime, default=datetime.now)
-
-
 class ClsNews(Base):
     """财联社新闻表"""
     __tablename__ = 'cls_news'
@@ -324,6 +306,26 @@ class UserWencaiStrategy(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     user = relationship("User", backref="wencai_strategies")
+
+
+class MarketAlert(Base):
+    """市场动态消息表"""
+    __tablename__ = 'market_alerts'
+    __table_args__ = (
+        Index('idx_alerts_trade_date', 'trade_date'),
+        Index('idx_alerts_stock_code', 'stock_code'),
+        Index('idx_alerts_created_at', 'created_at'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    trade_date = Column(Date, nullable=False)
+    stock_code = Column(String(20), nullable=False)
+    stock_name = Column(String(100), nullable=False)
+    continuous_days = Column(Integer, default=1)
+    alert_time = Column(String(10))
+    alert_type = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
 
 
 class DatabaseConfig:

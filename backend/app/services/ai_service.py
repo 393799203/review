@@ -64,7 +64,9 @@ class AIService(BaseService):
             if check_only:
                 if cached_result:
                     analysis = json.loads(cached_result.analysis_result)
-                    return True, '有缓存', self._format_analysis_result(stock_data, analysis, True)
+                    result = self._format_analysis_result(stock_data, analysis, True)
+                    result['has_cache'] = True
+                    return True, '有缓存', result
                 else:
                     return True, '无缓存', {'has_cache': False}
             
@@ -153,6 +155,19 @@ class AIService(BaseService):
             
             existing = self.ai_repository.get_watchlist_analysis_cache(stock_code, today)
             
+            if check_only:
+                if existing:
+                    try:
+                        analysis_data = json.loads(existing.analysis_result)
+                        return True, '有缓存', {
+                            'has_cache': True,
+                            'data': analysis_data,
+                            'cached': True
+                        }
+                    except:
+                        pass
+                return True, '检查完成', {'has_cache': False}
+            
             if existing and not force:
                 try:
                     analysis_data = json.loads(existing.analysis_result)
@@ -163,9 +178,6 @@ class AIService(BaseService):
                     }
                 except:
                     pass
-            
-            if check_only:
-                return True, '检查完成', {'has_cache': False}
             
             quote_data = self.data_fetcher.get_realtime_quote(stock_code)
             

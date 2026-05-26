@@ -154,25 +154,26 @@ class LimitUpFetcher:
                     next_change_backup[stock.stock_code] = stock.next_change
             print(f"✓ 已备份 {len(next_change_backup)} 只股票的next_change字段")
             
-            # 删除该日期的旧数据
-            session.query(LimitUpStock).filter(
+            existing_stocks = session.query(LimitUpStock).filter(
                 LimitUpStock.trade_date == trade_date
-            ).delete()
-            session.query(LadderStats).filter(
-                LadderStats.trade_date == trade_date
-            ).delete()
-            session.query(Block).filter(
-                Block.trade_date == trade_date
-            ).delete()
-            session.commit()
-            print(f"✓ 已删除 {date_str} 的旧数据")
+            ).all()
+            existing_stock_codes = {s.stock_code: s for s in existing_stocks}
+            print(f"✓ 当前数据库中有 {len(existing_stock_codes)} 只涨停股票")
             
-            # 使用同花顺接口获取数据
+            existing_blocks = session.query(Block).filter(
+                Block.trade_date == trade_date
+            ).all()
+            existing_block_codes = {b.block_code: b for b in existing_blocks}
+            print(f"✓ 当前数据库中有 {len(existing_block_codes)} 个板块")
+            
+            existing_stats = session.query(LadderStats).filter(
+                LadderStats.trade_date == trade_date
+            ).first()
+            
             ths_data = self.data_fetcher.get_all_data(date_str)
             
-            # 处理并保存数据
             success = self._process_and_save_data(
-                session, trade_date, ths_data
+                session, trade_date, ths_data, existing_stock_codes, existing_block_codes, existing_stats
             )
             
             # 恢复next_change字段
@@ -232,8 +233,13 @@ class LimitUpFetcher:
         finally:
             session.close()
     
-    def _process_and_save_data(self, session, trade_date, ths_data):
+    def _process_and_save_data(self, session, trade_date, ths_data, existing_stock_codes=None, existing_block_codes=None, existing_stats=None):
         """处理并保存数据"""
+        if existing_stock_codes is None:
+            existing_stock_codes = {}
+        if existing_block_codes is None:
+            existing_block_codes = {}
+        
         ladder_stats = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0}
         
         # 1. 保存板块数据
@@ -260,10 +266,7 @@ class LimitUpFetcher:
                             max_continue_num = continue_num
                             high_stock_code = stock.get('code', '')
                     
-                    existing_block = session.query(Block).filter(
-                        Block.block_code == block_code,
-                        Block.trade_date == trade_date
-                    ).first()
+                    existing_block = existing_block_codes.get(block_code)
                     
                     if existing_block:
                         existing_block.block_name = block_name
@@ -436,6 +439,7 @@ class LimitUpFetcher:
                     existing_stock.turnover_rate = Decimal(str(row.get("换手率", 0))) if pd.notna(row.get("换手率")) else Decimal('0')
                     existing_stock.amount = Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0')
                     existing_stock.is_high_stock = is_high_stock
+                    existing_stock.current_status = 'close'
                     existing_stock.updated_at = datetime.now()
                 else:
                     stock = LimitUpStock(
@@ -455,7 +459,8 @@ class LimitUpFetcher:
                         change_percent=Decimal(str(row.get("涨跌幅", 0))) if pd.notna(row.get("涨跌幅")) else Decimal('0'),
                         turnover_rate=Decimal(str(row.get("换手率", 0))) if pd.notna(row.get("换手率")) else Decimal('0'),
                         amount=Decimal(str(row.get("成交额", 0))) if pd.notna(row.get("成交额")) else Decimal('0'),
-                        is_high_stock=is_high_stock
+                        is_high_stock=is_high_stock,
+                        current_status='close'
                     )
                     session.add(stock)
                 
@@ -469,23 +474,46 @@ class LimitUpFetcher:
                 else:
                     ladder_stats[continuous_days] += 1
         
-        # 6. 保存统计数据
+        if limit_up_df is not None and not limit_up_df.empty:
+            current_limit_up_codes = set(str(row.get("代码", "")) for idx, row in limit_up_df.iterrows())
+            
+            opened_stocks_count = 0
+            for stock_code, existing_stock in existing_stock_codes.items():
+                if stock_code not in current_limit_up_codes:
+                    existing_stock.current_status = 'open'
+                    existing_stock.updated_at = datetime.now()
+                    opened_stocks_count += 1
+            
+            if opened_stocks_count > 0:
+                print(f"✓ 标记了 {opened_stocks_count} 只股票为开板状态")
+        
         total_count = sum(ladder_stats.values())
         
         if total_count > 0:
-            stats = LadderStats(
-                trade_date=trade_date,
-                total_count=total_count,
-                first_board=ladder_stats[1],
-                second_board=ladder_stats[2],
-                third_board=ladder_stats[3],
-                fourth_board=ladder_stats[4],
-                fifth_board=ladder_stats[5],
-                sixth_board=ladder_stats[6],
-                seventh_board=ladder_stats[7],
-                eighth_plus_board=ladder_stats[8]
-            )
-            session.add(stats)
+            if existing_stats:
+                existing_stats.total_count = total_count
+                existing_stats.first_board = ladder_stats[1]
+                existing_stats.second_board = ladder_stats[2]
+                existing_stats.third_board = ladder_stats[3]
+                existing_stats.fourth_board = ladder_stats[4]
+                existing_stats.fifth_board = ladder_stats[5]
+                existing_stats.sixth_board = ladder_stats[6]
+                existing_stats.seventh_board = ladder_stats[7]
+                existing_stats.eighth_plus_board = ladder_stats[8]
+            else:
+                stats = LadderStats(
+                    trade_date=trade_date,
+                    total_count=total_count,
+                    first_board=ladder_stats[1],
+                    second_board=ladder_stats[2],
+                    third_board=ladder_stats[3],
+                    fourth_board=ladder_stats[4],
+                    fifth_board=ladder_stats[5],
+                    sixth_board=ladder_stats[6],
+                    seventh_board=ladder_stats[7],
+                    eighth_plus_board=ladder_stats[8]
+                )
+                session.add(stats)
             
             print("\n更新昨日涨停股票的次日涨跌幅...")
             prev_trade_date = session.query(LadderStats.trade_date).filter(

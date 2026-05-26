@@ -100,6 +100,8 @@ export const GlobalProvider = ({ children }) => {
   const [availableVoices, setAvailableVoices] = useState([]);
   const [speechSupported, setSpeechSupported] = useState(false);
 
+  const [marketAlerts, setMarketAlerts] = useState([]);
+
   useEffect(() => {
     if (!('speechSynthesis' in window)) {
       setSpeechSupported(false);
@@ -542,6 +544,8 @@ export const GlobalProvider = ({ children }) => {
     refreshCurrentData,
     refreshWatchlistPrices,
     refreshStatistics,
+    marketAlerts,
+    setMarketAlerts,
   };
 
   return (

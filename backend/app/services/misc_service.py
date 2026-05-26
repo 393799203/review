@@ -82,6 +82,148 @@ class MiscService(BaseService):
             
         except Exception as e:
             return False, str(e), None
+
+    def get_market_alerts(self) -> Tuple[bool, str, Optional[List[Dict]]]:
+        """
+        获取市场动态消息（涨停板实时状态）
+        
+        从数据库获取所有涨停过的股票（包括已开板的），
+        通过实时行情判断当前状态
+
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            latest_date = self.misc_repository.get_latest_trade_date()
+            if not latest_date:
+                return True, '获取成功', []
+
+            stocks = self.misc_repository.get_stocks_by_date(latest_date)
+            if not stocks:
+                return True, '获取成功', []
+
+            stock_codes = [s.stock_code for s in stocks]
+
+            try:
+                from core.quotes_utils import get_realtime_quotes
+                quotes_dict = get_realtime_quotes(stock_codes, debug=False)
+            except Exception as e:
+                print(f"获取实时行情失败: {e}")
+                quotes_dict = {}
+
+            alerts = []
+            for stock in stocks:
+                code = stock.stock_code
+                name = stock.stock_name
+                continuous_days = stock.continuous_days
+                limit_up_time = stock.limit_up_time
+
+                time_str = ''
+                if limit_up_time:
+                    time_str = limit_up_time.strftime('%H:%M') if hasattr(limit_up_time, 'strftime') else str(limit_up_time)[:5]
+
+                status = stock.current_status or 'close'
+                if quotes_dict and code in quotes_dict:
+                    current_price = quotes_dict[code].get('price', 0)
+                    prev_close = quotes_dict[code].get('prev_close', 0)
+                    if prev_close > 0 and current_price > 0:
+                        change_percent = (current_price - prev_close) / prev_close * 100
+                        if change_percent < 9.8:
+                            status = 'open'
+                        else:
+                            status = 'close'
+
+                alerts.append({
+                    'code': code,
+                    'name': name,
+                    'continuous_days': continuous_days,
+                    'time': time_str,
+                    'status': status
+                })
+
+            alerts.sort(key=lambda x: x['time'] if x['time'] else '00:00', reverse=True)
+
+            return True, '获取成功', alerts
+
+        except Exception as e:
+            print(f"获取市场动态失败: {e}")
+            return False, str(e), None
+
+    def save_market_alerts(self, alerts_data: List[Dict], trade_date_str: str = None) -> Tuple[bool, str, Optional[List]]:
+        """
+        保存市场动态消息到数据库
+
+        Args:
+            alerts_data: 告警数据列表
+            trade_date_str: 交易日期字符串
+
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            if not alerts_data:
+                return True, '没有数据需要保存', []
+
+            if trade_date_str:
+                trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d').date()
+            else:
+                trade_date = datetime.now().date()
+
+            alerts_with_date = [{**alert, 'trade_date': trade_date} for alert in alerts_data]
+            saved_alerts = self.misc_repository.save_market_alerts_batch(alerts_with_date)
+
+            return True, f'保存成功，共{len(saved_alerts)}条', [
+                {
+                    'id': a['id'],
+                    'stock_code': a['stock_code'],
+                    'stock_name': a['stock_name'],
+                    'alert_type': a['alert_type'],
+                    'status': a['status'],
+                    'created_at': a['created_at'].isoformat() if a.get('created_at') else None
+                }
+                for a in saved_alerts
+            ]
+
+        except Exception as e:
+            print(f"保存市场动态失败: {e}")
+            return False, str(e), None
+
+    def get_market_alerts_history(self, trade_date_str: str = None, limit: int = 100) -> Tuple[bool, str, Optional[List]]:
+        """
+        获取历史市场动态消息
+
+        Args:
+            trade_date_str: 交易日期字符串
+            limit: 返回数量限制
+
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            trade_date = None
+            if trade_date_str:
+                trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d').date()
+
+            alerts = self.misc_repository.get_market_alerts(trade_date, limit)
+
+            return True, '获取成功', [
+                {
+                    'id': a['id'],
+                    'trade_date': a['trade_date'].isoformat() if a.get('trade_date') else None,
+                    'stock_code': a['stock_code'],
+                    'stock_name': a['stock_name'],
+                    'continuous_days': a['continuous_days'],
+                    'alert_time': a['alert_time'],
+                    'alert_type': a['alert_type'],
+                    'status': a['status'],
+                    'created_at': a['created_at'].isoformat() if a.get('created_at') else None
+                }
+                for a in alerts
+            ]
+
+        except Exception as e:
+            print(f"获取历史市场动态失败: {e}")
+            return False, str(e), None
     
     def get_premium_trend(self, continuous_days: int, date_str: str = None) -> Tuple[bool, str, Optional[Dict]]:
         """
@@ -223,8 +365,25 @@ class MiscService(BaseService):
                     'continuous_days': stock.continuous_days,
                     'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
                     'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
+                    'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
                     'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
-                    'change_percent': float(stock.next_change) if stock.next_change else None
+                    'change_percent': float(stock.next_change) if stock.next_change else None,
+                    'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0,
+                    'reason': stock.limit_up_reason or '',
+                    'limit_up_type': stock.limit_up_type or '',
+                    'high_days': stock.high_days or '',
+                    'detail_reason': stock.ths_reason_info or '',
+                    'block_name': stock.block.block_name if stock.block else '',
+                    'block_info': {
+                        'change_rate': float(stock.block.change_rate) if stock.block and stock.block.change_rate else 0.0,
+                        'limit_up_num': stock.block.limit_up_num or 0 if stock.block else 0,
+                        'continuous_num': stock.block.continuous_plate_num or 0 if stock.block else 0,
+                        'high': stock.block.high or '' if stock.block else '',
+                        'list_days': stock.block.list_days or 0 if stock.block else 0,
+                        'high_stock_name': stock.block.high_stock_name or '' if stock.block else ''
+                    },
+                    'is_high_stock': stock.is_high_stock or 0,
+                    'current_status': stock.current_status or 'close'
                 }
             else:
                 stock_data = {
@@ -233,9 +392,25 @@ class MiscService(BaseService):
                     'continuous_days': stock.continuous_days,
                     'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
                     'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
+                    'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
                     'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
                     'change_percent': float(stock.change_percent) if stock.change_percent else 0.0,
-                    'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0
+                    'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0,
+                    'reason': stock.limit_up_reason or '',
+                    'limit_up_type': stock.limit_up_type or '',
+                    'high_days': stock.high_days or '',
+                    'detail_reason': stock.ths_reason_info or '',
+                    'block_name': stock.block.block_name if stock.block else '',
+                    'block_info': {
+                        'change_rate': float(stock.block.change_rate) if stock.block and stock.block.change_rate else 0.0,
+                        'limit_up_num': stock.block.limit_up_num or 0 if stock.block else 0,
+                        'continuous_num': stock.block.continuous_plate_num or 0 if stock.block else 0,
+                        'high': stock.block.high or '' if stock.block else '',
+                        'list_days': stock.block.list_days or 0 if stock.block else 0,
+                        'high_stock_name': stock.block.high_stock_name or '' if stock.block else ''
+                    },
+                    'is_high_stock': stock.is_high_stock or 0,
+                    'current_status': stock.current_status or 'close'
                 }
             
             stock_list.append(stock_data)

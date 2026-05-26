@@ -106,6 +106,10 @@ export const stockApi = {
   logout: () => api.post('/auth/logout'),
 
   getHotStocks: (listType = 'normal') => api.get(`/hot-stocks?list_type=${listType}`),
+
+  saveMarketAlerts: (data) => api.post('/market-alerts/save', data),
+  
+  getMarketAlertsHistory: (params) => api.get('/market-alerts/history', { params }),
 };
 
 export default api;
