@@ -270,7 +270,11 @@ class MiscService(BaseService):
                     if stocks:
                         valid_stocks = [s for s in stocks if s.next_change is not None]
                         if valid_stocks:
-                            avg_change = sum(float(s.next_change) for s in valid_stocks) / len(valid_stocks)
+                            filtered_stocks = [s for s in valid_stocks if float(s.next_change) < 10]
+                            if filtered_stocks:
+                                avg_change = sum(float(s.next_change) for s in filtered_stocks) / len(filtered_stocks)
+                            else:
+                                avg_change = None
                         else:
                             avg_change = None
                     else:
