@@ -1335,10 +1335,7 @@ const LadderPage = () => {
             const nextHeight = height + 1;
             const promotedStocks = promotedLadder[nextHeight] || [];
             
-            const filteredStocks = yesterdayStocks.filter(s => s.change_percent !== null && s.change_percent !== undefined && s.change_percent < 10);
-            const avgChangePercent = filteredStocks.length > 0 
-              ? filteredStocks.reduce((sum, stock) => sum + stock.change_percent, 0) / filteredStocks.length
-              : null;
+            const avgChangePercent = comparisonData?.yesterday?.avg_premium?.[height] ?? null;
             
             return (
               <div key={height} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 24, marginBottom: isMobile ? 12 : 16 }}>

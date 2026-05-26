@@ -69,6 +69,20 @@ class MiscService(BaseService):
                     quotes_dict = get_realtime_quotes(yesterday_codes, debug=True)
                     update_stock_data_change_percent(yesterday_list, quotes_dict)
             
+            yesterday_premium = {}
+            for stock in yesterday_list:
+                height = stock.get('continuous_days', 1)
+                if height not in yesterday_premium:
+                    yesterday_premium[height] = []
+                change_percent = stock.get('change_percent')
+                if change_percent is not None and change_percent < 10:
+                    yesterday_premium[height].append(change_percent)
+            
+            yesterday_avg_premium = {}
+            for height, changes in yesterday_premium.items():
+                if changes:
+                    yesterday_avg_premium[height] = round(sum(changes) / len(changes), 2)
+            
             return True, '获取成功', {
                 'today': {
                     'date': trade_date.strftime('%Y-%m-%d'),
@@ -76,7 +90,8 @@ class MiscService(BaseService):
                 },
                 'yesterday': {
                     'date': prev_date.strftime('%Y-%m-%d'),
-                    'stocks': yesterday_list
+                    'stocks': yesterday_list,
+                    'avg_premium': yesterday_avg_premium
                 }
             }
             
