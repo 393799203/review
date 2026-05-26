@@ -107,7 +107,10 @@ export const stockApi = {
 
   getHotStocks: (listType = 'normal') => api.get(`/hot-stocks?list_type=${listType}`),
 
-  saveMarketAlerts: (data) => api.post('/market-alerts/save', data),
+  saveMarketAlerts: (data, tradeDate) => {
+    const params = tradeDate ? { trade_date: tradeDate } : {};
+    return api.post('/market-alerts/save', data, { params });
+  },
   
   getMarketAlertsHistory: (params) => api.get('/market-alerts/history', { params }),
 };

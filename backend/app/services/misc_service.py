@@ -164,10 +164,14 @@ class MiscService(BaseService):
             if not alerts_data:
                 return True, '没有数据需要保存', []
 
+            today = datetime.now().date()
+
             if trade_date_str:
                 trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d').date()
+                if trade_date != today:
+                    return False, f'只能保存当天的数据，当前日期：{today}，传入日期：{trade_date}', None
             else:
-                trade_date = datetime.now().date()
+                trade_date = today
 
             alerts_with_date = [{**alert, 'trade_date': trade_date} for alert in alerts_data]
             saved_alerts = self.misc_repository.save_market_alerts_batch(alerts_with_date)
@@ -193,16 +197,17 @@ class MiscService(BaseService):
         获取历史市场动态消息
 
         Args:
-            trade_date_str: 交易日期字符串
+            trade_date_str: 交易日期字符串，不传则默认查询当天
             limit: 返回数量限制
 
         Returns:
             tuple: (success, message, data)
         """
         try:
-            trade_date = None
             if trade_date_str:
                 trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d').date()
+            else:
+                trade_date = datetime.now().date()
 
             alerts = self.misc_repository.get_market_alerts(trade_date, limit)
 
