@@ -81,7 +81,7 @@ const MarketAlertBar = () => {
 
     const prevAlerts = prevAlertsRef.current;
     
-    if (isFirstLoadRef.current && prevAlerts.length === 0) {
+    if (isFirstLoadRef.current) {
       prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
       isFirstLoadRef.current = false;
       prevDateRef.current = currentDate;
@@ -150,7 +150,7 @@ const MarketAlertBar = () => {
         return [...uniqueNew, ...prev].slice(0, 100);
       });
 
-      showAlertWithAnimation(changedAlerts.slice(0, 5));
+      showAlertWithAnimation(changedAlerts);
     }
   }, [marketAlerts, showAlertWithAnimation]);
 
