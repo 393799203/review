@@ -81,6 +81,21 @@ class MiscService(BaseService):
             for height, changes in yesterday_premium.items():
                 if changes:
                     yesterday_avg_premium[height] = round(sum(changes) / len(changes), 2)
+
+            # 竞价溢价（next_open_change）平均
+            yesterday_auction_premium = {}
+            for stock in yesterday_list:
+                height = stock.get('continuous_days', 1)
+                open_change = stock.get('open_change')
+                if open_change is not None:
+                    if height not in yesterday_auction_premium:
+                        yesterday_auction_premium[height] = []
+                    yesterday_auction_premium[height].append(open_change)
+            
+            yesterday_avg_auction_premium = {}
+            for height, changes in yesterday_auction_premium.items():
+                if changes:
+                    yesterday_avg_auction_premium[height] = round(sum(changes) / len(changes), 2)
             
             return True, '获取成功', {
                 'today': {
@@ -90,7 +105,8 @@ class MiscService(BaseService):
                 'yesterday': {
                     'date': prev_date.strftime('%Y-%m-%d'),
                     'stocks': yesterday_list,
-                    'avg_premium': yesterday_avg_premium
+                    'avg_premium': yesterday_avg_premium,
+                    'avg_auction_premium': yesterday_avg_auction_premium
                 }
             }
             
@@ -389,6 +405,7 @@ class MiscService(BaseService):
                     'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
                     'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
                     'change_percent': float(stock.next_change) if stock.next_change else None,
+                    'open_change': float(stock.next_open_change) if stock.next_open_change else None,
                     'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0,
                     'reason': stock.limit_up_reason or '',
                     'limit_up_type': stock.limit_up_type or '',

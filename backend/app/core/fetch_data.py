@@ -144,15 +144,19 @@ class LimitUpFetcher:
             print(f"开始爬取 {date_str} 的数据...")
             print(f"{'='*80}")
             
-            # 保存next_change字段
+            # 保存next_change和next_open_change字段（避免刷新数据时被覆盖）
             next_change_backup = {}
+            next_open_change_backup = {}
             old_stocks = session.query(LimitUpStock).filter(
                 LimitUpStock.trade_date == trade_date
             ).all()
             for stock in old_stocks:
                 if stock.next_change is not None:
                     next_change_backup[stock.stock_code] = stock.next_change
+                if stock.next_open_change is not None:
+                    next_open_change_backup[stock.stock_code] = stock.next_open_change
             print(f"✓ 已备份 {len(next_change_backup)} 只股票的next_change字段")
+            print(f"✓ 已备份 {len(next_open_change_backup)} 只股票的next_open_change字段")
             
             existing_stocks = session.query(LimitUpStock).filter(
                 LimitUpStock.trade_date == trade_date
@@ -176,19 +180,22 @@ class LimitUpFetcher:
                 session, trade_date, ths_data, existing_stock_codes, existing_block_codes, existing_stats
             )
             
-            # 恢复next_change字段
-            if next_change_backup:
+            # 恢复next_change和next_open_change字段
+            if next_change_backup or next_open_change_backup:
                 restored_count = 0
-                for stock_code, next_change in next_change_backup.items():
+                for stock_code in set(list(next_change_backup.keys()) + list(next_open_change_backup.keys())):
                     stock = session.query(LimitUpStock).filter(
                         LimitUpStock.stock_code == stock_code,
                         LimitUpStock.trade_date == trade_date
                     ).first()
                     if stock:
-                        stock.next_change = next_change
+                        if stock_code in next_change_backup:
+                            stock.next_change = next_change_backup[stock_code]
+                        if stock_code in next_open_change_backup:
+                            stock.next_open_change = next_open_change_backup[stock_code]
                         restored_count += 1
                 session.commit()
-                print(f"✓ 已恢复 {restored_count} 只股票的next_change字段")
+                print(f"✓ 已恢复 {restored_count} 只股票的next_change/next_open_change字段")
             
             if success:
                 # 记录日志

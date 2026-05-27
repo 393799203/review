@@ -1336,6 +1336,7 @@ const LadderPage = () => {
             const promotedStocks = promotedLadder[nextHeight] || [];
             
             const avgChangePercent = comparisonData?.yesterday?.avg_premium?.[height] ?? null;
+            const avgAuctionPremium = comparisonData?.yesterday?.avg_auction_premium?.[height] ?? null;
             
             return (
               <div key={height} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 24, marginBottom: isMobile ? 12 : 16 }}>
@@ -1370,6 +1371,23 @@ const LadderPage = () => {
                           }}
                         >
                           溢价{avgChangePercent >= 0 ? '+' : ''}{avgChangePercent.toFixed(2)}%
+                        </span>
+                      )}
+                      {avgAuctionPremium !== null && !isNaN(avgAuctionPremium) && (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            fontSize: isMobile ? 11 : 12,
+                            color: avgAuctionPremium >= 0 ? '#eb2f96' : '#13c2c2',
+                            cursor: 'pointer',
+                            textDecoration: 'underline'
+                          }}
+                          onClick={() => {
+                            setSelectedContinuousDays(height);
+                            setPremiumTrendVisible(true);
+                          }}
+                        >
+                          竞价{avgAuctionPremium >= 0 ? '+' : ''}{avgAuctionPremium.toFixed(2)}%
                         </span>
                       )}
                     </span>
