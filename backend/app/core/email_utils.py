@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 import os
 from flask_mail import Message
-from database import mail
 
 
 def send_welcome_email_to_user(email, username):
     """发送欢迎邮件给用户"""
     try:
-        mail_password = os.environ.get('MAIL_PASSWORD')
-        if not mail_password:
-            print(f"✗ 邮件服务未配置:缺少 MAIL_PASSWORD 环境变量")
+        from database import mail
+
+        if mail is None:
+            print("✗ 邮件服务未初始化")
             return False
-        
+
         subject = '感谢您注册使用云雀AI涨停复盘智能体'
         
         html_content = f'''

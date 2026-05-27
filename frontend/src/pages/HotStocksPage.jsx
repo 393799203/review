@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Card, Tag, Spin, message, Row, Col, Tooltip } from 'antd';
-import { RiseOutlined, FallOutlined, FireOutlined, DollarOutlined, LineChartOutlined } from '@ant-design/icons';
+import { Card, Tag, Spin, message, Row, Col, Tooltip, Button } from 'antd';
+import { RiseOutlined, FallOutlined, FireOutlined, DollarOutlined, LineChartOutlined, BulbOutlined, RobotOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import StockKlineModal from '../components/StockKlineModal';
+import HotTopicAnalysisModal from '../components/HotTopicAnalysisModal';
 
 let loadAllDataRef = null;
 
@@ -20,10 +21,16 @@ const HotStocksPage = () => {
     value: [],
     trend: []
   });
+  const [hotTopics, setHotTopics] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [topicsLoading, setTopicsLoading] = useState(false);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [topicAnalysisVisible, setTopicAnalysisVisible] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [analyzingTopics, setAnalyzingTopics] = useState(new Set());
+  const [completedTopicAnalysis, setCompletedTopicAnalysis] = useState(new Map());
 
   useEffect(() => {
     const checkMobile = () => {
@@ -60,6 +67,94 @@ const HotStocksPage = () => {
     }
   };
 
+  const loadHotTopics = async () => {
+    setTopicsLoading(true);
+    try {
+      const response = await api.get('/hot-topics?days=1');
+      if (response.data.success) {
+        setHotTopics(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('获取热门话题失败:', error);
+    } finally {
+      setTopicsLoading(false);
+    }
+  };
+
+  const handleTopicAnalysisClick = async (topic) => {
+    const topicKey = topic.event_id || topic.title;
+    
+    console.log('点击话题分析:', topic.title, 'key:', topicKey);
+    
+    if (completedTopicAnalysis.has(topicKey)) {
+      console.log('已有分析结果，直接打开');
+      setSelectedTopic({
+        title: topic.title,
+        themes: topic.themes,
+        investment_direction: topic.investment_direction,
+        event_id: topic.event_id
+      });
+      setTopicAnalysisVisible(true);
+      return;
+    }
+    
+    if (analyzingTopics.has(topicKey)) {
+      message.info('该话题正在分析中，请稍后...');
+      return;
+    }
+    
+    try {
+      const checkResponse = await api.post('/hot-topic/analyze', {
+        topic_title: topic.title,
+        themes: topic.themes || [],
+        investment_direction: topic.investment_direction || '',
+        force: false
+      });
+      
+      if (checkResponse.data.success && checkResponse.data.cached) {
+        console.log('找到缓存，直接显示');
+        setCompletedTopicAnalysis(prev => new Map(prev).set(topicKey, checkResponse.data.data));
+        setSelectedTopic({
+          title: topic.title,
+          themes: topic.themes,
+          investment_direction: topic.investment_direction,
+          event_id: topic.event_id
+        });
+        setTopicAnalysisVisible(true);
+        return;
+      }
+    } catch (error) {
+      console.error('检查缓存失败:', error);
+    }
+    
+    console.log('开始分析');
+    setAnalyzingTopics(prev => new Set(prev).add(topicKey));
+    
+    try {
+      const response = await api.post('/hot-topic/analyze', {
+        topic_title: topic.title,
+        themes: topic.themes || [],
+        investment_direction: topic.investment_direction || '',
+        force: true
+      });
+      
+      if (response.data.success) {
+        console.log('分析完成');
+        setCompletedTopicAnalysis(prev => new Map(prev).set(topicKey, response.data.data));
+        message.success(`"${topic.title}"分析完成，点击图标查看结果`);
+      }
+    } catch (error) {
+      console.error('分析失败:', error);
+      message.error('分析失败，请稍后重试');
+    } finally {
+      setAnalyzingTopics(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(topicKey);
+        return newSet;
+      });
+    }
+  };
+
   useEffect(() => {
     loadAllDataRef = loadAllData;
     return () => {
@@ -69,6 +164,7 @@ const HotStocksPage = () => {
 
   useEffect(() => {
     loadAllData();
+    loadHotTopics();
   }, [currentDate]);
 
   const renderStockCard = (stock, index) => {
@@ -309,6 +405,188 @@ const HotStocksPage = () => {
     );
   };
 
+  const renderHotTopics = () => {
+    if (topicsLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <Spin />
+        </div>
+      );
+    }
+
+    if (hotTopics.length === 0) {
+      return null;
+    }
+
+    const displayTopics = isMobile ? hotTopics.slice(0, 5) : hotTopics.slice(0, 10);
+
+    return (
+      <div style={{ 
+        marginBottom: isMobile ? 12 : 24,
+      }}>
+        <div style={{ 
+          fontSize: isMobile ? 14 : 16, 
+          fontWeight: 'bold', 
+          marginBottom: isMobile ? 12 : 16,
+          padding: isMobile ? '10px 12px' : '12px 16px',
+          background: '#f9f0ff',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          <BulbOutlined style={{ color: '#faad14' }} />
+          热门话题
+          <Tag color="orange" style={{ marginLeft: 'auto', fontSize: isMobile ? 10 : 12 }}>
+            {hotTopics.length}条
+          </Tag>
+        </div>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
+          gap: isMobile ? 6 : 12 
+        }}>
+          {displayTopics.map((topic, index) => (
+            <div
+              key={topic.event_id}
+              style={{
+                background: index < 3 ? '#fff1f0' : '#fafafa',
+                borderRadius: 6,
+                padding: isMobile ? '10px 12px' : '10px',
+                border: `1px solid ${index < 3 ? '#ffa39e' : '#d9d9d9'}`,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                transition: 'all 0.3s'
+              }}
+            >
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: 6, 
+                marginBottom: 6 
+              }}>
+                <div style={{ 
+                  minWidth: 20, 
+                  height: 20, 
+                  borderRadius: '50%', 
+                  background: index < 3 ? 'linear-gradient(135deg, #faad14 0%, #ffc53d 100%)' : '#bfbfbf',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  flexShrink: 0
+                }}>
+                  {index + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ 
+                    fontSize: isMobile ? 12 : 13, 
+                    fontWeight: 500, 
+                    color: '#262626',
+                    marginBottom: 4,
+                    lineHeight: isMobile ? 1.4 : 1.5,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {topic.title}
+                  </div>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 4, 
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                      <Tag 
+                        style={{ 
+                          fontSize: 9, 
+                          margin: 0, 
+                          padding: '1px 4px',
+                          background: '#fff1f0',
+                          border: 'none',
+                          color: '#cf1322'
+                        }}
+                      >
+                        <FireOutlined style={{ fontSize: 9, marginRight: 2 }} />
+                        {topic.heat > 9999 ? `${(topic.heat / 10000).toFixed(1)}万` : topic.heat.toLocaleString()}
+                      </Tag>
+                      {topic.themes.slice(0, 2).map((theme, i) => (
+                        <Tag 
+                          key={i}
+                          style={{ 
+                            fontSize: 9, 
+                            margin: 0, 
+                            padding: '1px 4px',
+                            background: '#e6f7ff',
+                            border: 'none',
+                            color: '#1890ff'
+                          }}
+                        >
+                          {theme}
+                        </Tag>
+                      ))}
+                    </div>
+                    <div 
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 22,
+                        height: 22,
+                        borderRadius: 3,
+                        background: completedTopicAnalysis.has(topic.event_id || topic.title) ? '#52c41a' : 
+                                    analyzingTopics.has(topic.event_id || topic.title) ? '#fa8c16' : '#722ed1',
+                        cursor: 'pointer',
+                        flexShrink: 0
+                      }}
+                      onClick={() => handleTopicAnalysisClick(topic)}
+                    >
+                      <RobotOutlined style={{ fontSize: 12, color: '#fff' }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {topic.top_stocks && topic.top_stocks.length > 0 && (
+                <div style={{ 
+                  marginTop: 6, 
+                  paddingTop: 6, 
+                  borderTop: '1px solid #f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                  <span style={{ fontSize: 9, color: '#8c8c8c' }}>领涨:</span>
+                  {topic.top_stocks.slice(0, 1).map((stock, i) => (
+                    <span 
+                      key={i}
+                      style={{ 
+                        fontSize: 10, 
+                        color: stock.change_percent > 0 ? '#cf1322' : '#3f8600',
+                        cursor: 'pointer',
+                        fontWeight: 500
+                      }}
+                      onClick={() => {
+                        setSelectedStock({ code: stock.code, name: stock.name });
+                        setKlineVisible(true);
+                      }}
+                    >
+                      {stock.name} {stock.change_percent > 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderColumn = (title, icon, data, bgColor) => {
     const displayData = isMobile ? data.slice(0, 10) : data;
     
@@ -350,6 +628,7 @@ const HotStocksPage = () => {
 
   return (
     <div style={{ padding: isMobile ? '0' : '0 16px' }}>
+      {renderHotTopics()}
       {isMobile ? (
         <div>
           <div style={{ marginBottom: 16 }}>
@@ -383,6 +662,18 @@ const HotStocksPage = () => {
         onClose={() => {
           setKlineVisible(false);
           setSelectedStock(null);
+        }}
+      />
+      
+      <HotTopicAnalysisModal
+        visible={topicAnalysisVisible}
+        topicTitle={selectedTopic?.title}
+        themes={selectedTopic?.themes}
+        investmentDirection={selectedTopic?.investment_direction}
+        analysisData={selectedTopic?.event_id ? completedTopicAnalysis.get(selectedTopic.event_id) : null}
+        onClose={() => {
+          setTopicAnalysisVisible(false);
+          setSelectedTopic(null);
         }}
       />
     </div>

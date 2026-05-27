@@ -520,3 +520,65 @@ class MiscService(BaseService):
             stock_list.append(stock_data)
         
         return stock_list
+    
+    def get_hot_topics(self, days: int = 3) -> Tuple[bool, str, Optional[List[Dict]]]:
+        """
+        获取热门话题数据
+        
+        Args:
+            days: 获取最近几天的数据，默认3天
+            
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            url = 'https://news.10jqka.com.cn/app/concept_v2_api/open/api/concept/event/jtcsm/v1/event/list'
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://news.10jqka.com.cn/',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if data.get('status_code') == 0:
+                all_data = data.get('data', [])
+                
+                processed_topics = []
+                for day_data in all_data[:days]:
+                    date = day_data.get('date', '')
+                    event_list = day_data.get('eventList', [])
+                    
+                    for event in event_list:
+                        processed_topics.append({
+                            'date': date,
+                            'event_id': event.get('eventId', ''),
+                            'title': event.get('title', ''),
+                            'heat': event.get('heat', 0),
+                            'themes': [theme.get('showName', '') for theme in event.get('themes', [])],
+                            'investment_direction': event.get('investmentDirection', ''),
+                            'top_stocks': [{
+                                'code': stock.get('stockCode', ''),
+                                'name': stock.get('stockName', ''),
+                                'change_percent': float(stock.get('risePercent', 0)) if stock.get('risePercent') else 0.0,
+                                'limit_up_state': stock.get('limitUpState'),
+                            } for stock in event.get('topStocks', [])],
+                            'create_time': event.get('createTime', 0),
+                            'has_topped': event.get('hasTopped', False),
+                        })
+                
+                return True, '获取热门话题成功', processed_topics
+            else:
+                return False, data.get('status_msg', '获取热门话题失败'), None
+                
+        except requests.exceptions.Timeout:
+            return False, '请求超时', None
+        except requests.exceptions.RequestException as e:
+            return False, f'请求失败: {str(e)}', None
+        except Exception as e:
+            return False, f'处理数据失败: {str(e)}', None

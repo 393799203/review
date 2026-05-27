@@ -125,5 +125,20 @@ class MiscController(BaseController):
         except Exception as e:
             return self.error(str(e), 500)
 
+    def get_hot_topics(self):
+        """获取热门话题数据"""
+        try:
+            days = int(self.get_query_param('days', 3))
+
+            success, message, data = self.misc_service.get_hot_topics(days)
+
+            if success:
+                return self.success(data=data)
+            else:
+                return self.error(message, 500)
+
+        except Exception as e:
+            return self.error(str(e), 500)
+
 
 misc_controller = MiscController()

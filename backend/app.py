@@ -319,6 +319,11 @@ def analyze_report():
     """分析研报"""
     return ai_controller.analyze_report()
 
+@app.route('/api/hot-topic/analyze', methods=['POST'])
+def analyze_hot_topic():
+    """分析热门话题"""
+    return ai_controller.analyze_hot_topic()
+
 @app.route('/api/stock/comfort', methods=['POST'])
 def comfort_stock():
     """AI安慰分析持仓股票"""
@@ -367,6 +372,12 @@ def get_auction_premium_trend(continuous_days):
 def get_hot_stocks():
     """获取同花顺热股数据"""
     return misc_controller.get_hot_stocks()
+
+
+@app.route('/api/hot-topics', methods=['GET'])
+def get_hot_topics():
+    """获取热门话题数据"""
+    return misc_controller.get_hot_topics()
 
 
 @app.route('/api/market-alerts/latest', methods=['GET'])

@@ -4,7 +4,6 @@ import os
 from flask_mail import Message
 from app.controllers.base_controller import BaseController
 from app.repositories.user_repository import UserRepository
-from database import mail
 
 
 class AdminController(BaseController):
@@ -68,7 +67,12 @@ class AdminController(BaseController):
             mail_password = os.environ.get('MAIL_PASSWORD')
             if not mail_password:
                 return self.error('邮件服务未配置:缺少 MAIL_PASSWORD 环境变量', 500)
-            
+
+            from database import mail
+
+            if mail is None:
+                return self.error('邮件服务未初始化', 500)
+
             msg = Message(
                 subject=subject,
                 recipients=[target_email],

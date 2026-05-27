@@ -1362,7 +1362,7 @@ const LadderPage = () => {
                           style={{
                             marginLeft: isMobile ? 4 : 8,
                             fontSize: isMobile ? 10 : 12,
-                            color: avgAuctionPremium >= 0 ? '#eb2f96' : '#13c2c2',
+                            color: avgAuctionPremium >= 0 ? '#f5222d' : '#52c41a',
                             cursor: 'pointer',
                             textDecoration: 'underline'
                           }}
