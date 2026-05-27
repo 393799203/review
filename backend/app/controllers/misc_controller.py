@@ -40,6 +40,21 @@ class MiscController(BaseController):
                 
         except Exception as e:
             return self.error(str(e), 500)
+
+    def get_auction_premium_trend(self, continuous_days: int):
+        """获取竞价溢价趋势"""
+        try:
+            date_str = self.get_query_param('date')
+
+            success, message, data = self.misc_service.get_auction_premium_trend(continuous_days, date_str)
+
+            if success:
+                return self.success(data=data)
+            else:
+                return self.error(message, 400 if '格式' in message else 200)
+
+        except Exception as e:
+            return self.error(str(e), 500)
     
     def get_hot_stocks(self):
         """获取同花顺热股数据"""

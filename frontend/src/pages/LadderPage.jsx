@@ -50,6 +50,7 @@ const LadderPage = () => {
   
   const [premiumTrendVisible, setPremiumTrendVisible] = useState(false);
   const [selectedContinuousDays, setSelectedContinuousDays] = useState(null);
+  const [premiumTrendType, setPremiumTrendType] = useState('premium');
 
   useEffect(() => {
     const checkMobile = () => {
@@ -1367,6 +1368,7 @@ const LadderPage = () => {
                           }}
                           onClick={() => {
                             setSelectedContinuousDays(height);
+                            setPremiumTrendType('premium');
                             setPremiumTrendVisible(true);
                           }}
                         >
@@ -1384,6 +1386,7 @@ const LadderPage = () => {
                           }}
                           onClick={() => {
                             setSelectedContinuousDays(height);
+                            setPremiumTrendType('auction');
                             setPremiumTrendVisible(true);
                           }}
                         >
@@ -1625,6 +1628,7 @@ const LadderPage = () => {
         visible={premiumTrendVisible}
         continuousDays={selectedContinuousDays}
         date={comparisonData?.today?.date?.replace(/-/g, '')}
+        type={premiumTrendType}
         onClose={() => {
           setPremiumTrendVisible(false);
           setSelectedContinuousDays(null);
