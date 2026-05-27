@@ -1342,9 +1342,9 @@ const LadderPage = () => {
             return (
               <div key={height} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 24, marginBottom: isMobile ? 12 : 16 }}>
                 <div>
-                  <div style={{ 
+                  <div style={{
                     background: '#e6f7ff',
-                    padding: isMobile ? '5px 10px' : '6px 12px',
+                    padding: isMobile ? '5px 6px' : '6px 12px',
                     borderRadius: 4,
                     marginBottom: 8,
                     fontWeight: 'bold',
@@ -1355,31 +1355,13 @@ const LadderPage = () => {
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}>
-                    <span>
-                      {height}连板 ({yesterdayStocks.length}只)
-                      {avgChangePercent !== null && !isNaN(avgChangePercent) && (
-                        <span 
-                          style={{ 
-                            marginLeft: 8, 
-                            fontSize: isMobile ? 11 : 12,
-                            color: avgChangePercent >= 0 ? '#f5222d' : '#52c41a',
-                            cursor: 'pointer',
-                            textDecoration: 'underline'
-                          }}
-                          onClick={() => {
-                            setSelectedContinuousDays(height);
-                            setPremiumTrendType('premium');
-                            setPremiumTrendVisible(true);
-                          }}
-                        >
-                          溢价{avgChangePercent >= 0 ? '+' : ''}{avgChangePercent.toFixed(2)}%
-                        </span>
-                      )}
+                    <span style={{ whiteSpace: 'nowrap' }}>
+                      {height}板 ({yesterdayStocks.length}只)
                       {avgAuctionPremium !== null && !isNaN(avgAuctionPremium) && (
                         <span
                           style={{
-                            marginLeft: 8,
-                            fontSize: isMobile ? 11 : 12,
+                            marginLeft: isMobile ? 4 : 8,
+                            fontSize: isMobile ? 10 : 12,
                             color: avgAuctionPremium >= 0 ? '#eb2f96' : '#13c2c2',
                             cursor: 'pointer',
                             textDecoration: 'underline'
@@ -1390,11 +1372,31 @@ const LadderPage = () => {
                             setPremiumTrendVisible(true);
                           }}
                         >
-                          竞价{avgAuctionPremium >= 0 ? '+' : ''}{avgAuctionPremium.toFixed(2)}%
+                          竞{avgAuctionPremium >= 0 ? '+' : ''}{avgAuctionPremium.toFixed(2)}%
                         </span>
                       )}
                     </span>
-                    <ArrowRightOutlined style={{ fontSize: isMobile ? 12 : 14, color: '#52c41a' }} />
+                    <span style={{ display: 'flex', alignItems: 'center' }}>
+                      {avgChangePercent !== null && !isNaN(avgChangePercent) && (
+                        <span
+                          style={{
+                            marginRight: isMobile ? 2 : 6,
+                            fontSize: isMobile ? 10 : 12,
+                            color: avgChangePercent >= 0 ? '#f5222d' : '#52c41a',
+                            cursor: 'pointer',
+                            textDecoration: 'underline'
+                          }}
+                          onClick={() => {
+                            setSelectedContinuousDays(height);
+                            setPremiumTrendType('premium');
+                            setPremiumTrendVisible(true);
+                          }}
+                        >
+                          溢{avgChangePercent >= 0 ? '+' : ''}{avgChangePercent.toFixed(2)}%
+                        </span>
+                      )}
+                      <ArrowRightOutlined style={{ fontSize: isMobile ? 12 : 14, color: '#52c41a' }} />
+                    </span>
                   </div>
                   {yesterdayStocks.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
