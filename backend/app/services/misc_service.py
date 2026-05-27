@@ -327,6 +327,71 @@ class MiscService(BaseService):
         except Exception as e:
             return False, str(e), None
     
+    def get_auction_premium_trend(self, continuous_days: int, date_str: str = None) -> Tuple[bool, str, Optional[Dict]]:
+        """
+        获取竞价溢价趋势（不过滤次日是否涨停，所有有数据的都算）
+        
+        Args:
+            continuous_days: 连板数
+            date_str: 日期字符串
+            
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            if date_str:
+                try:
+                    end_date = datetime.strptime(date_str, '%Y%m%d').date()
+                except ValueError:
+                    return False, '日期格式错误,请使用YYYYMMDD格式', None
+            else:
+                end_date = self.misc_repository.get_latest_trade_date()
+                if not end_date:
+                    return False, '没有找到交易日数据', None
+            
+            recent_dates = self.misc_repository.get_recent_trade_dates(end_date, 10)
+            
+            if not recent_dates:
+                return False, '没有找到交易日数据', None
+            
+            trend_data = []
+            
+            for trade_date in reversed(recent_dates):
+                prev_date = self.misc_repository.get_prev_trade_date(trade_date)
+                
+                if prev_date:
+                    stocks = self.misc_repository.get_stocks_by_date_and_continuous(
+                        prev_date, continuous_days
+                    )
+                    
+                    # 竞价溢价：所有有 next_open_change 数据的都算，不排除次日涨停的
+                    valid_stocks = [s for s in stocks if s.next_open_change is not None] if stocks else []
+                    
+                    if valid_stocks:
+                        avg_change = sum(float(s.next_open_change) for s in valid_stocks) / len(valid_stocks)
+                    else:
+                        avg_change = None
+                    
+                    trend_data.append({
+                        'date': trade_date.strftime('%Y-%m-%d'),
+                        'avg_change_percent': round(avg_change, 2) if avg_change is not None else None,
+                        'stock_count': len(valid_stocks)
+                    })
+                else:
+                    trend_data.append({
+                        'date': trade_date.strftime('%Y-%m-%d'),
+                        'avg_change_percent': None,
+                        'stock_count': 0
+                    })
+            
+            return True, '获取成功', {
+                'continuous_days': continuous_days,
+                'trend': trend_data
+            }
+            
+        except Exception as e:
+            return False, str(e), None
+    
     def get_hot_stocks(self, list_type: str = 'normal') -> Tuple[bool, str, Optional[Dict]]:
         """
         获取同花顺热股数据

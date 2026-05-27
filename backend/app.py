@@ -358,6 +358,11 @@ def get_premium_trend(continuous_days):
     """获取溢价率趋势"""
     return misc_controller.get_premium_trend(continuous_days)
 
+@app.route('/api/auction-premium-trend/<int:continuous_days>', methods=['GET'])
+def get_auction_premium_trend(continuous_days):
+    """获取竞价溢价趋势"""
+    return misc_controller.get_auction_premium_trend(continuous_days)
+
 @app.route('/api/hot-stocks', methods=['GET'])
 def get_hot_stocks():
     """获取同花顺热股数据"""

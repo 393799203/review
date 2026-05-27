@@ -3,10 +3,12 @@ import { Modal, Spin, message } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
 
-const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
+const PremiumTrendModal = ({ visible, continuousDays, date, onClose, type = 'premium' }) => {
   const [loading, setLoading] = useState(false);
   const [trendData, setTrendData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+
+  const isAuction = type === 'auction';
 
   useEffect(() => {
     const checkMobile = () => {
@@ -21,21 +23,24 @@ const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
     if (visible && continuousDays) {
       loadTrendData();
     }
-  }, [visible, continuousDays, date]);
+  }, [visible, continuousDays, date, type]);
 
   const loadTrendData = async () => {
     setLoading(true);
     try {
       const params = date ? { date } : {};
-      const response = await api.get(`/premium-trend/${continuousDays}`, { params });
-      
+      const url = isAuction
+        ? `/auction-premium-trend/${continuousDays}`
+        : `/premium-trend/${continuousDays}`;
+      const response = await api.get(url, { params });
+
       if (response.data.success) {
         setTrendData(response.data.data);
       } else {
-        message.error(response.data.error || '获取溢价率趋势失败');
+        message.error(response.data.error || '获取趋势数据失败');
       }
     } catch (error) {
-      message.error('获取溢价率趋势失败：' + (error.response?.data?.error || error.message));
+      message.error('获取趋势数据失败：' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
@@ -62,9 +67,34 @@ const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
     const values = trendData.trend.map(item => item.avg_change_percent);
     const counts = trendData.trend.map(item => item.stock_count);
 
+    const titleText = isAuction
+      ? `${continuousDays}连板竞价溢价趋势`
+      : `${continuousDays}连板溢价率趋势`;
+    const seriesName = isAuction ? '平均竞价溢价' : '平均溢价率';
+    const labelName = isAuction ? '平均竞价溢价' : '平均溢价率';
+    const mainColor = isAuction ? '#eb2f96' : '#1890ff';
+    const areaColorStops = isAuction ? [
+      { offset: 0, color: 'rgba(235, 47, 150, 0.25)' },
+      { offset: 0.5, color: 'rgba(235, 47, 150, 0.1)' },
+      { offset: 1, color: 'rgba(235, 47, 150, 0.02)' }
+    ] : [
+      { offset: 0, color: 'rgba(24, 144, 255, 0.25)' },
+      { offset: 0.5, color: 'rgba(24, 144, 255, 0.1)' },
+      { offset: 1, color: 'rgba(24, 144, 255, 0.02)' }
+    ];
+    const lineColorStops = isAuction ? [
+      { offset: 0, color: '#c41d7e' },
+      { offset: 0.5, color: '#eb2f96' },
+      { offset: 1, color: '#c41d7e' }
+    ] : [
+      { offset: 0, color: '#1890ff' },
+      { offset: 0.5, color: '#40a9ff' },
+      { offset: 1, color: '#1890ff' }
+    ];
+
     return {
       title: {
-        text: `${continuousDays}连板溢价率趋势`,
+        text: titleText,
         left: 'center',
         top: 10,
         textStyle: {
@@ -88,13 +118,13 @@ const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
           const date = dates[dataIndex];
           const value = values[dataIndex];
           const count = counts[dataIndex];
-          
+
           return `
             <div style="padding: 4px 0;">
               <div style="font-weight: 600; margin-bottom: 8px; font-size: ${isMobile ? 13 : 14}px;">${date}</div>
               <div style="margin-bottom: 4px;">
-                <span style="color: #8c8c8c;">平均溢价率：</span>
-                <span style="color: ${value >= 0 ? '#f5222d' : '#52c41a'}; font-weight: 600; font-size: ${isMobile ? 14 : 15}px;">
+                <span style="color: #8c8c8c;">${labelName}：</span>
+                <span style="color: ${value >= 0 ? (isAuction ? '#eb2f96' : '#f5222d') : (isAuction ? '#13c2c2' : '#52c41a')}; font-weight: 600; font-size: ${isMobile ? 14 : 15}px;">
                   ${value !== null ? (value >= 0 ? '+' : '') + value.toFixed(2) + '%' : '无数据'}
                 </span>
               </div>
@@ -172,7 +202,7 @@ const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
       },
       series: [
         {
-          name: '平均溢价率',
+          name: seriesName,
           type: 'line',
           data: values,
           smooth: true,
@@ -193,19 +223,18 @@ const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
               y: 0,
               x2: 1,
               y2: 0,
-              colorStops: [
-                { offset: 0, color: '#1890ff' },
-                { offset: 0.5, color: '#40a9ff' },
-                { offset: 1, color: '#1890ff' }
-              ]
+              colorStops: lineColorStops
             },
-            shadowColor: 'rgba(24, 144, 255, 0.3)',
+            shadowColor: isAuction ? 'rgba(235, 47, 150, 0.3)' : 'rgba(24, 144, 255, 0.3)',
             shadowBlur: 10,
             shadowOffsetY: 5
           },
           itemStyle: {
             color: (params) => {
               const value = params.value;
+              if (isAuction) {
+                return value >= 0 ? '#eb2f96' : '#13c2c2';
+              }
               return value >= 0 ? '#f5222d' : '#52c41a';
             },
             borderWidth: 2,
@@ -220,11 +249,7 @@ const PremiumTrendModal = ({ visible, continuousDays, date, onClose }) => {
               y: 0,
               x2: 0,
               y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(24, 144, 255, 0.25)' },
-                { offset: 0.5, color: 'rgba(24, 144, 255, 0.1)' },
-                { offset: 1, color: 'rgba(24, 144, 255, 0.02)' }
-              ]
+              colorStops: areaColorStops
             }
           },
           markLine: {
