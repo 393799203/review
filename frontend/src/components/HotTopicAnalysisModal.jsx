@@ -128,7 +128,7 @@ const HotTopicAnalysisModal = ({ visible, topicTitle, themes, investmentDirectio
                   <Tag 
                     key={index}
                     color="blue"
-                    style={{ fontSize: isMobile ? 11 : 12, padding: '4px 8px' }}
+                    style={{ fontSize: isMobile ? 11 : 12, padding: '4px 8px', margin: 0 }}
                   >
                     {sector.name}
                     {sector.relevance && ` (${(sector.relevance * 100).toFixed(0)}%)`}
@@ -183,15 +183,14 @@ const HotTopicAnalysisModal = ({ visible, topicTitle, themes, investmentDirectio
               style={{ marginBottom: 12 }}
               styles={{ body: { padding: isMobile ? 8 : 12 } }}
             >
-              <Tag 
-                color={
-                  analysisData.market_impact.includes('利好') ? 'red' :
-                  analysisData.market_impact.includes('利空') ? 'green' : 'default'
-                }
-                style={{ fontSize: isMobile ? 11 : 12 }}
-              >
+              <div style={{ 
+                fontSize: isMobile ? 12 : 13, 
+                lineHeight: 1.6,
+                color: analysisData.market_impact.includes('利好') ? '#cf1322' :
+                       analysisData.market_impact.includes('利空') ? '#3f8600' : '#595959'
+              }}>
                 {analysisData.market_impact}
-              </Tag>
+              </div>
             </Card>
           )}
 

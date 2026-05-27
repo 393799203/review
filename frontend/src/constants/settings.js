@@ -34,4 +34,9 @@ export const DEFAULT_SETTINGS = {
     refreshInterval: 3600, 
     smartMode: false 
   },
+  'hot-stocks': { 
+    autoRefresh: false, 
+    refreshInterval: 300, 
+    smartMode: true 
+  },
 };

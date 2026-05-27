@@ -68,6 +68,7 @@ const MainLayout = ({ children }) => {
       '/statistics': 'statistics',
       '/news': 'news',
       '/reports': 'reports',
+      '/hot-stocks': 'hot-stocks',
     };
 
     const page = pageMap[location.pathname] || 'ladder';
@@ -84,6 +85,8 @@ const MainLayout = ({ children }) => {
       setRefreshCallback(() => () => refreshNewsData(true));
     } else if (location.pathname === '/reports') {
       setRefreshCallback(() => refreshReportsData);
+    } else if (location.pathname === '/hot-stocks') {
+      setRefreshCallback(() => refreshHotStocksData);
     } else if (location.pathname === '/user') {
       setRefreshCallback(() => refreshUserDashboard);
     } else {
@@ -244,7 +247,7 @@ const MainLayout = ({ children }) => {
               onClick={() => handleLadderModeChange({ target: { value: ladderMode === 'ladder' ? 'comparison' : 'ladder' } })}
             />
           )}
-          {(isLadderPage || isHotStocksPage) && (
+          {isLadderPage && (
             <>
               <Button onClick={handlePrevDay} size="small">前</Button>
               <DatePicker
@@ -311,7 +314,7 @@ const MainLayout = ({ children }) => {
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {(isLadderPage || isHotStocksPage) && (
+        {isLadderPage && (
           <>
             <Button onClick={handlePrevDay}>前一天</Button>
             <DatePicker
