@@ -17,7 +17,7 @@ def get_realtime_quotes(stock_codes: List[str], debug: bool = False) -> Dict[str
         debug: 是否打印调试信息
         
     Returns:
-        股票行情字典，格式：{股票代码: {'price': 价格, 'prev_close': 昨收}}
+        股票行情字典，格式：{股票代码: {'price': 价格, 'prev_close': 昨收, 'open': 开盘价}}
     """
     if not stock_codes:
         return {}
@@ -45,6 +45,7 @@ def get_realtime_quotes(stock_codes: List[str], debug: bool = False) -> Dict[str
                     quotes_dict[code] = {
                         'price': float(row.get('price', 0) or 0),
                         'prev_close': float(row.get('last_close', 0) or 0),
+                        'open': float(row.get('open', 0) or 0),
                     }
                 if debug:
                     print(f"成功获取沪市行情: {len([k for k in quotes_dict.keys() if k.startswith('6')])} 只")
@@ -67,6 +68,7 @@ def get_realtime_quotes(stock_codes: List[str], debug: bool = False) -> Dict[str
                     quotes_dict[code] = {
                         'price': float(row.get('price', 0) or 0),
                         'prev_close': float(row.get('last_close', 0) or 0),
+                        'open': float(row.get('open', 0) or 0),
                     }
                 if debug:
                     print(f"成功获取深市行情: {len([k for k in quotes_dict.keys() if k.startswith(('0', '3'))])} 只")
@@ -96,7 +98,7 @@ def calculate_change_percent(current_price: float, prev_close: float) -> Optiona
 
 def update_stocks_next_change(stocks: List, quotes_dict: Dict[str, Dict], debug: bool = False) -> int:
     """
-    批量更新股票的next_change字段
+    批量更新股票的next_change和next_open_change字段
     
     Args:
         stocks: 股票对象列表（LimitUpStock对象）
@@ -111,13 +113,21 @@ def update_stocks_next_change(stocks: List, quotes_dict: Dict[str, Dict], debug:
     for stock in stocks:
         quote = quotes_dict.get(stock.stock_code)
         if quote and quote['prev_close'] > 0:
+            # next_change: 当前价格相对昨收的涨跌幅（收盘后即为收盘涨跌幅）
             change_percent = calculate_change_percent(quote['price'], quote['prev_close'])
             if change_percent is not None:
                 stock.next_change = Decimal(str(round(change_percent, 4)))
-                updated_count += 1
+            
+            # next_open_change: 开盘价相对昨收的涨跌幅（竞价溢价）
+            if quote.get('open', 0) > 0:
+                open_change = calculate_change_percent(quote['open'], quote['prev_close'])
+                if open_change is not None:
+                    stock.next_open_change = Decimal(str(round(open_change, 4)))
+            
+            updated_count += 1
     
     if debug:
-        print(f"✓ 更新了 {updated_count} 只股票的次日涨跌幅")
+        print(f"✓ 更新了 {updated_count} 只股票的次日涨跌幅和竞价溢价")
     
     return updated_count
 

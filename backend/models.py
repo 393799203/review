@@ -79,6 +79,7 @@ class LimitUpStock(Base):
     amount = Column(Numeric(20, 2))
     is_high_stock = Column(Integer, default=0)
     next_change = Column(Numeric(10, 4))
+    next_open_change = Column(Numeric(10, 4))
     current_status = Column(String(20), default='close')
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
