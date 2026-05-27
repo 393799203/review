@@ -338,6 +338,50 @@ class AIService(BaseService):
 
 要求:最多3个板块,5只个股,直接返回JSON。"""
     
+    def analyze_hot_topic(self, topic_title: str, themes: list, 
+                         investment_direction: str = '',
+                         force: bool = False) -> Tuple[bool, str, Optional[Dict]]:
+        """
+        分析热门话题
+        
+        Args:
+            topic_title: 话题标题
+            themes: 相关主题列表
+            investment_direction: 投资方向
+            force: 是否强制重新分析
+            
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            if not topic_title:
+                return False, '缺少话题标题', None
+            
+            if not force:
+                cached_result = self.ai_repository.get_hot_topic_analysis_cache(topic_title)
+                if cached_result:
+                    try:
+                        analysis_data = json.loads(cached_result.analysis_result)
+                        return True, '获取成功', {'data': analysis_data, 'cached': True}
+                    except:
+                        pass
+            
+            themes_str = '、'.join(themes) if themes else ''
+            full_text = f"话题：{topic_title}"
+            if themes_str:
+                full_text += f"\n相关主题：{themes_str}"
+            if investment_direction:
+                full_text += f"\n投资方向：{investment_direction}"
+            
+            analysis_result = self.analyzer.analyze_news_impact(full_text)
+            
+            self.ai_repository.save_hot_topic_analysis(topic_title, analysis_result)
+            
+            return True, '分析成功', {'data': analysis_result, 'cached': False}
+            
+        except Exception as e:
+            return False, str(e), None
+    
     def comfort_stock(self, stock_code: str, stock_name: str, buy_price: float,
                      current_price: float, position_profit: float,
                      position_profit_ratio: float) -> Tuple[bool, str, Optional[Dict]]:

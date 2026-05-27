@@ -115,7 +115,31 @@ class AIController(BaseController):
                 
         except Exception as e:
             return self.error(str(e), 500)
-    
+
+    def analyze_hot_topic(self):
+        """分析热门话题"""
+        try:
+            data = self.get_json_data()
+            topic_title = data.get('topic_title', '')
+            themes = data.get('themes', [])
+            investment_direction = data.get('investment_direction', '')
+            force = data.get('force', False)
+            
+            if not topic_title:
+                return self.error('缺少话题标题', 400)
+            
+            success, message, data = self.ai_service.analyze_hot_topic(
+                topic_title, themes, investment_direction, force
+            )
+            
+            if success:
+                return self.success(**data)
+            else:
+                return self.error(message, 500)
+                
+        except Exception as e:
+            return self.error(str(e), 500)
+
     def comfort_stock(self):
         """AI安慰分析持仓股票"""
         try:

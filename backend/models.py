@@ -235,6 +235,21 @@ class ResearchReportAnalysisResult(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class HotTopicAnalysisResult(Base):
+    """热门话题AI分析结果缓存表"""
+    __tablename__ = 'hot_topic_analysis_results'
+    __table_args__ = (
+        UniqueConstraint('topic_title', name='uq_hot_topic_title'),
+        Index('idx_hot_topic_title', 'topic_title'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    topic_title = Column(String(500), nullable=False, unique=True)
+    analysis_result = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class User(Base):
     """用户表"""
     __tablename__ = 'users'

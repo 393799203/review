@@ -74,6 +74,47 @@ class AIRepository(BaseRepository):
         finally:
             session.close()
     
+    def get_hot_topic_analysis_cache(self, topic_title: str):
+        """获取热门话题分析缓存"""
+        from models import HotTopicAnalysisResult
+        from database import get_db_session
+        session = get_db_session()
+        try:
+            return session.query(HotTopicAnalysisResult).filter(
+                HotTopicAnalysisResult.topic_title == topic_title
+            ).first()
+        finally:
+            session.close()
+    
+    def save_hot_topic_analysis(self, topic_title: str, analysis_result: dict) -> bool:
+        """保存热门话题分析结果"""
+        import json
+        from models import HotTopicAnalysisResult
+        from database import get_db_session
+        session = get_db_session()
+        try:
+            existing_result = session.query(HotTopicAnalysisResult).filter(
+                HotTopicAnalysisResult.topic_title == topic_title
+            ).first()
+            
+            if existing_result:
+                existing_result.analysis_result = json.dumps(analysis_result, ensure_ascii=False)
+                existing_result.updated_at = datetime.now()
+            else:
+                new_result = HotTopicAnalysisResult(
+                    topic_title=topic_title,
+                    analysis_result=json.dumps(analysis_result, ensure_ascii=False)
+                )
+                session.add(new_result)
+            
+            session.commit()
+            return True
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
     def get_news_by_id(self, news_id: str) -> Optional[ClsNews]:
         """根据ID获取新闻"""
         from database import get_db_session
