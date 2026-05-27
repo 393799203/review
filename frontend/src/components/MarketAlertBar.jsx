@@ -19,6 +19,7 @@ const MarketAlertBar = () => {
   const fadeTimerRef = useRef(null);
   const prevAlertsRef = useRef([]);
   const isFirstLoadRef = useRef(true);
+  const isDateJustChangedRef = useRef(false);
   const prevDateRef = useRef('');
 
   useEffect(() => {
@@ -64,8 +65,9 @@ const MarketAlertBar = () => {
         }));
 
       if (alertsToSave.length > 0) {
-        const today = new Date().toISOString().split('T')[0];
-        stockApi.saveMarketAlerts(alertsToSave, today).catch(err => {
+        // 使用页面导航选中的日期，而非当天日期
+        const tradeDate = currentDate ? currentDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : null;
+        stockApi.saveMarketAlerts(alertsToSave, tradeDate).catch(err => {
           console.error('保存市场动态失败:', err);
         });
       }
@@ -74,7 +76,7 @@ const MarketAlertBar = () => {
     autoHideTimerRef.current = setTimeout(() => {
       hideAlertBar();
     }, DISPLAY_DURATION);
-  }, [hideAlertBar]);
+  }, [hideAlertBar, currentDate]);
 
   useEffect(() => {
     if (!marketAlerts || marketAlerts.length === 0) return;
@@ -91,6 +93,16 @@ const MarketAlertBar = () => {
     if (currentDate && prevDateRef.current !== currentDate) {
       prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
       prevDateRef.current = currentDate;
+      isDateJustChangedRef.current = true;
+      // 切换日期时清空旧日期的告警
+      setAlerts([]);
+      return;
+    }
+
+    // 切换日期后的第一次更新，只同步基准线，不触发提示
+    if (isDateJustChangedRef.current) {
+      prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
+      isDateJustChangedRef.current = false;
       return;
     }
 
@@ -122,6 +134,10 @@ const MarketAlertBar = () => {
           status = 'new';
           changed = true;
           alertType = 'limit_up';
+        } else if (alert.status === 'open') {
+          status = 'opened';
+          changed = true;
+          alertType = '开板';
         }
       }
 
@@ -163,7 +179,9 @@ const MarketAlertBar = () => {
 
   useEffect(() => {
     if (modalVisible) {
-      stockApi.getMarketAlertsHistory({ limit: 100 }).then(response => {
+      // 使用页面导航选中的日期查询历史记录
+      const tradeDate = currentDate ? currentDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : undefined;
+      stockApi.getMarketAlertsHistory({ limit: 100, trade_date: tradeDate }).then(response => {
         if (response.data.success && response.data.data) {
           const historyData = response.data.data.map(item => ({
             code: item.stock_code,
@@ -180,7 +198,7 @@ const MarketAlertBar = () => {
         }
       }).catch(err => console.error('加载历史市场动态失败:', err));
     }
-  }, [modalVisible]);
+  }, [modalVisible, currentDate]);
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -192,6 +210,7 @@ const MarketAlertBar = () => {
   const getStatusTag = (status) => {
     switch (status) {
       case 'open':
+      case 'opened':
         return <Tag color="orange">开板</Tag>;
       case 'reclose':
         return <Tag color="green">回封</Tag>;
@@ -210,7 +229,7 @@ const MarketAlertBar = () => {
   const getAlertTypeIcon = (alertType) => {
     if (alertType === 'limit_up') {
       return <FireOutlined style={{ color: '#ff4d4f' }} />;
-    } else if (alertType === 'break板') {
+    } else if (alertType === 'break板' || alertType === '开板') {
       return <ThunderboltOutlined style={{ color: '#fa8c16' }} />;
     }
     return <BellOutlined style={{ color: '#fff' }} />;

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from core.fetch_data import LimitUpFetcher
 from datetime import datetime, date
 from flask import request
 from app.controllers.base_controller import BaseController
@@ -267,10 +268,8 @@ class LadderController(BaseController):
             
             if not self.data_fetcher:
                 return self.error('数据抓取器未初始化', 500)
-            
-            from fetch_data import LimitUpFetcher
-            
-            fetcher = LimitUpFetcher(data_fetcher=self.data_fetcher)
+
+            fetcher: LimitUpFetcher = LimitUpFetcher(data_fetcher=self.data_fetcher)
             success = fetcher.fetch_and_save(date_str)
             
             if success:
