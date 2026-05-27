@@ -2,20 +2,22 @@ import { useState, useEffect } from 'react';
 import { Card, Tag, Spin, message, Row, Col, Tooltip, Button } from 'antd';
 import { RiseOutlined, FallOutlined, FireOutlined, DollarOutlined, LineChartOutlined, BulbOutlined, RobotOutlined } from '@ant-design/icons';
 import api from '../services/api';
-import { useGlobal } from '../contexts/GlobalContext';
 import StockKlineModal from '../components/StockKlineModal';
 import HotTopicAnalysisModal from '../components/HotTopicAnalysisModal';
 
 let loadAllDataRef = null;
+let loadHotTopicsRef = null;
 
 export const refreshHotStocksData = (force = true) => {
   if (loadAllDataRef) {
     loadAllDataRef(force);
   }
+  if (loadHotTopicsRef) {
+    loadHotTopicsRef();
+  }
 };
 
 const HotStocksPage = () => {
-  const { currentDate } = useGlobal();
   const [stocksData, setStocksData] = useState({
     normal: [],
     value: [],
@@ -84,10 +86,7 @@ const HotStocksPage = () => {
   const handleTopicAnalysisClick = async (topic) => {
     const topicKey = topic.event_id || topic.title;
     
-    console.log('点击话题分析:', topic.title, 'key:', topicKey);
-    
     if (completedTopicAnalysis.has(topicKey)) {
-      console.log('已有分析结果，直接打开');
       setSelectedTopic({
         title: topic.title,
         themes: topic.themes,
@@ -112,7 +111,6 @@ const HotStocksPage = () => {
       });
       
       if (checkResponse.data.success && checkResponse.data.cached) {
-        console.log('找到缓存，直接显示');
         setCompletedTopicAnalysis(prev => new Map(prev).set(topicKey, checkResponse.data.data));
         setSelectedTopic({
           title: topic.title,
@@ -127,8 +125,8 @@ const HotStocksPage = () => {
       console.error('检查缓存失败:', error);
     }
     
-    console.log('开始分析');
     setAnalyzingTopics(prev => new Set(prev).add(topicKey));
+    message.info(`开始分析"${topic.title}"，分析时间可能较长，请稍后...`);
     
     try {
       const response = await api.post('/hot-topic/analyze', {
@@ -139,7 +137,6 @@ const HotStocksPage = () => {
       });
       
       if (response.data.success) {
-        console.log('分析完成');
         setCompletedTopicAnalysis(prev => new Map(prev).set(topicKey, response.data.data));
         message.success(`"${topic.title}"分析完成，点击图标查看结果`);
       }
@@ -157,15 +154,17 @@ const HotStocksPage = () => {
 
   useEffect(() => {
     loadAllDataRef = loadAllData;
+    loadHotTopicsRef = loadHotTopics;
     return () => {
       loadAllDataRef = null;
+      loadHotTopicsRef = null;
     };
   }, []);
 
   useEffect(() => {
     loadAllData();
     loadHotTopics();
-  }, [currentDate]);
+  }, []);
 
   const renderStockCard = (stock, index) => {
     const changeColor = stock.change_percent > 0 ? '#cf1322' : stock.change_percent < 0 ? '#3f8600' : '#666';
@@ -406,19 +405,11 @@ const HotStocksPage = () => {
   };
 
   const renderHotTopics = () => {
-    if (topicsLoading) {
-      return (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Spin />
-        </div>
-      );
-    }
-
-    if (hotTopics.length === 0) {
+    if (hotTopics.length === 0 && !topicsLoading) {
       return null;
     }
 
-    const displayTopics = isMobile ? hotTopics.slice(0, 5) : hotTopics.slice(0, 10);
+    const displayTopics = hotTopics.slice(0, 10);
 
     return (
       <div style={{ 
@@ -441,12 +432,17 @@ const HotStocksPage = () => {
             {hotTopics.length}条
           </Tag>
         </div>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
-          gap: isMobile ? 6 : 12 
-        }}>
-          {displayTopics.map((topic, index) => (
+        {topicsLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin />
+          </div>
+        ) : (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
+            gap: isMobile ? 6 : 12 
+          }}>
+            {displayTopics.map((topic, index) => (
             <div
               key={topic.event_id}
               style={{
@@ -583,6 +579,7 @@ const HotStocksPage = () => {
             </div>
           ))}
         </div>
+        )}
       </div>
     );
   };

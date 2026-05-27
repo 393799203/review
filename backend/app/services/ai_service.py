@@ -357,14 +357,16 @@ class AIService(BaseService):
             if not topic_title:
                 return False, '缺少话题标题', None
             
+            cached_result = self.ai_repository.get_hot_topic_analysis_cache(topic_title)
+            if cached_result:
+                try:
+                    analysis_data = json.loads(cached_result.analysis_result)
+                    return True, '获取成功', {'data': analysis_data, 'cached': True}
+                except:
+                    pass
+            
             if not force:
-                cached_result = self.ai_repository.get_hot_topic_analysis_cache(topic_title)
-                if cached_result:
-                    try:
-                        analysis_data = json.loads(cached_result.analysis_result)
-                        return True, '获取成功', {'data': analysis_data, 'cached': True}
-                    except:
-                        pass
+                return True, '无缓存', {'data': None, 'cached': False}
             
             themes_str = '、'.join(themes) if themes else ''
             full_text = f"话题：{topic_title}"
