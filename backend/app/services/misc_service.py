@@ -7,6 +7,20 @@ from app.services.base_service import BaseService
 from app.repositories.misc_repository import MiscRepository
 
 
+def get_limit_up_threshold(stock_code: str) -> float:
+    """
+    根据股票代码判断涨停阈值
+
+    - 688开头：科创板 → 20%
+    - 30开头：创业板 → 20%
+    - 其他（00/60等）：沪深主板 → 10%
+    """
+    code = str(stock_code)
+    if code.startswith('688') or code.startswith('30'):
+        return 19.9
+    return 9.9
+
+
 class MiscService(BaseService):
     """辅助接口服务类"""
     
@@ -59,7 +73,8 @@ class MiscService(BaseService):
                 if height not in yesterday_premium:
                     yesterday_premium[height] = []
                 change_percent = stock.get('change_percent')
-                if change_percent is not None and change_percent < 10:
+                threshold = get_limit_up_threshold(stock.get('code', ''))
+                if change_percent is not None and change_percent < threshold:
                     yesterday_premium[height].append(change_percent)
             
             yesterday_avg_premium = {}
@@ -154,7 +169,7 @@ class MiscService(BaseService):
 
         Args:
             alerts_data: 告警数据列表
-            trade_date_str: 交易日期字符串
+            trade_date_str: 交易日期字符串（格式：YYYY-MM-DD），不传则默认使用当天
 
         Returns:
             tuple: (success, message, data)
@@ -163,14 +178,10 @@ class MiscService(BaseService):
             if not alerts_data:
                 return True, '没有数据需要保存', []
 
-            today = datetime.now().date()
-
             if trade_date_str:
                 trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d').date()
-                if trade_date != today:
-                    return False, f'只能保存当天的数据，当前日期：{today}，传入日期：{trade_date}', None
             else:
-                trade_date = today
+                trade_date = datetime.now().date()
 
             alerts_with_date = [{**alert, 'trade_date': trade_date} for alert in alerts_data]
             saved_alerts = self.misc_repository.save_market_alerts_batch(alerts_with_date)
@@ -266,10 +277,11 @@ class MiscService(BaseService):
                         prev_date, continuous_days
                     )
                     
+                    filtered_stocks = []
                     if stocks:
                         valid_stocks = [s for s in stocks if s.next_change is not None]
                         if valid_stocks:
-                            filtered_stocks = [s for s in valid_stocks if float(s.next_change) < 10]
+                            filtered_stocks = [s for s in valid_stocks if float(s.next_change) < get_limit_up_threshold(s.stock_code)]
                             if filtered_stocks:
                                 avg_change = sum(float(s.next_change) for s in filtered_stocks) / len(filtered_stocks)
                             else:
@@ -282,7 +294,7 @@ class MiscService(BaseService):
                     trend_data.append({
                         'date': trade_date.strftime('%Y-%m-%d'),
                         'avg_change_percent': round(avg_change, 2) if avg_change is not None else None,
-                        'stock_count': len(stocks) if stocks else 0
+                        'stock_count': len(filtered_stocks) if filtered_stocks else 0
                     })
                 else:
                     trend_data.append({
@@ -371,6 +383,7 @@ class MiscService(BaseService):
                     'code': stock.stock_code,
                     'name': stock.stock_name,
                     'continuous_days': stock.continuous_days,
+                    'sector': stock.sector or '',
                     'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
                     'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
                     'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
@@ -398,6 +411,7 @@ class MiscService(BaseService):
                     'code': stock.stock_code,
                     'name': stock.stock_name,
                     'continuous_days': stock.continuous_days,
+                    'sector': stock.sector or '',
                     'limit_up_time': stock.limit_up_time.strftime('%H:%M:%S') if stock.limit_up_time else '',
                     'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
                     'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
