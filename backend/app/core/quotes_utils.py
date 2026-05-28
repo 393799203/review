@@ -109,6 +109,7 @@ def update_stocks_next_change(stocks: List, quotes_dict: Dict[str, Dict], debug:
         更新的股票数量
     """
     updated_count = 0
+    open_change_count = 0
     
     for stock in stocks:
         quote = quotes_dict.get(stock.stock_code)
@@ -119,15 +120,21 @@ def update_stocks_next_change(stocks: List, quotes_dict: Dict[str, Dict], debug:
                 stock.next_change = Decimal(str(round(change_percent, 4)))
             
             # next_open_change: 开盘价相对昨收的涨跌幅（竞价溢价）
-            if quote.get('open', 0) > 0:
-                open_change = calculate_change_percent(quote['open'], quote['prev_close'])
+            open_price = quote.get('open', 0)
+            if open_price > 0:
+                open_change = calculate_change_percent(open_price, quote['prev_close'])
                 if open_change is not None:
                     stock.next_open_change = Decimal(str(round(open_change, 4)))
+                    open_change_count += 1
+            else:
+                if debug:
+                    print(f"⚠ {stock.stock_name}({stock.stock_code}) 开盘价为0或None，无法计算竞价溢价")
             
             updated_count += 1
     
     if debug:
-        print(f"✓ 更新了 {updated_count} 只股票的次日涨跌幅和竞价溢价")
+        print(f"✓ 更新了 {updated_count} 只股票的次日涨跌幅")
+        print(f"✓ 更新了 {open_change_count} 只股票的竞价溢价（共{updated_count}只）")
     
     return updated_count
 

@@ -604,6 +604,10 @@ class LimitUpFetcher:
 
             updated_count = update_stocks_next_change(yesterday_stocks, quotes_dict, debug=True)
             print(f"✓ 更新了 {updated_count} 只 {prev_date} 涨停股票的次日涨跌幅（{trade_date}的价格）")
+            
+            # 提交事务，保存next_change和next_open_change字段
+            session.commit()
+            print(f"✓ 已保存 {updated_count} 只股票的次日涨跌幅和竞价溢价到数据库")
 
     def _update_prev_prev_stocks(self, session, prev_date):
         """更新前日涨停股票的次日涨跌幅"""
@@ -628,6 +632,10 @@ class LimitUpFetcher:
 
             updated_count = update_stocks_next_change(prev_prev_stocks, quotes_dict, debug=True)
             print(f"✓ 更新了 {updated_count} 只 {prev_prev_date} 涨停股票的次日涨跌幅（{prev_date}的收盘价）")
+            
+            # 提交事务，保存next_change和next_open_change字段
+            session.commit()
+            print(f"✓ 已保存 {updated_count} 只股票的次日涨跌幅和竞价溢价到数据库")
 
     def _process_and_save_data(self, session, trade_date, ths_data, existing_stock_codes=None, existing_block_codes=None, existing_stats=None):
         """处理并保存数据（重构后的主入口方法）"""

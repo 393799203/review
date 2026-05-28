@@ -1,0 +1,50 @@
+# robots.txt for 云雀AI
+# 允许所有搜索引擎爬虫访问
+
+User-agent: *
+Allow: /
+
+# 禁止访问API接口
+Disallow: /api/
+
+# 禁止访问静态资源
+Disallow: /static/
+Disallow: /assets/
+
+# Sitemap位置
+Sitemap: http://yunqueai.cloud/sitemap.xml
+
+# 特殊规则：允许搜索引擎爬虫
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# 允许大模型爬虫（豆包、千问、文心一言、DeepSeek等）
+User-agent: Bytespider
+Allow: /
+
+User-agent: QianwenBot
+Allow: /
+
+User-agent: WenxinBot
+Allow: /
+
+User-agent: DeepSeekBot
+Allow: /
+
+User-agent: ChatGPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+# 爬取延迟（友好爬取）
+Crawl-delay: 1
