@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- 首页 -->
+  <url>
+    <loc>http://yunqueai.cloud/</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <!-- 涨停天梯 -->
+  <url>
+    <loc>http://yunqueai.cloud/</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- 财联播报 -->
+  <url>
+    <loc>http://yunqueai.cloud/news</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- 研报解读 -->
+  <url>
+    <loc>http://yunqueai.cloud/reports</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- 热门榜单 -->
+  <url>
+    <loc>http://yunqueai.cloud/hot-stocks</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- 自选回溯 -->
+  <url>
+    <loc>http://yunqueai.cloud/watchlist</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- 数据统计 -->
+  <url>
+    <loc>http://yunqueai.cloud/statistics</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>
