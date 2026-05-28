@@ -11,6 +11,8 @@ import ReportPage from '../pages/ReportPage';
 import UserDashboardPage from '../pages/UserDashboardPage';
 import HotStocksPage from '../pages/HotStocksPage';
 import AuthPage from '../pages/AuthPage';
+import FAQPage from '../pages/FAQPage';
+import FeaturesPage from '../pages/FeaturesPage';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -69,6 +71,22 @@ const AppRouter = () => {
               <PublicRoute>
                 <AuthPage />
               </PublicRoute>
+            }
+          />
+          <Route
+            path="/faq"
+            element={
+              <MainLayout>
+                <FAQPage />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/features"
+            element={
+              <MainLayout>
+                <FeaturesPage />
+              </MainLayout>
             }
           />
           <Route

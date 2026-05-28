@@ -55,4 +55,20 @@
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
+  
+  <!-- 常见问题 -->
+  <url>
+    <loc>http://yunqueai.cloud/faq</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- 功能说明 -->
+  <url>
+    <loc>http://yunqueai.cloud/features</loc>
+    <lastmod>2025-05-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>
