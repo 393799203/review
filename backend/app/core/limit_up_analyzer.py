@@ -83,9 +83,11 @@ class LimitUpReasonAnalyzer:
             
             if is_watchlist_analysis:
                 # 自选股分析提示词
+                stock_status = limit_up_reason.replace('自选股投资分析：', '').replace(stock_name, '').strip()
                 prompt = f"""分析股票并给出交易建议。
 
-股票: {stock_name}({stock_code}) {limit_up_reason.replace('自选股投资分析：', '')}
+股票: {stock_name}({stock_code})
+{stock_status}
 
 返回JSON:
 {{
