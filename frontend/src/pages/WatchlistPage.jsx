@@ -796,7 +796,7 @@ const WatchlistPage = () => {
             </div>
             
             <AutoComplete
-              style={{ width: isMobile ? 180 : 250, height: 24 }}
+              style={{ width: isMobile ? 180 : 250 }}
               value={searchKeyword}
               options={searchResults.map(stock => ({
                 value: stock.code,
