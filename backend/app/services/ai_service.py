@@ -181,17 +181,21 @@ class AIService(BaseService):
             
             quote_data = self.data_fetcher.get_realtime_quote(stock_code)
             
+            print(f"获取到的行情数据: {quote_data}")
+            
             stock_status = self._build_stock_status(quote_data)
             
+            print(f"构建的股票状态: {stock_status}")
+            
             analysis_result = self.analyzer.analyze_with_llm(
-                limit_up_reason=f"自选股投资分析:{stock_name}{stock_status}",
+                limit_up_reason=f"自选股投资分析：{stock_name}{stock_status}",
                 stock_code=stock_code,
                 stock_name=stock_name,
                 limit_up_price=quote_data.get('price') if quote_data else None,
                 continuous_days=None,
                 limit_up_time=None,
                 seal_amount=None,
-                turnover_rate=None
+                turnover_rate=quote_data.get('turnover') if quote_data else None
             )
             
             self.ai_repository.save_watchlist_analysis(
@@ -281,7 +285,7 @@ class AIService(BaseService):
     def _build_stock_status(self, quote_data: dict) -> str:
         """构建股票状态信息"""
         if not quote_data:
-            return ""
+            return "无行情数据"
         
         price = quote_data.get('price', 0)
         open_price = quote_data.get('open', 0)
@@ -290,8 +294,13 @@ class AIService(BaseService):
         change_percent = quote_data.get('change_percent', 0)
         volume = quote_data.get('volume', 0)
         amount = quote_data.get('amount', 0)
+        turnover = quote_data.get('turnover')
+        prev_close = quote_data.get('prev_close', 0)
         
         status_parts = []
+        
+        status_parts.append(f"现价{price:.2f}元")
+        
         if change_percent > 0:
             status_parts.append(f"涨幅{change_percent:.2f}%")
         elif change_percent < 0:
@@ -299,7 +308,9 @@ class AIService(BaseService):
         else:
             status_parts.append("平盘")
         
-        if price and open_price:
+        if prev_close:
+            status_parts.append(f"昨收{prev_close:.2f}元")
+        if open_price:
             status_parts.append(f"今开{open_price:.2f}元")
         if high and low:
             status_parts.append(f"最高{high:.2f}元")
@@ -308,8 +319,10 @@ class AIService(BaseService):
             status_parts.append(f"成交量{(volume/10000):.0f}万手")
         if amount:
             status_parts.append(f"成交额{(amount/100000000):.2f}亿")
+        if turnover:
+            status_parts.append(f"换手率{turnover:.2f}%")
         
-        return f" 现价{price:.2f}元 {', '.join(status_parts)}"
+        return ', '.join(status_parts)
     
     def _build_report_prompt(self, title: str, stock_name: str, stock_code: str,
                             rating: str, rating_change: str,
