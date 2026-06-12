@@ -49,8 +49,9 @@ class MiscService(BaseService):
             if not prev_date:
                 return False, '没有找到上一个交易日的数据', None
             
-            today_stocks = self.misc_repository.get_stocks_by_date(trade_date)
-            yesterday_stocks = self.misc_repository.get_stocks_by_date(prev_date)
+            # ★ 只获取真正涨停的股票（current_status='close') ★
+            today_stocks = self.misc_repository.get_stocks_by_date(trade_date, only_close=True)
+            yesterday_stocks = self.misc_repository.get_stocks_by_date(prev_date, only_close=True)
             
             now = datetime.now()
             is_today = trade_date == now.date()

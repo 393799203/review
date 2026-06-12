@@ -44,7 +44,8 @@ class LadderService(BaseService):
             now = datetime.now()
             is_today = trade_date == now.date()
             
-            stocks = self.stock_repository.get_stocks_by_date(trade_date)
+            # ★ 只获取真正涨停的股票（current_status='close') ★
+            stocks = self.stock_repository.get_stocks_by_date(trade_date, only_close=True)
             stats = self.stock_repository.get_stats_by_date(trade_date)
             
             trading_start_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
@@ -61,7 +62,8 @@ class LadderService(BaseService):
                     if data_fetcher:
                         success = self._fetch_and_save_data(date_str, data_fetcher)
                         if success:
-                            stocks = self.stock_repository.get_stocks_by_date(trade_date)
+                            # ★ 只获取真正涨停的股票（current_status='close') ★
+                            stocks = self.stock_repository.get_stocks_by_date(trade_date, only_close=True)
                             stats = self.stock_repository.get_stats_by_date(trade_date)
                         else:
                             return False, '该日期暂无涨停股票数据', None

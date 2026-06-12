@@ -5,10 +5,12 @@ import ReactECharts from 'echarts-for-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const StatisticsPage = () => {
   const navigate = useNavigate();
   const { refreshKey } = useGlobal();
+  const { isAdmin } = useAuth();
   const [period, setPeriod] = useState('day');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -585,28 +587,30 @@ const StatisticsPage = () => {
         </Row>
       )}
       
-      <div
-        style={{
-          position: 'fixed',
-          right: 16,
-          bottom: 56,
-          zIndex: 1000,
-        }}
-      >
-        <Button
-          type="primary"
-          shape="circle"
-          size="large"
-          icon={<TeamOutlined style={{ fontSize: 20 }} />}
-          onClick={() => navigate('/user')}
-          style={{ 
-            width: 56, 
-            height: 56,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+      {isAdmin && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 56,
+            zIndex: 1000,
           }}
-          title="用户看板"
-        />
-      </div>
+        >
+          <Button
+            type="primary"
+            shape="circle"
+            size="large"
+            icon={<TeamOutlined style={{ fontSize: 20 }} />}
+            onClick={() => navigate('/user')}
+            style={{ 
+              width: 56, 
+              height: 56,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+            }}
+            title="用户看板"
+          />
+        </div>
+      )}
     </div>
   );
 };

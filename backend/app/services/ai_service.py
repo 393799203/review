@@ -162,7 +162,8 @@ class AIService(BaseService):
                         return True, '有缓存', {
                             'has_cache': True,
                             'data': analysis_data,
-                            'cached': True
+                            'cached': True,
+                            'stock_name': stock_name or existing.stock_name or ''
                         }
                     except:
                         pass
@@ -174,7 +175,8 @@ class AIService(BaseService):
                     return True, '获取成功', {
                         'has_cache': True,
                         'data': analysis_data,
-                        'cached': True
+                        'cached': True,
+                        'stock_name': stock_name or existing.stock_name or ''
                     }
                 except:
                     pass
@@ -182,6 +184,11 @@ class AIService(BaseService):
             quote_data = self.data_fetcher.get_realtime_quote(stock_code)
             
             print(f"获取到的行情数据: {quote_data}")
+            
+            # 如果没有传入stock_name，尝试从行情数据中获取
+            if not stock_name and quote_data and quote_data.get('name'):
+                stock_name = quote_data.get('name')
+                print(f"从行情数据获取到名称: {stock_name}")
             
             stock_status = self._build_stock_status(quote_data)
             
@@ -202,7 +209,11 @@ class AIService(BaseService):
                 stock_code, stock_name, today, analysis_result
             )
             
-            return True, '分析成功', {'data': analysis_result, 'cached': False}
+            return True, '分析成功', {
+                'data': analysis_result,
+                'cached': False,
+                'stock_name': stock_name or ''
+            }
             
         except Exception as e:
             return False, str(e), None

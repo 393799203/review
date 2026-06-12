@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -51,6 +51,10 @@ const LadderPage = () => {
   const [premiumTrendVisible, setPremiumTrendVisible] = useState(false);
   const [selectedContinuousDays, setSelectedContinuousDays] = useState(null);
   const [premiumTrendType, setPremiumTrendType] = useState('premium');
+  const [showAnnouncement, setShowAnnouncement] = useState(() => {
+    // 检查本地存储，如果用户之前点过"知道了"就不再显示
+    return !localStorage.getItem('announcement_dismissed');
+  });
 
   useEffect(() => {
     const checkMobile = () => {
@@ -580,6 +584,7 @@ const LadderPage = () => {
                     <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px', flexShrink: 0 }}>{stock.high_days}</Tag>
                   )}
                   <div 
+                    id={`ai-analysis-btn-${stock.code}`}
                     style={{ 
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -757,6 +762,7 @@ const LadderPage = () => {
                   {stock.name}
                 </span>
                 <div 
+                  id={`ai-analysis-btn-${stock.code}`}
                   style={{ 
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1171,15 +1177,16 @@ const LadderPage = () => {
                   {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent.toFixed(2)}%
                 </div>
               )}
-              <div 
-                style={{ 
+              <div
+                {...(isRightColumn ? { id: `ai-analysis-btn-${stock.code}` } : {})}
+                style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   width: isMobile ? 16 : 20,
                   height: isMobile ? 16 : 20,
                   borderRadius: 3,
-                  background: completedAnalysis.has(`${stock.code}_${tradeDate}`) ? '#52c41a' : 
+                  background: completedAnalysis.has(`${stock.code}_${tradeDate}`) ? '#52c41a' :
                               analyzingStocks.has(`${stock.code}_${tradeDate}`) ? '#fa8c16' : '#722ed1',
                   cursor: 'pointer'
                 }}
@@ -1509,6 +1516,7 @@ const LadderPage = () => {
                           </div>
                         )}
                         <div 
+                          id={`ai-analysis-btn-${stock.code}`}
                           style={{ 
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -1542,6 +1550,50 @@ const LadderPage = () => {
   return (
     <>
       <MarketAlertBar />
+      {showAnnouncement && (
+        <div
+          style={{
+            position: 'fixed',
+            top: isMobile ? 46 : 64,
+            left: isMobile ? 0 : 200,
+            right: 0,
+            zIndex: 98,
+            background: 'linear-gradient(90deg, #52c41a 0%, #389e0d 100%)',
+            color: '#fff',
+            cursor: 'pointer',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 16px',
+            fontSize: isMobile ? 12 : 14,
+          }}
+          onClick={() => { localStorage.setItem('announcement_dismissed', '1'); setShowAnnouncement(false); }}
+        >
+          <MailOutlined style={{ marginRight: 8, fontSize: isMobile ? 14 : 16 }} />
+          <span>涨停梯队AI分析支持一键发送报告到邮箱啦！</span>
+          <button
+            style={{
+              position: 'absolute',
+              right: 16,
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '2px 8px',
+              borderRadius: 4,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              localStorage.setItem('announcement_dismissed', '1');
+              setShowAnnouncement(false);
+            }}
+          >
+            知道了
+          </button>
+        </div>
+      )}
       {mode === 'comparison' ? (
         renderComparisonContent()
       ) : (

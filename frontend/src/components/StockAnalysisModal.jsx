@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Modal, Card, Tag, Spin, Rate, Progress, Divider, Empty, Alert, Button } from 'antd';
-import { StockOutlined, FireOutlined, RobotOutlined, TrophyOutlined, DollarOutlined, WarningOutlined, TagsOutlined, ReloadOutlined } from '@ant-design/icons';
+import { StockOutlined, FireOutlined, RobotOutlined, TrophyOutlined, DollarOutlined, WarningOutlined, TagsOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 
 const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, analysisData: propAnalysisData, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [analysisData, setAnalysisData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -47,6 +48,32 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, analysis
     loadAnalysisData(true);
   };
 
+  const handleSendReport = async () => {
+    try {
+      setSendingReport(true);
+      const response = await stockApi.sendStockReport(stockCode, tradeDate);
+      if (response.data.success) {
+        Modal.success({
+          title: '报告发送成功',
+          content: response.data.message || '个股分析报告已发送到您的注册邮箱，请注意查收',
+        });
+      } else {
+        Modal.error({
+          title: '发送失败',
+          content: response.data.error || '报告发送失败，请稍后重试',
+        });
+      }
+    } catch (error) {
+      console.error('发送报告失败:', error);
+      Modal.error({
+        title: '发送失败',
+        content: error.response?.data?.error || '网络错误，请稍后重试',
+      });
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const getHeatColor = (heat) => {
     if (heat >= 7) return '#f5222d';
     if (heat >= 4) return '#fa8c16';
@@ -68,16 +95,28 @@ const StockAnalysisModal = ({ visible, stockCode, stockName, tradeDate, analysis
               <RobotOutlined style={{ color: '#722ed1' }} />
               <span style={{ fontSize: isMobile ? 14 : 16 }}>涨停原因智能分析</span>
             </div>
-            <Button 
-              type="text" 
-              icon={<ReloadOutlined />} 
-              onClick={handleReanalyze}
-              loading={loading}
-              size="small"
-              style={{ color: '#1890ff' }}
-            >
-              {!isMobile && '重新分析'}
-            </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button 
+                type="text" 
+                icon={<SendOutlined />} 
+                onClick={handleSendReport}
+                loading={sendingReport}
+                size="small"
+                style={{ color: '#52c41a' }}
+              >
+                {!isMobile && '发送报告'}
+              </Button>
+              <Button 
+                type="text" 
+                icon={<ReloadOutlined />} 
+                onClick={handleReanalyze}
+                loading={loading}
+                size="small"
+                style={{ color: '#1890ff' }}
+              >
+                {!isMobile && '重新分析'}
+              </Button>
+            </div>
           </div>
         }
         open={visible}

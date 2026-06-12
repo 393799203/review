@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import re
 import time
+import hashlib
 import requests as req_module
 from app.services.base_service import BaseService
 from app.repositories.news_repository import NewsRepository
@@ -112,32 +113,33 @@ class NewsService(BaseService):
                 'total': total_count
             }
     
+    def _make_sign(self, params: Dict) -> str:
+        """生成财联社API签名"""
+        sign_str = "&".join(f"{k}={params[k]}" for k in sorted(params.keys()))
+        sha1_hash = hashlib.sha1(sign_str.encode()).hexdigest()
+        sign = hashlib.md5(sha1_hash.encode()).hexdigest()
+        return sign
+    
     def _fetch_from_api(self, last_ctime: str, limit: int, 
                         load_from_api: bool, total_count: int) -> Tuple[bool, str, Dict]:
-        """从API获取新闻"""
-        url = "https://www.cls.cn/nodeapi/telegraphList"
+        """从API获取新闻 - 使用新版V1接口"""
+        # 使用新的V1接口
+        url = "https://www.cls.cn/v1/roll/get_roll_list"
         params = {
             "app": "CailianpressWeb",
             "os": "web",
+            "sv": "8.4.6",
             "refresh_type": "2" if last_ctime and load_from_api else "1",
-            "order": "1",
-            "rn": "50",
-            "sv": "8.4.6"
+            "rn": str(min(limit, 50))
         }
         
-        if last_ctime and load_from_api:
-            try:
-                last_ctime_dt = datetime.strptime(last_ctime, '%Y-%m-%d %H:%M:%S')
-                last_news = self.news_repository.get_by_ctime(last_ctime_dt)
-                
-                if last_news:
-                    params["last_id"] = last_news.news_id
-            except ValueError:
-                pass
+        # 添加签名
+        params["sign"] = self._make_sign(params)
         
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": "https://www.cls.cn/telegraph"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.cls.cn/telegraph",
+            "Accept": "application/json, text/plain, */*"
         }
         
         response = req_module.get(url, params=params, headers=headers, timeout=10)
@@ -146,6 +148,11 @@ class NewsService(BaseService):
             return False, f'请求失败: {response.status_code}', None
         
         data = response.json()
+        
+        # 检查错误码
+        if data.get('errno') != 0:
+            return False, f'API错误: {data.get("msg", "未知错误")}', None
+        
         roll_data = data.get('data', {}).get('roll_data', [])
         
         saved_count = self.news_repository.bulk_update_or_create(roll_data)
@@ -158,10 +165,28 @@ class NewsService(BaseService):
             if not title and not content:
                 continue
             
-            stock_list = item.get('stock_list', [])
-            has_stocks = len(stock_list) > 0
+            stock_list_raw = item.get('stockList', item.get('stock_list', []))
+            
+            # 处理股票列表格式 (新API返回的可能是字符串)
+            stock_list = []
+            has_stocks = False
+            if isinstance(stock_list_raw, list):
+                stock_list = [{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list_raw]
+                has_stocks = len(stock_list) > 0
+            elif isinstance(stock_list_raw, str) and stock_list_raw:
+                # 新版可能返回 "sh600000@@中国平安##sz000001@@平安银行" 格式
+                try:
+                    stocks = [s.strip() for s in stock_list_raw.split("##")]
+                    for stock in stocks:
+                        if '@@' in stock:
+                            code, name = stock.split('@@')
+                            stock_list.append({'code': code.strip(), 'name': name.strip()})
+                    has_stocks = len(stock_list) > 0
+                except Exception:
+                    pass
+            
             recommend = item.get('recommend', 0)
-            is_important = recommend == 1
+            is_important = recommend == 1 or item.get('level') == 'A'
             confirmed = item.get('confirmed', 0)
             reading_num = item.get('reading_num', 0)
             
@@ -179,7 +204,7 @@ class NewsService(BaseService):
                 'has_stocks': has_stocks,
                 'confirmed': confirmed == 1,
                 'reading_num': reading_num,
-                'stock_list': [{'code': s.get('StockID', ''), 'name': s.get('name', '')} for s in stock_list] if has_stocks else []
+                'stock_list': stock_list
             })
         
         news_list.sort(key=lambda x: x['ctime'], reverse=True)
