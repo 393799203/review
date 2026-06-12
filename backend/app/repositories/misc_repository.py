@@ -27,15 +27,25 @@ class MiscRepository(BaseRepository):
         finally:
             session.close()
     
-    def get_stocks_by_date(self, trade_date: date) -> List[LimitUpStock]:
-        """获取指定日期的涨停股票"""
+    def get_stocks_by_date(self, trade_date: date, only_close: bool = False) -> List[LimitUpStock]:
+        """获取指定日期的涨停股票
+        
+        Args:
+            trade_date: 交易日期
+            only_close: 是否只获取封板的股票（current_status='close'）
+        """
         session = get_db_session()
         try:
-            return session.query(LimitUpStock).options(
+            query = session.query(LimitUpStock).options(
                 joinedload(LimitUpStock.block)
             ).filter(
                 LimitUpStock.trade_date == trade_date
-            ).all()
+            )
+            
+            if only_close:
+                query = query.filter(LimitUpStock.current_status == 'close')
+            
+            return query.all()
         finally:
             session.close()
     

@@ -264,6 +264,8 @@ const MainLayout = ({ children }) => {
           )}
           {isLadderPage && (
             <Switch
+              id="first-board-switch"
+              data-checked={showFirstBoard}
               checked={showFirstBoard}
               onChange={setShowFirstBoard}
               size="small"
@@ -331,7 +333,12 @@ const MainLayout = ({ children }) => {
         {isLadderPage && (
           <>
             <span style={{ marginLeft: 8 }}>显示首板:</span>
-            <Switch checked={showFirstBoard} onChange={setShowFirstBoard} />
+            <Switch 
+              id="first-board-switch"
+              data-checked={showFirstBoard}
+              checked={showFirstBoard} 
+              onChange={setShowFirstBoard} 
+            />
           </>
         )}
 

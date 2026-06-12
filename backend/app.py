@@ -330,6 +330,12 @@ def comfort_stock():
     return ai_controller.comfort_stock()
 
 
+@app.route('/api/stock/report/<stock_code>', methods=['POST'])
+def send_stock_report(stock_code):
+    """生成个股分析报告并发送到用户邮箱"""
+    return ai_controller.send_stock_report(stock_code)
+
+
 # ==================== 研报相关路由 ====================
 
 @app.route('/api/reports', methods=['GET'])

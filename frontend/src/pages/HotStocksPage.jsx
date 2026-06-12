@@ -411,6 +411,34 @@ const HotStocksPage = () => {
 
     const displayTopics = hotTopics.slice(0, 10);
 
+    const getTopicStyle = (index) => {
+      if (index === 0) {
+        return {
+          background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)',
+          border: '1px solid #ffd591',
+          badgeBg: 'linear-gradient(135deg, #faad14 0%, #ffc53d 100%)',
+        };
+      } else if (index === 1) {
+        return {
+          background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)',
+          border: '1px solid #d9d9d9',
+          badgeBg: 'linear-gradient(135deg, #bfbfbf 0%, #d9d9d9 100%)',
+        };
+      } else if (index === 2) {
+        return {
+          background: 'linear-gradient(135deg, #fff1e6 0%, #ffd8bf 100%)',
+          border: '1px solid #ffbb96',
+          badgeBg: 'linear-gradient(135deg, #d48806 0%, #fa8c16 100%)',
+        };
+      } else {
+        return {
+          background: 'linear-gradient(135deg, #ffffff 0%, #fafafa 100%)',
+          border: '1px solid #e8e8e8',
+          badgeBg: '#8c8c8c',
+        };
+      }
+    };
+
     return (
       <div style={{ 
         marginBottom: isMobile ? 12 : 24,
@@ -420,15 +448,17 @@ const HotStocksPage = () => {
           fontWeight: 'bold', 
           marginBottom: isMobile ? 12 : 16,
           padding: isMobile ? '10px 12px' : '12px 16px',
-          background: '#f9f0ff',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           borderRadius: 8,
           display: 'flex',
           alignItems: 'center',
-          gap: 8
+          gap: 8,
+          color: '#fff',
+          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
         }}>
-          <BulbOutlined style={{ color: '#faad14' }} />
+          <BulbOutlined />
           热门话题
-          <Tag color="orange" style={{ marginLeft: 'auto', fontSize: isMobile ? 10 : 12 }}>
+          <Tag color="#fff" style={{ marginLeft: 'auto', fontSize: isMobile ? 10 : 12, color: '#667eea' }}>
             {hotTopics.length}条
           </Tag>
         </div>
@@ -442,14 +472,16 @@ const HotStocksPage = () => {
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
             gap: isMobile ? 6 : 12 
           }}>
-            {displayTopics.map((topic, index) => (
+            {displayTopics.map((topic, index) => {
+              const style = getTopicStyle(index);
+              return (
             <div
               key={topic.event_id}
               style={{
-                background: index < 3 ? '#fff1f0' : '#fafafa',
-                borderRadius: 6,
+                background: style.background,
+                borderRadius: 8,
                 padding: isMobile ? '10px 12px' : '10px',
-                border: `1px solid ${index < 3 ? '#ffa39e' : '#d9d9d9'}`,
+                border: style.border,
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                 transition: 'all 0.3s'
               }}
@@ -464,14 +496,15 @@ const HotStocksPage = () => {
                   minWidth: 20, 
                   height: 20, 
                   borderRadius: '50%', 
-                  background: index < 3 ? 'linear-gradient(135deg, #faad14 0%, #ffc53d 100%)' : '#bfbfbf',
+                  background: style.badgeBg,
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
                   color: '#fff',
                   fontSize: 11,
                   fontWeight: 'bold',
-                  flexShrink: 0
+                  flexShrink: 0,
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
                 }}>
                   {index + 1}
                 </div>
@@ -503,9 +536,10 @@ const HotStocksPage = () => {
                           fontSize: 9, 
                           margin: 0, 
                           padding: '1px 4px',
-                          background: '#fff1f0',
+                          background: 'linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)',
                           border: 'none',
-                          color: '#cf1322'
+                          color: '#fff',
+                          fontWeight: 'bold'
                         }}
                       >
                         <FireOutlined style={{ fontSize: 9, marginRight: 2 }} />
@@ -518,9 +552,10 @@ const HotStocksPage = () => {
                             fontSize: 9, 
                             margin: 0, 
                             padding: '1px 4px',
-                            background: '#e6f7ff',
+                            background: 'linear-gradient(135deg, #1890ff 0%, #40a9ff 100%)',
                             border: 'none',
-                            color: '#1890ff'
+                            color: '#fff',
+                            fontWeight: 'bold'
                           }}
                         >
                           {theme}
@@ -535,10 +570,11 @@ const HotStocksPage = () => {
                         width: 22,
                         height: 22,
                         borderRadius: 3,
-                        background: completedTopicAnalysis.has(topic.event_id || topic.title) ? '#52c41a' : 
-                                    analyzingTopics.has(topic.event_id || topic.title) ? '#fa8c16' : '#722ed1',
+                        background: completedTopicAnalysis.has(topic.event_id || topic.title) ? 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)' : 
+                                    analyzingTopics.has(topic.event_id || topic.title) ? 'linear-gradient(135deg, #fa8c16 0%, #ffa940 100%)' : 'linear-gradient(135deg, #722ed1 0%, #9254de 100%)',
                         cursor: 'pointer',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
                       }}
                       onClick={() => handleTopicAnalysisClick(topic)}
                     >
@@ -577,14 +613,15 @@ const HotStocksPage = () => {
                 </div>
               )}
             </div>
-          ))}
+              );
+            })}
         </div>
         )}
       </div>
     );
   };
 
-  const renderColumn = (title, icon, data, bgColor) => {
+  const renderColumn = (title, icon, data, bgColor, gradientColors) => {
     const displayData = isMobile ? data.slice(0, 10) : data;
     
     return (
@@ -594,15 +631,17 @@ const HotStocksPage = () => {
           fontWeight: 'bold', 
           marginBottom: isMobile ? 12 : 16, 
           padding: isMobile ? '10px 12px' : '12px 16px',
-          background: bgColor,
+          background: gradientColors.header,
           borderRadius: 8,
           display: 'flex',
           alignItems: 'center',
-          gap: 8
+          gap: 8,
+          color: '#fff',
+          boxShadow: `0 4px 12px ${gradientColors.shadow}`
         }}>
           {icon}
           {title}
-          <Tag color="blue" style={{ marginLeft: 'auto', fontSize: isMobile ? 10 : 12 }}>{displayData.length}只</Tag>
+          <Tag style={{ marginLeft: 'auto', fontSize: isMobile ? 10 : 12, background: '#fff', color: gradientColors.tagColor, border: 'none', fontWeight: 'bold' }}>{displayData.length}只</Tag>
         </div>
         <div style={{ maxHeight: isMobile ? 'none' : 'calc(100vh - 200px)', overflowY: isMobile ? 'visible' : 'auto' }}>
           {loading ? (
@@ -629,25 +668,49 @@ const HotStocksPage = () => {
       {isMobile ? (
         <div>
           <div style={{ marginBottom: 16 }}>
-            {renderColumn('大家都在看(每小时更新)', <FireOutlined style={{ color: '#ff4d4f' }} />, stocksData.normal, '#fff1f0')}
+            {renderColumn('大家都在看(每小时更新)', <FireOutlined />, stocksData.normal, '#fff1f0', {
+              header: 'linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)',
+              shadow: 'rgba(255, 77, 79, 0.3)',
+              tagColor: '#ff4d4f'
+            })}
           </div>
           <div style={{ marginBottom: 16 }}>
-            {renderColumn('价值派(每天更新)', <DollarOutlined style={{ color: '#52c41a' }} />, stocksData.value, '#f6ffed')}
+            {renderColumn('价值派(每天更新)', <DollarOutlined />, stocksData.value, '#f6ffed', {
+              header: 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)',
+              shadow: 'rgba(82, 196, 26, 0.3)',
+              tagColor: '#52c41a'
+            })}
           </div>
           <div>
-            {renderColumn('趋势派(每天更新)', <LineChartOutlined style={{ color: '#1890ff' }} />, stocksData.trend, '#e6f7ff')}
+            {renderColumn('趋势派(每天更新)', <LineChartOutlined />, stocksData.trend, '#e6f7ff', {
+              header: 'linear-gradient(135deg, #1890ff 0%, #40a9ff 100%)',
+              shadow: 'rgba(24, 144, 255, 0.3)',
+              tagColor: '#1890ff'
+            })}
           </div>
         </div>
       ) : (
         <Row gutter={16}>
           <Col span={8}>
-            {renderColumn('大家都在看(每小时更新)', <FireOutlined style={{ color: '#ff4d4f' }} />, stocksData.normal, '#fff1f0')}
+            {renderColumn('大家都在看(每小时更新)', <FireOutlined />, stocksData.normal, '#fff1f0', {
+              header: 'linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)',
+              shadow: 'rgba(255, 77, 79, 0.3)',
+              tagColor: '#ff4d4f'
+            })}
           </Col>
           <Col span={8}>
-            {renderColumn('价值派(每天更新)', <DollarOutlined style={{ color: '#52c41a' }} />, stocksData.value, '#f6ffed')}
+            {renderColumn('价值派(每天更新)', <DollarOutlined />, stocksData.value, '#f6ffed', {
+              header: 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)',
+              shadow: 'rgba(82, 196, 26, 0.3)',
+              tagColor: '#52c41a'
+            })}
           </Col>
           <Col span={8}>
-            {renderColumn('趋势派(每天更新)', <LineChartOutlined style={{ color: '#1890ff' }} />, stocksData.trend, '#e6f7ff')}
+            {renderColumn('趋势派(每天更新)', <LineChartOutlined />, stocksData.trend, '#e6f7ff', {
+              header: 'linear-gradient(135deg, #1890ff 0%, #40a9ff 100%)',
+              shadow: 'rgba(24, 144, 255, 0.3)',
+              tagColor: '#1890ff'
+            })}
           </Col>
         </Row>
       )}

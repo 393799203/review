@@ -93,6 +93,13 @@ export const stockApi = {
 
   batchAnalyzeStocks: (stocks) => api.post('/stocks/analyze', { stocks }, { timeout: 120000 }),
 
+  sendStockReport: (stockCode, tradeDate = null) => {
+    let url = `/stock/report/${stockCode}`;
+    const params = {};
+    if (tradeDate) params.date = tradeDate;
+    return api.post(url, params, { timeout: 180000 });
+  },
+
   login: (username, password) => api.post('/auth/login', { username, password }),
 
   guestLogin: () => api.post('/auth/guest'),
