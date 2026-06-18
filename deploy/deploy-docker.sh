@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
-SERVER_IP="8.217.249.31"
+SERVER_IP="192.168.110.115"
 SERVER_USER="root"
 PROJECT_DIR="/opt/stock-review"
 LOCAL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SSH_KEY="~/.ssh/review_server"
+SSH_OPTS="-i ${SSH_KEY} -o StrictHostKeyChecking=no"
 
 FRONTEND_ONLY=false
 
@@ -24,12 +26,12 @@ echo "=========================================="
 
 echo ""
 echo "[1/5] 检查SSH连接..."
-ssh -o ConnectTimeout=5 ${SERVER_USER}@${SERVER_IP} "echo 'SSH连接成功'"
+ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} "echo 'SSH连接成功'"
 
 if [ "$FRONTEND_ONLY" = false ]; then
     echo ""
     echo "[2/5] 在服务器上安装Docker..."
-    ssh ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
+    ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
 if ! command -v docker &> /dev/null; then
     echo "安装Docker..."
     curl -fsSL https://get.docker.com | sh
@@ -53,23 +55,23 @@ fi
 
 echo ""
 echo "[3/5] 同步项目文件到服务器..."
-ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${PROJECT_DIR}"
+ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} "mkdir -p ${PROJECT_DIR}"
 
 if [ "$FRONTEND_ONLY" = true ]; then
-    rsync -avz --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
+    rsync -avz -e "ssh ${SSH_OPTS}" --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
         --exclude='.git' --exclude='*.log' --exclude='venv' --exclude='.env' \
         --exclude='backend' \
         ${LOCAL_DIR}/frontend ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
-    rsync -avz ${LOCAL_DIR}/docker-compose.yml ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
+    rsync -avz -e "ssh ${SSH_OPTS}" ${LOCAL_DIR}/docker-compose.yml ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
 else
-    rsync -avz --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
+    rsync -avz -e "ssh ${SSH_OPTS}" --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
         --exclude='.git' --exclude='*.log' --exclude='venv' --exclude='.env' \
         ${LOCAL_DIR}/ ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
 fi
 
 echo ""
 echo "[4/5] 构建并启动Docker容器..."
-ssh ${SERVER_USER}@${SERVER_IP} << ENDSSH
+ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} << ENDSSH
 cd ${PROJECT_DIR}
 
 echo "构建Docker镜像..."

@@ -36,11 +36,11 @@ class UserRepository(BaseRepository):
             session.close()
     
     def get_by_username_and_password(self, username: str, password_hash: str) -> Optional[User]:
-        """根据用户名和密码哈希获取用户"""
+        """根据用户名/邮箱和密码哈希获取用户"""
         session = self.create_session()
         try:
             return session.query(User).filter(
-                User.username == username,
+                (User.username == username) | (User.email == username),
                 User.password_hash == password_hash
             ).first()
         finally:
