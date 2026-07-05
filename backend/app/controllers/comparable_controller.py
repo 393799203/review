@@ -10,6 +10,33 @@ class ComparableController(BaseController):
 
     def analyze(self):
         try:
+            # —— 鉴权：必须登录，访客不可用 ——
+            uid = self.get_current_user_uid()
+            if not uid:
+                return self.error('请登录后使用找对标功能', 401)
+
+            from app.repositories.user_repository import UserRepository
+            user = UserRepository().get_by_uid(uid)
+            if not user:
+                return self.error('用户不存在，请重新登录', 401)
+            if user.role == 'guest':
+                return self.error('访客无法使用此功能，请注册登录后使用', 403)
+
+            # —— 读取用户自己的 DeepSeek API Key ——
+            import json
+            user_settings = {}
+            if user.settings:
+                try:
+                    user_settings = json.loads(user.settings)
+                except Exception:
+                    user_settings = {}
+            api_key = (user_settings.get('deepseek_api_key') or '').strip()
+            if not api_key:
+                return self.error('未配置 DeepSeek API Key，请前往「设置」页面配置', 400)
+
+            # 读取用户选择的模型（默认 flash，兼顾速度与成本）
+            deepseek_model = (user_settings.get('deepseek_model') or '').strip()
+
             data = self.get_json_data()
             query = data.get('query', '')
             context = data.get('context', {})
@@ -24,7 +51,7 @@ class ComparableController(BaseController):
                 base_date = datetime.now().strftime('%Y%m%d')
 
             from core.hotspot_fetcher import hotspot_fetcher
-            from core.llm_client import llm_client
+            from core.llm_client import LLMClient
 
             window_dates = hotspot_fetcher.get_trading_days_before(base_date, window_days)
             all_dates = [base_date] + window_dates
@@ -39,7 +66,9 @@ class ComparableController(BaseController):
                 if found:
                     context['reason'] = found[0].get('reason', context.get('reason', ''))
 
-            result = llm_client.find_comparable_stocks(query, hot_data, context, window_dates)
+            # 用当前用户的 Key 临时构造客户端（不复用单例，避免多用户串号）
+            client = LLMClient(api_key=api_key, model=deepseek_model or None)
+            result = client.find_comparable_stocks(query, hot_data, context, window_dates)
 
             has_date = data.get('has_date', True)
             if has_date:

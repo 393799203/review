@@ -8,13 +8,16 @@ from typing import Optional, Dict
 
 
 class LLMClient:
-    def __init__(self, api_key: str = None, base_url: str = None):
+    def __init__(self, api_key: str = None, base_url: str = None, model: str = None):
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
         self.base_url = base_url or "https://api.deepseek.com/v1"
+        # 支持的模型：deepseek-v4-pro（更强）、deepseek-v4-flash（更快）
+        # 默认 flash，兼顾速度与成本
+        self.model = model or "deepseek-v4-flash"
 
     def _chat(self, messages: list, temperature: float = 0.3, max_tokens: int = 2048) -> Optional[str]:
         if not self.api_key:
-            raise ValueError("DeepSeek API Key 未配置，请在环境变量中设置 DEEPSEEK_API_KEY")
+            raise ValueError("DeepSeek API Key 未配置，请前往「设置」页面配置自己的 API Key")
 
         try:
             url = f"{self.base_url}/chat/completions"
@@ -23,7 +26,7 @@ class LLMClient:
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "deepseek-chat",
+                "model": self.model,
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens
@@ -172,6 +175,3 @@ class LLMClient:
                 "wencai_query": user_input,
                 "explanation": f"AI 分析结果无法解析，将使用原始输入查询。原始回复: {raw_response[:200]}"
             }
-
-
-llm_client = LLMClient()
