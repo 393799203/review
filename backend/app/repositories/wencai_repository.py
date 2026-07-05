@@ -54,7 +54,7 @@ class WencaiRepository(BaseRepository):
     
     def create_strategy(self, user_id: str, strategy_name: str, query_template: str,
                        strategy_type: str = 'custom', description: str = '',
-                       is_default: int = 0) -> UserWencaiStrategy:
+                       is_default: int = 0, enable_skill: int = 1) -> UserWencaiStrategy:
         """创建策略"""
         return self.create(
             user_id=user_id,
@@ -62,7 +62,8 @@ class WencaiRepository(BaseRepository):
             strategy_type=strategy_type,
             query_template=query_template,
             description=description,
-            is_default=is_default
+            is_default=is_default,
+            enable_skill=enable_skill
         )
     
     def update_strategy(self, strategy_id: int, user_id: str, **kwargs) -> Optional[UserWencaiStrategy]:

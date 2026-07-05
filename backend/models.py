@@ -318,6 +318,7 @@ class UserWencaiStrategy(Base):
     query_template = Column(Text, nullable=False)
     description = Column(String(500))
     is_default = Column(Integer, default=0)
+    enable_skill = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -362,16 +363,22 @@ class DatabaseConfig:
         if self.database_url:
             return self.database_url
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
-    
+
     def create_engine(self):
         if self._engine is None:
+            # 连接参数：强制客户端编码为 UTF8。
+            # 本机 Windows 上的 PostgreSQL 服务端 lc_messages 为中文(GBK)，
+            # 默认会用 GBK 编码错误消息，psycopg2 按 UTF-8 解码会抛 UnicodeDecodeError。
+            # 设 client_encoding=UTF8 后服务端会以 UTF-8 发送所有消息。
+            connect_args = {"client_encoding": "utf8"}
             self._engine = create_engine(
-                self.get_database_url(), 
+                self.get_database_url(),
                 echo=False,
                 pool_size=10,
                 max_overflow=20,
                 pool_pre_ping=True,
-                pool_recycle=3600
+                pool_recycle=3600,
+                connect_args=connect_args
             )
         return self._engine
     

@@ -38,8 +38,10 @@ class DataFetcher:
             return
         self._initialized = True
         
-        self.mootdx_client = Quotes.factory(market='std')
-        
+        # mootdx 客户端改为懒初始化 + fallback 服务器容错
+        self.mootdx_client = None
+        self._init_mootdx_client()
+
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
@@ -52,7 +54,37 @@ class DataFetcher:
         self._heartbeat_thread = None
         self._heartbeat_running = False
         self._session_ready = False
-        
+
+    def _init_mootdx_client(self):
+        """初始化 mootdx 客户端，默认 factory 失败则轮询 fallback 服务器"""
+        fallback_servers = [
+            ('119.147.212.81', 7709),
+            ('120.76.152.2', 7709),
+            ('47.103.48.45', 7709),
+        ]
+        try:
+            self.mootdx_client = Quotes.factory(market='std')
+            if self.mootdx_client is not None:
+                return
+        except Exception:
+            pass
+        for host, port in fallback_servers:
+            try:
+                self.mootdx_client = Quotes.factory(market='std', host=host, port=port)
+                if self.mootdx_client is not None:
+                    print(f"✓ mootdx 连接 fallback 服务器 {host}:{port} 成功")
+                    return
+            except Exception:
+                continue
+        self.mootdx_client = None
+        print("✗ mootdx 所有服务器均连接失败，实时行情/分时/K线相关功能将不可用")
+
+    def _get_mootdx_client(self):
+        """懒加载 mootdx 客户端，若未初始化则重试"""
+        if self.mootdx_client is None:
+            self._init_mootdx_client()
+        return self.mootdx_client
+
     def init_session(self):
         """初始化会话"""
         try:
@@ -191,8 +223,9 @@ class DataFetcher:
         try:
             print(f"从mootdx获取 {stock_code} 实时行情...")
             
-            quotes = self.mootdx_client.quotes(symbol=[stock_code])
-            
+            mootdx_client = self._get_mootdx_client()
+            quotes = mootdx_client.quotes(symbol=[stock_code]) if mootdx_client else None
+
             if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
                 q = quotes.iloc[0]
                 price = float(q.get('price', 0) or 0)
@@ -211,8 +244,8 @@ class DataFetcher:
                     volume = float(q.get('vol', 0) or 0)
                     if volume > 0:
                         market = 1 if stock_code.startswith('6') else 0
-                        client = Quotes.factory(market=market)
-                        finance_data = client.finance(symbol=stock_code)
+                        client = self._get_mootdx_client()
+                        finance_data = client.finance(symbol=stock_code) if client else None
                         if finance_data is not None and not finance_data.empty:
                             liutongguben = float(finance_data['liutongguben'].iloc[0])
                             if liutongguben > 0:
@@ -263,15 +296,23 @@ class DataFetcher:
             print(f"✗ 获取股票 {stock_code} 实时行情失败: {e}")
             return None
     
-    def get_stock_kline(self, stock_code: str, days: int = 60) -> Optional[List[Dict]]:
+    def get_stock_kline(self, stock_code: str, days: int = 60, end_date: str = None) -> Optional[List[Dict]]:
         """
         获取股票历史K线数据（使用mootdx）
+
+        Args:
+            stock_code: 股票代码
+            days: 获取天数
+            end_date: 截止日期(YYYYMMDD 或 YYYY-MM-DD)，为空则不限制
         """
         try:
             print(f"从mootdx获取 {stock_code} K线数据...")
-            
+
             market = 1 if stock_code.startswith('6') else 0
-            client = Quotes.factory(market=market)
+            client = self._get_mootdx_client()
+            if client is None:
+                print(f"✗ mootdx 客户端不可用，无法获取K线数据")
+                return None
             
             end_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
             start_date = (datetime.now() - timedelta(days=days * 2)).strftime('%Y-%m-%d')
@@ -386,11 +427,18 @@ class DataFetcher:
                     continue
             
             if kline_data:
+                # 若指定 end_date，过滤掉晚于该日期的记录（兼容 YYYYMMDD 与 YYYY-MM-DD）
+                if end_date:
+                    normalized_end = end_date.replace('-', '')
+                    kline_data = [
+                        item for item in kline_data
+                        if item.get('date', '').replace('-', '') <= normalized_end
+                    ]
                 print(f"✓ 成功获取K线数据，共 {len(kline_data)} 条记录")
                 return kline_data
-            
+
             return None
-            
+
         except Exception as e:
             print(f"✗ 获取股票 {stock_code} K线数据失败: {e}")
             return None
@@ -424,11 +472,16 @@ class DataFetcher:
                 print(f"当前时间 {current_time} 早于开盘时间，获取 {date_str} 的分时数据...")
             
             print(f"从mootdx获取 {stock_code} 分时数据...")
-            
+
+            mootdx_client = self._get_mootdx_client()
+            if mootdx_client is None:
+                print(f"✗ mootdx 客户端不可用，无法获取分时数据")
+                return None
+
             if date_str:
-                minutes = self.mootdx_client.minutes(symbol=stock_code, date=date_str)
+                minutes = mootdx_client.minutes(symbol=stock_code, date=date_str)
             else:
-                minutes = self.mootdx_client.minute(symbol=stock_code)
+                minutes = mootdx_client.minute(symbol=stock_code)
             
             if minutes is None or (hasattr(minutes, 'empty') and minutes.empty):
                 print(f"✗ mootdx未返回分时数据")
@@ -469,7 +522,7 @@ class DataFetcher:
                     'volume': 0,
                 })
             
-            quotes = self.mootdx_client.quotes(symbol=[stock_code])
+            quotes = mootdx_client.quotes(symbol=[stock_code]) if mootdx_client else None
             yesterday_close = 0
             if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
                 yesterday_close = float(quotes.iloc[0].get('last_close', 0) or 0)

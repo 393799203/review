@@ -38,11 +38,12 @@ class WencaiController(BaseController):
         query_template = data.get('query_template')
         description = data.get('description', '')
         is_default = data.get('is_default', 0)
-        
+        enable_skill = data.get('enable_skill', 1)
+
         try:
             success, message, data = self.wencai_service.create_strategy(
                 user_id, strategy_name, query_template,
-                strategy_type, description, is_default
+                strategy_type, description, is_default, enable_skill
             )
             
             if success:

@@ -10,6 +10,7 @@ import NewsPage from '../pages/NewsPage';
 import ReportPage from '../pages/ReportPage';
 import UserDashboardPage from '../pages/UserDashboardPage';
 import HotStocksPage from '../pages/HotStocksPage';
+import IntradayRealtimePage from '../pages/IntradayRealtimePage';
 import AuthPage from '../pages/AuthPage';
 import FAQPage from '../pages/FAQPage';
 import FeaturesPage from '../pages/FeaturesPage';
@@ -102,6 +103,7 @@ const AppRouter = () => {
                       <Route path="/news" element={<NewsPage />} />
                       <Route path="/reports" element={<ReportPage />} />
                       <Route path="/hot-stocks" element={<HotStocksPage />} />
+                      <Route path="/intraday-realtime" element={<IntradayRealtimePage />} />
                       <Route 
                         path="/user" 
                         element={

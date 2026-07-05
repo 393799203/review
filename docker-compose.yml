@@ -24,6 +24,7 @@ services:
       - MAIL_PASSWORD=jkgasoqstrhpbjgd
       - WEIXIN_APP_ID=wxa6b5e73bcda26fa5
       - WEIXIN_APP_SECRET=c7a6ae76a0081e897b1e1783ff2f6ed4
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     depends_on:
       db:
         condition: service_healthy

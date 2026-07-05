@@ -120,6 +120,22 @@ export const stockApi = {
   },
   
   getMarketAlertsHistory: (params) => api.get('/market-alerts/history', { params }),
+
+  // ==================== 对标股票分析 ====================
+  comparableAnalyze: (data) => api.post('/comparable/analyze', data, { timeout: 120000 }),
+
+  getFirstLimitUpDate: (stockCode, baseDate) => api.get(`/hotspot/first-date/${stockCode}?base_date=${baseDate}`),
+
+  // ==================== 问财策略管理 ====================
+  getWencaiStrategies: () => api.get('/wencai/strategies'),
+
+  createWencaiStrategy: (data) => api.post('/wencai/strategies', data),
+
+  updateWencaiStrategy: (id, data) => api.put(`/wencai/strategies/${id}`, data),
+
+  deleteWencaiStrategy: (id) => api.delete(`/wencai/strategies/${id}`),
+
+  queryWencai: (data) => api.post('/wencai/query', data, { timeout: 60000 }),
 };
 
 export default api;

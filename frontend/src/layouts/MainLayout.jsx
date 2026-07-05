@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio, Space } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, LineChartOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -128,6 +128,11 @@ const MainLayout = ({ children }) => {
       key: '/hot-stocks',
       icon: <FireOutlined />,
       label: '热门榜单',
+    },
+    {
+      key: '/intraday-realtime',
+      icon: <LineChartOutlined />,
+      label: '盘中实时',
     },
     {
       key: '/watchlist',

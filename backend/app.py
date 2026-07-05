@@ -39,6 +39,7 @@ from app.controllers.misc_controller import misc_controller
 from app.controllers.base_routes_controller import base_routes_controller
 from app.controllers.admin_controller import admin_controller
 from app.controllers.weixin_controller import weixin_controller
+from app.controllers.comparable_controller import comparable_controller
 
 app = Flask(__name__)
 CORS(app)
@@ -287,6 +288,83 @@ def update_wencai_strategy(strategy_id):
 def delete_wencai_strategy(strategy_id):
     """删除问财策略"""
     return wencai_controller.delete_strategy(strategy_id)
+
+
+# ==================== 对标股票相关路由 ====================
+
+@app.route('/api/comparable/analyze', methods=['POST'])
+def comparable_analyze():
+    """AI 对标股票分析"""
+    return comparable_controller.analyze()
+
+
+@app.route('/api/hotspot/first-date/<stock_code>', methods=['GET'])
+def hotspot_first_date(stock_code):
+    """获取某只股票首次涨停日期（基于热点+K线推算）"""
+    from datetime import datetime
+    from flask import jsonify
+    from core.data_fetcher import DataFetcher
+    from core.hotspot_fetcher import hotspot_fetcher
+
+    base_date = request.args.get('base_date', datetime.now().strftime('%Y%m%d'))
+
+    before_dates = hotspot_fetcher.get_trading_days_before(base_date, 1)
+    before_date_compact = before_dates[0] if before_dates else base_date
+    # mootdx K线返回 YYYY-MM-DD，统一转换格式
+    before_date_dash = f"{before_date_compact[:4]}-{before_date_compact[4:6]}-{before_date_compact[6:8]}"
+
+    fetcher = DataFetcher()
+    kline = fetcher.get_stock_kline(stock_code, 60, base_date)
+    if not kline:
+        return jsonify({'success': True, 'data': {
+            'first_date': None,
+            'before_date': before_date_dash,
+            'range': base_date
+        }})
+
+    def get_limit_threshold(code):
+        if code.startswith(('300', '301', '688')):
+            return 19.5
+        if code.startswith(('8', '4')):
+            return 29.5
+        return 9.5
+
+    threshold = get_limit_threshold(stock_code)
+    # K线日期为 YYYY-MM-DD，直接用其作 key
+    date_to_item = {item['date']: item for item in kline}
+
+    trading_days_compact = hotspot_fetcher.get_trading_days_before(base_date, 30)
+    trading_days_dash = [
+        f"{d[:4]}-{d[4:6]}-{d[6:8]}" for d in trading_days_compact
+    ]
+    all_days = sorted([before_date_dash] + trading_days_dash, reverse=True)
+
+    first_date = None
+    in_streak = False
+    for d in all_days:
+        if d not in date_to_item:
+            continue
+        item = date_to_item[d]
+        if item.get('change_percent', 0) >= threshold:
+            first_date = d
+            in_streak = True
+        else:
+            if in_streak:
+                break
+
+    if first_date:
+        range_str = first_date if first_date == before_date_dash else f'{first_date}到{before_date_dash}'
+    else:
+        range_str = base_date
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'first_date': first_date,
+            'before_date': before_date_dash,
+            'range': range_str
+        }
+    })
 
 
 # ==================== 新闻相关路由 ====================

@@ -35,6 +35,7 @@ class WencaiService(BaseService):
                     'query_template': strategy.query_template,
                     'description': strategy.description,
                     'is_default': strategy.is_default,
+                    'enable_skill': strategy.enable_skill if strategy.enable_skill is not None else 1,
                     'created_at': strategy.created_at.isoformat() if strategy.created_at else None,
                     'updated_at': strategy.updated_at.isoformat() if strategy.updated_at else None
                 })
@@ -46,10 +47,10 @@ class WencaiService(BaseService):
     
     def create_strategy(self, user_id: str, strategy_name: str, query_template: str,
                        strategy_type: str = 'custom', description: str = '',
-                       is_default: int = 0) -> Tuple[bool, str, Optional[Dict]]:
+                       is_default: int = 0, enable_skill: int = 1) -> Tuple[bool, str, Optional[Dict]]:
         """
         创建新的问财策略
-        
+
         Args:
             user_id: 用户ID
             strategy_name: 策略名称
@@ -57,29 +58,31 @@ class WencaiService(BaseService):
             strategy_type: 策略类型
             description: 描述
             is_default: 是否默认
-            
+            enable_skill: 是否启用A股全栈数据技能
+
         Returns:
             tuple: (success, message, data)
         """
         if not strategy_name or not query_template:
             return False, '策略名称和查询模板不能为空', None
-        
+
         try:
             if is_default:
                 self.wencai_repository.clear_default_flag(user_id)
-            
+
             strategy = self.wencai_repository.create_strategy(
                 user_id, strategy_name, query_template,
-                strategy_type, description, is_default
+                strategy_type, description, is_default, enable_skill
             )
-            
+
             return True, '创建成功', {
                 'id': strategy.id,
                 'strategy_name': strategy.strategy_name,
                 'strategy_type': strategy.strategy_type,
                 'query_template': strategy.query_template,
                 'description': strategy.description,
-                'is_default': strategy.is_default
+                'is_default': strategy.is_default,
+                'enable_skill': strategy.enable_skill if strategy.enable_skill is not None else 1
             }
             
         except Exception as e:
@@ -111,7 +114,8 @@ class WencaiService(BaseService):
                 'strategy_type': strategy.strategy_type,
                 'query_template': strategy.query_template,
                 'description': strategy.description,
-                'is_default': strategy.is_default
+                'is_default': strategy.is_default,
+                'enable_skill': strategy.enable_skill if strategy.enable_skill is not None else 1
             }
             
         except Exception as e:
