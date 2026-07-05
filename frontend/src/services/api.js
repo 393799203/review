@@ -108,7 +108,7 @@ export const stockApi = {
 
   getCurrentUser: () => api.get('/auth/me'),
 
-  updateSettings: (settings) => api.put('/auth/settings', { settings }),
+  updateSettings: (settings) => api.post('/user/settings', { settings }),
 
   logout: () => api.post('/auth/logout'),
 
