@@ -58,9 +58,12 @@ class DataFetcher:
     def _init_mootdx_client(self):
         """初始化 mootdx 客户端，默认 factory 失败则轮询 fallback 服务器"""
         fallback_servers = [
-            ('119.147.212.81', 7709),
-            ('120.76.152.2', 7709),
-            ('47.103.48.45', 7709),
+            ('119.97.185.59', 7709),
+            ('115.238.90.165', 7709),
+            ('124.71.9.153', 7709),
+            ('123.60.84.66', 7709),
+            ('124.70.199.56', 7709),
+            ('110.41.147.114', 7709),
         ]
         try:
             self.mootdx_client = Quotes.factory(market='std')
@@ -70,7 +73,7 @@ class DataFetcher:
             pass
         for host, port in fallback_servers:
             try:
-                self.mootdx_client = Quotes.factory(market='std', host=host, port=port)
+                self.mootdx_client = Quotes.factory(market='std', server=(host, port))
                 if self.mootdx_client is not None:
                     print(f"✓ mootdx 连接 fallback 服务器 {host}:{port} 成功")
                     return
