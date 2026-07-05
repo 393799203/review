@@ -20,6 +20,9 @@ from mootdx.quotes import Quotes
 load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 本地启动: 把 app/ 目录加入 path,使 `from core.xxx` 可导入
+# (容器内通过 Dockerfile 的 `ln -s /app/app/core /app/core` 实现同等效果)
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app'))
 from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, ClsNews, UserWencaiStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
 from core.data_fetcher import DataFetcher
 from core.statistics_api import register_statistics_routes

@@ -84,7 +84,7 @@ class ComparableController(BaseController):
                         valid_dates.add(d.strftime('%Y%m%d'))
                         d += timedelta(days=1)
                 else:
-                    valid_dates = set(m.group(1) for m in re.finditer(r'\d{8}', query))
+                    valid_dates = set(m.group(0) for m in re.finditer(r'\d{8}', query))
 
                 raw_stocks = result.get('stocks', [])
                 if raw_stocks and valid_dates:

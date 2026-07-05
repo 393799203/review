@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio, Space } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, LineChartOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, LineChartOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -292,6 +292,11 @@ const MainLayout = ({ children }) => {
             </>
           )}
           <Button
+            icon={<SettingOutlined />}
+            size="small"
+            onClick={() => navigate('/settings')}
+          />
+          <Button
             type="primary"
             icon={<ReloadOutlined />}
             size="small"
@@ -318,6 +323,16 @@ const MainLayout = ({ children }) => {
         </div>
       );
     }
+
+    // 桌面端：在“刷新数据”按钮左边放一个“设置”入口
+    const settingsButton = (
+      <Button
+        icon={<SettingOutlined />}
+        onClick={() => navigate('/settings')}
+      >
+        设置
+      </Button>
+    );
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -354,6 +369,8 @@ const MainLayout = ({ children }) => {
             <Switch checked={showAllNews} onChange={setShowAllNews} />
           </>
         )}
+
+        {settingsButton}
 
         <Button type="primary" icon={<ReloadOutlined />} onClick={getRefreshHandler()}>
           {isWatchlistPage ? '更新价格' : '刷新数据'}

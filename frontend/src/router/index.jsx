@@ -12,6 +12,7 @@ import UserDashboardPage from '../pages/UserDashboardPage';
 import HotStocksPage from '../pages/HotStocksPage';
 import IntradayRealtimePage from '../pages/IntradayRealtimePage';
 import AuthPage from '../pages/AuthPage';
+import SettingsPage from '../pages/SettingsPage';
 import FAQPage from '../pages/FAQPage';
 import FeaturesPage from '../pages/FeaturesPage';
 
@@ -104,6 +105,7 @@ const AppRouter = () => {
                       <Route path="/reports" element={<ReportPage />} />
                       <Route path="/hot-stocks" element={<HotStocksPage />} />
                       <Route path="/intraday-realtime" element={<IntradayRealtimePage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
                       <Route 
                         path="/user" 
                         element={
