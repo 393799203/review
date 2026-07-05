@@ -29,7 +29,7 @@ class LimitUpReasonAnalyzer:
         Args:
             api_key: 硅基流动API密钥
         """
-        self.api_key = api_key or "sk-rjknkdqxefbxebrbfawaokciapqzjejqzqfvlehyhohiknys"
+        self.api_key = api_key or "SILICONFLOW_API_KEY_REMOVED"
         self.api_url = "https://api.siliconflow.cn/v1/chat/completions"
         
         # 模型降级策略：优先使用V4-Flash，失败后降级到V3.2
