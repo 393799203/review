@@ -458,7 +458,7 @@ class AIService(BaseService):
             
             import requests
             
-            api_key = "sk-rjknkdqxefbxebrbfawaokciapqzjejqzqfvlehyhohiknys"
+            api_key = "sk-qahniunuynslawucpjnjirhzlfglbmdogyaftrntsrpypcjt"
             api_url = "https://api.siliconflow.cn/v1/chat/completions"
             
             headers = {
