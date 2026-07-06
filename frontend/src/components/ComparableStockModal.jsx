@@ -13,11 +13,6 @@ const StructuredResultDisplay = ({ data }) => {
     return <div style={{ textAlign: 'center', color: '#999' }}>暂无结果</div>;
   }
   
-  // 打印调试信息
-  console.log('StructuredResultDisplay received data:', data);
-  console.log('data.structured:', data.structured);
-  console.log('data.analysis type:', typeof data.analysis);
-  
   // 如果数据对象包含 structured 字段，判断是否结构化
   const isStructured = data.structured === true;
   
@@ -522,7 +517,7 @@ const ComparableStockModal = ({
                                  setEditingStrategy(strategyItem);
                                  strategyForm.setFieldsValue({
                                    strategy_name: strategyItem.strategy_name,
-                                   query_template: strategyItem.strategy,
+                                   query_template: strategyItem.query_template,
                                    description: strategyItem.description
                                  });
                                  setShowStrategyModal(true);
