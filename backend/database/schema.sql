@@ -6,26 +6,63 @@ CREATE DATABASE stock_review;
 -- 连接到数据库
 \c stock_review;
 
--- 1. 涨停股票表
+-- 1. 板块表
+CREATE TABLE blocks (
+    id SERIAL PRIMARY KEY,
+    block_code VARCHAR(20) NOT NULL,
+    block_name VARCHAR(100) NOT NULL,
+    trade_date DATE NOT NULL,
+    change_rate DECIMAL(10, 4),
+    limit_up_num INTEGER DEFAULT 0,
+    continuous_plate_num INTEGER DEFAULT 0,
+    high VARCHAR(20),
+    high_num INTEGER DEFAULT 0,
+    list_days INTEGER DEFAULT 0,
+    high_stock_code VARCHAR(10),
+    high_stock_name VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_block_date UNIQUE (block_code, trade_date)
+);
+
+-- 创建板块表索引
+CREATE INDEX idx_blocks_date ON blocks(trade_date);
+CREATE INDEX idx_blocks_code ON blocks(block_code);
+CREATE INDEX idx_blocks_name ON blocks(block_name);
+CREATE INDEX idx_blocks_limit_num ON blocks(limit_up_num);
+CREATE INDEX idx_blocks_continuous_num ON blocks(continuous_plate_num);
+
+COMMENT ON TABLE blocks IS '板块表';
+
+-- 2. 涨停股票表
 CREATE TABLE limit_up_stocks (
     id SERIAL PRIMARY KEY,
-    stock_code VARCHAR(10) NOT NULL,
-    stock_name VARCHAR(50) NOT NULL,
+    stock_code VARCHAR(20) NOT NULL,
+    stock_name VARCHAR(100) NOT NULL,
     trade_date DATE NOT NULL,
     limit_up_reason VARCHAR(200),
     limit_up_time TIME,
+    limit_up_price DECIMAL(10, 2),
+    limit_up_type VARCHAR(20),
+    block_id INTEGER REFERENCES blocks(id),
+    ths_reason_info TEXT,
     seal_amount DECIMAL(15, 2),
     continuous_days INTEGER DEFAULT 1,
+    high_days VARCHAR(20),
     sector VARCHAR(50),
     change_percent DECIMAL(10, 4),
     turnover_rate DECIMAL(10, 4),
     amount DECIMAL(20, 2),
+    is_high_stock INTEGER DEFAULT 0,
+    next_change DECIMAL(10, 4),
+    next_open_change DECIMAL(10, 4),
+    current_status VARCHAR(20) DEFAULT 'close',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(stock_code, trade_date)
+    CONSTRAINT uq_stock_date UNIQUE (stock_code, trade_date)
 );
 
--- 2. 连板天梯统计表
+-- 3. 连板天梯统计表
 CREATE TABLE ladder_stats (
     id SERIAL PRIMARY KEY,
     trade_date DATE NOT NULL UNIQUE,
@@ -41,7 +78,7 @@ CREATE TABLE ladder_stats (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. 数据抓取日志表
+-- 4. 数据抓取日志表
 CREATE TABLE fetch_logs (
     id SERIAL PRIMARY KEY,
     fetch_date DATE NOT NULL,
@@ -56,7 +93,19 @@ CREATE TABLE fetch_logs (
 CREATE INDEX idx_stocks_date ON limit_up_stocks(trade_date);
 CREATE INDEX idx_stocks_code ON limit_up_stocks(stock_code);
 CREATE INDEX idx_stocks_days ON limit_up_stocks(continuous_days);
+CREATE INDEX idx_stocks_date_days ON limit_up_stocks(trade_date, continuous_days);
+CREATE INDEX idx_stocks_date_time ON limit_up_stocks(trade_date, limit_up_time);
+CREATE INDEX idx_stocks_block_id ON limit_up_stocks(block_id);
+CREATE INDEX idx_stocks_reason ON limit_up_stocks(limit_up_reason);
+CREATE INDEX idx_stocks_change ON limit_up_stocks(change_percent);
+CREATE INDEX idx_stocks_seal ON limit_up_stocks(seal_amount);
+CREATE INDEX idx_stocks_sector ON limit_up_stocks(sector);
+
 CREATE INDEX idx_ladder_date ON ladder_stats(trade_date);
+
+CREATE INDEX idx_logs_date ON fetch_logs(fetch_date);
+CREATE INDEX idx_logs_status ON fetch_logs(status);
+CREATE INDEX idx_logs_time ON fetch_logs(fetch_time);
 
 -- 创建视图：连板天梯视图
 CREATE VIEW v_ladder AS
@@ -105,9 +154,13 @@ CREATE TABLE users (
     vip_expire_date DATE,
     settings TEXT,
     is_active INTEGER DEFAULT 1,
+    login_count INTEGER DEFAULT 0,
     last_login TIMESTAMP,
+    last_activity TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_username UNIQUE (username),
+    CONSTRAINT uq_user_email UNIQUE (email)
 );
 
 -- 用户表索引
@@ -128,7 +181,167 @@ COMMENT ON COLUMN users.is_vip IS '是否为VIP（0:否, 1:是）';
 COMMENT ON COLUMN users.vip_expire_date IS 'VIP到期日期';
 COMMENT ON COLUMN users.settings IS '用户设置JSON';
 COMMENT ON COLUMN users.is_active IS '是否激活（1:激活，0:未激活）';
+COMMENT ON COLUMN users.login_count IS '登录次数';
 COMMENT ON COLUMN users.last_login IS '最后登录时间';
+COMMENT ON COLUMN users.last_activity IS '最后活动时间';
+
+-- 自选股表
+CREATE TABLE watchlist_stocks (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
+    stock_code VARCHAR(10) NOT NULL,
+    stock_name VARCHAR(50) NOT NULL,
+    add_date DATE NOT NULL,
+    add_price DECIMAL(10, 2),
+    add_reason VARCHAR(200),
+    source VARCHAR(50),
+    add_type VARCHAR(20) DEFAULT 'manual',
+    limit_up_reason_category VARCHAR(200),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_watchlist_stock UNIQUE (user_id, stock_code)
+);
+
+CREATE INDEX idx_watchlist_user_id ON watchlist_stocks(user_id);
+CREATE INDEX idx_watchlist_created ON watchlist_stocks(created_at);
+
+COMMENT ON TABLE watchlist_stocks IS '自选股表';
+
+-- 交易记录表
+CREATE TABLE trade_records (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
+    stock_code VARCHAR(10) NOT NULL,
+    stock_name VARCHAR(50) NOT NULL,
+    operation_type VARCHAR(10) NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    buy_price DECIMAL(10, 2),
+    quantity INTEGER NOT NULL,
+    remaining_quantity INTEGER DEFAULT 0,
+    amount DECIMAL(12, 2),
+    profit DECIMAL(10, 2),
+    profit_ratio DECIMAL(10, 4),
+    operation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes VARCHAR(200),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_trade_records_user_id ON trade_records(user_id);
+CREATE INDEX idx_trade_records_date ON trade_records(operation_date);
+
+COMMENT ON TABLE trade_records IS '交易记录表';
+
+-- AI分析结果缓存表
+CREATE TABLE ai_analysis_results (
+    id SERIAL PRIMARY KEY,
+    stock_code VARCHAR(50) NOT NULL,
+    stock_name VARCHAR(500) NOT NULL,
+    trade_date DATE NOT NULL,
+    analysis_result TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_ai_analysis_stock_date UNIQUE (stock_code, trade_date)
+);
+
+CREATE INDEX idx_ai_analysis_date ON ai_analysis_results(trade_date);
+CREATE INDEX idx_ai_analysis_code ON ai_analysis_results(stock_code);
+
+COMMENT ON TABLE ai_analysis_results IS 'AI分析结果缓存表';
+
+-- 自选股AI分析结果缓存表
+CREATE TABLE watchlist_analysis_results (
+    id SERIAL PRIMARY KEY,
+    stock_code VARCHAR(50) NOT NULL,
+    stock_name VARCHAR(500) NOT NULL,
+    analysis_date DATE NOT NULL,
+    analysis_result TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_watchlist_analysis_stock_date UNIQUE (stock_code, analysis_date)
+);
+
+CREATE INDEX idx_watchlist_analysis_date ON watchlist_analysis_results(analysis_date);
+CREATE INDEX idx_watchlist_analysis_code ON watchlist_analysis_results(stock_code);
+
+COMMENT ON TABLE watchlist_analysis_results IS '自选股AI分析结果缓存表';
+
+-- 研报AI分析结果缓存表
+CREATE TABLE research_report_analysis_results (
+    id SERIAL PRIMARY KEY,
+    info_code VARCHAR(50) NOT NULL UNIQUE,
+    stock_code VARCHAR(50) NOT NULL,
+    stock_name VARCHAR(500) NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    rating VARCHAR(50),
+    rating_change VARCHAR(50),
+    analysis_result TEXT NOT NULL,
+    analysis_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_research_report_info_code UNIQUE (info_code)
+);
+
+CREATE INDEX idx_research_report_code ON research_report_analysis_results(stock_code);
+CREATE INDEX idx_research_report_date ON research_report_analysis_results(analysis_date);
+
+COMMENT ON TABLE research_report_analysis_results IS '研报AI分析结果缓存表';
+
+-- 热门话题AI分析结果缓存表
+CREATE TABLE hot_topic_analysis_results (
+    id SERIAL PRIMARY KEY,
+    topic_title VARCHAR(500) NOT NULL UNIQUE,
+    analysis_result TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_hot_topic_title UNIQUE (topic_title)
+);
+
+CREATE INDEX idx_hot_topic_title ON hot_topic_analysis_results(topic_title);
+
+COMMENT ON TABLE hot_topic_analysis_results IS '热门话题AI分析结果缓存表';
+
+-- 财联社新闻表
+CREATE TABLE cls_news (
+    id SERIAL PRIMARY KEY,
+    news_id VARCHAR(20) NOT NULL UNIQUE,
+    title VARCHAR(500),
+    content TEXT,
+    ctime TIMESTAMP NOT NULL,
+    is_important INTEGER DEFAULT 0,
+    has_stocks INTEGER DEFAULT 0,
+    confirmed INTEGER DEFAULT 0,
+    reading_num INTEGER DEFAULT 0,
+    stock_list TEXT,
+    analysis_result TEXT,
+    analyzed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_cls_news_id ON cls_news(news_id);
+CREATE INDEX idx_cls_news_ctime ON cls_news(ctime);
+CREATE INDEX idx_cls_news_important ON cls_news(is_important);
+
+COMMENT ON TABLE cls_news IS '财联社新闻表';
+
+-- 用户策略表
+CREATE TABLE user_strategies (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
+    strategy_name VARCHAR(100) NOT NULL,
+    strategy_type VARCHAR(50) DEFAULT 'custom',
+    query_template TEXT NOT NULL,
+    description VARCHAR(500),
+    is_default INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_strategy_user_id ON user_strategies(user_id);
+CREATE INDEX idx_strategy_type ON user_strategies(strategy_type);
+CREATE INDEX idx_strategy_is_default ON user_strategies(is_default);
+
+COMMENT ON TABLE user_strategies IS '用户策略表';
 
 -- 市场动态消息表
 CREATE TABLE market_alerts (
@@ -140,7 +353,8 @@ CREATE TABLE market_alerts (
     alert_time VARCHAR(10),
     alert_type VARCHAR(20) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_stock_alert UNIQUE (stock_code, alert_type)
 );
 
 -- 创建索引
