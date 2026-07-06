@@ -75,7 +75,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
     try {
       setStrategiesLoading(true);
       
-      const response = await api.get('/wencai/strategies');
+      const response = await api.get('/strategies', { params: { strategy_type: 'wencai' } });
       
       if (response.data.success) {
         const strategies = response.data.data || [];
@@ -180,7 +180,10 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
   const handleSaveStrategy = async (values) => {
     try {
       if (editingStrategy) {
-        const response = await api.put(`/wencai/strategies/${editingStrategy.id}`, values);
+        const response = await api.put(`/strategies/${editingStrategy.id}`, {
+          ...values,
+          strategy_type: 'wencai'
+        });
         
         if (response.data.success) {
           message.success('策略更新成功');
@@ -191,7 +194,10 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
           message.error(response.data.error || '更新失败');
         }
       } else {
-        const response = await api.post('/wencai/strategies', values);
+        const response = await api.post('/strategies', {
+          ...values,
+          strategy_type: 'wencai'
+        });
         
         if (response.data.success) {
           message.success('策略创建成功');
@@ -209,7 +215,7 @@ const WencaiAssistant = ({ visible, onClose, dateStr, type = 'breakout', nextDay
 
   const handleDeleteStrategy = async (strategyId) => {
     try {
-      const response = await api.delete(`/wencai/strategies/${strategyId}`);
+      const response = await api.delete(`/strategies/${strategyId}`);
       
       if (response.data.success) {
         message.success('策略删除成功');

@@ -20,10 +20,10 @@ from mootdx.quotes import Quotes
 load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, ClsNews, UserWencaiStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
-from core.data_fetcher import DataFetcher
-from core.statistics_api import register_statistics_routes
-from core.limit_up_analyzer import LimitUpReasonAnalyzer
+from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, ClsNews, UserStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
+from app.core.data_fetcher import DataFetcher
+from app.core.statistics_api import register_statistics_routes
+from app.core.limit_up_analyzer import LimitUpReasonAnalyzer
 from database import get_db_session, init_mail
 
 from app.controllers.auth_controller import auth_controller
@@ -39,7 +39,8 @@ from app.controllers.misc_controller import misc_controller
 from app.controllers.base_routes_controller import base_routes_controller
 from app.controllers.admin_controller import admin_controller
 from app.controllers.weixin_controller import weixin_controller
-
+from app.controllers.comparable_controller import comparable_controller
+from app.controllers.strategy_controller import strategy_controller
 app = Flask(__name__)
 CORS(app)
 
@@ -289,6 +290,62 @@ def delete_wencai_strategy(strategy_id):
     return wencai_controller.delete_strategy(strategy_id)
 
 
+# ==================== 统一策略管理路由 ====================
+
+@app.route('/api/strategies', methods=['GET'])
+def get_strategies():
+    """获取用户策略列表（支持通过 strategy_type 参数区分）"""
+    return strategy_controller.get_strategies()
+
+@app.route('/api/strategies', methods=['POST'])
+def create_strategy():
+    """创建新策略"""
+    return strategy_controller.create_strategy()
+
+@app.route('/api/strategies/<int:strategy_id>', methods=['PUT'])
+def update_strategy(strategy_id):
+    """更新策略"""
+    return strategy_controller.update_strategy(strategy_id)
+
+@app.route('/api/strategies/<int:strategy_id>', methods=['DELETE'])
+def delete_strategy(strategy_id):
+    """删除策略"""
+    return strategy_controller.delete_strategy(strategy_id)
+
+
+# ==================== 找对标相关路由 ====================
+
+@app.route('/api/comparable/analyze', methods=['POST'])
+def analyze_comparable():
+    """找对标分析"""
+    return comparable_controller.analyze_comparable()
+
+@app.route('/api/comparable/strategies', methods=['GET'])
+def get_comparable_strategies():
+    """获取用户的找对标策略列表"""
+    return comparable_controller.get_strategies()
+
+@app.route('/api/comparable/strategies', methods=['POST'])
+def create_comparable_strategy():
+    """创建新的找对标策略"""
+    return comparable_controller.create_strategy()
+
+@app.route('/api/comparable/strategies/<int:strategy_id>', methods=['PUT'])
+def update_comparable_strategy(strategy_id):
+    """更新找对标策略"""
+    return comparable_controller.update_strategy(strategy_id)
+
+@app.route('/api/comparable/strategies/<int:strategy_id>', methods=['DELETE'])
+def delete_comparable_strategy(strategy_id):
+    """删除找对标策略"""
+    return comparable_controller.delete_strategy(strategy_id)
+
+@app.route('/api/hotspot/first-date/<stock_code>', methods=['GET'])
+def get_first_limit_up_date(stock_code):
+    """获取股票首次涨停日期"""
+    return comparable_controller.get_first_limit_up_date(stock_code)
+
+
 # ==================== 新闻相关路由 ====================
 
 @app.route('/api/news/cls-telegraph', methods=['GET'])
@@ -443,11 +500,13 @@ def weixin_signature():
     return weixin_controller.get_signature()
 
 
+
 # ==================== 其他路由（待重构） ====================
 # 这里会逐步添加其他模块的路由
 
 
 if __name__ == '__main__':
+    # 初始化同花顺会话
     init_ths_session()
-    
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # 启动应用
+    app.run(host='0.0.0.0', port=5001, debug=True, threaded=True)

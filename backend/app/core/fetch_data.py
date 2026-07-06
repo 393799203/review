@@ -13,7 +13,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models import DatabaseConfig, LimitUpStock, LadderStats, FetchLog, Block
-from core.data_fetcher import DataFetcher
+from app.core.data_fetcher import DataFetcher
 
 
 class LimitUpFetcher:

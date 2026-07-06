@@ -3,7 +3,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+# 配置npm使用淘宝镜像加速
+RUN npm config set registry https://registry.npmmirror.com && npm install
 
 COPY . .
 RUN npm run build

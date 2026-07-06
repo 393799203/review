@@ -3,7 +3,7 @@
 from typing import Optional, List, Dict, Tuple
 from app.services.base_service import BaseService
 from app.repositories.wencai_repository import WencaiRepository
-from models import UserWencaiStrategy
+from models import UserStrategy
 
 
 class WencaiService(BaseService):

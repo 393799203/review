@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional, Dict, Tuple
 from app.repositories.base_repository import BaseRepository
-from core.data_fetcher import DataFetcher
+from app.core.data_fetcher import DataFetcher
 from models import WatchlistStock
 from database import get_db_session
 

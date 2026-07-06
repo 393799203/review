@@ -5,8 +5,8 @@ from datetime import datetime, date
 import json
 from app.services.base_service import BaseService
 from app.repositories.ai_repository import AIRepository
-from core.limit_up_analyzer import LimitUpReasonAnalyzer
-from core.data_fetcher import DataFetcher
+from app.core.limit_up_analyzer import LimitUpReasonAnalyzer
+from app.core.data_fetcher import DataFetcher
 
 
 class AIService(BaseService):
@@ -457,9 +457,21 @@ class AIService(BaseService):
 语气要温暖专业,避免过度乐观或悲观。只返回JSON,不要其他内容。"""
             
             import requests
+            import os
             
+<<<<<<< HEAD
             api_key = "SILICONFLOW_API_KEY_REMOVED"
             api_url = "https://api.siliconflow.cn/v1/chat/completions"
+=======
+            api_key = os.environ.get('DEEPSEEK_API_KEY')
+            if not api_key:
+                return False, '未配置DEEPSEEK_API_KEY环境变量', None
+            
+            api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
+            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-v4-flash')
+            temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
+            max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_SHORT', '500'))
+>>>>>>> 410b7cd (add 找对标)
             
             headers = {
                 "Authorization": f"Bearer {api_key}",
@@ -467,15 +479,15 @@ class AIService(BaseService):
             }
             
             payload = {
-                "model": "deepseek-ai/DeepSeek-V4-Flash",
+                "model": model,
                 "messages": [
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": 0.7,
-                "max_tokens": 500
+                "temperature": temperature,
+                "max_tokens": max_tokens
             }
             
             response = requests.post(api_url, headers=headers, json=payload, timeout=60)
@@ -506,3 +518,280 @@ class AIService(BaseService):
                 
         except Exception as e:
             return False, str(e), None
+    
+    def call_llm_analysis(self, prompt: str) -> Tuple[bool, str, str]:
+        """
+        调用LLM进行分析（通用方法）
+        
+        Args:
+            prompt: 分析提示词
+            
+        Returns:
+            tuple: (success, message, result)
+        """
+        try:
+            import requests
+            import os
+            
+            api_key = os.environ.get('DEEPSEEK_API_KEY')
+            if not api_key:
+                return False, '未配置DEEPSEEK_API_KEY环境变量', ''
+            
+            api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
+            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-v4-flash')
+            temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
+            max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_LONG', '4000'))
+            print(f"[DEBUG] Using max_tokens: {max_tokens} (from DEEPSEEK_MAX_TOKENS_LONG)")
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            print(f"[DEBUG] API request max_tokens: {payload['max_tokens']}")
+            
+            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+                
+                if content:
+                    return True, '分析成功', content
+                else:
+                    return False, 'AI返回内容为空', ''
+            else:
+                return False, f'AI请求失败: {response.status_code}', ''
+                
+        except Exception as e:
+            return False, str(e), ''
+    
+    def analyze_comparable_stock(self, stock_code: str, stock_name: str, 
+                                block: str, limit_up_reason: str,
+                                date_str: str, strategy: str) -> Tuple[bool, str, Optional[Dict]]:
+        """
+        找对标分析
+        
+        Args:
+            stock_code: 股票代码
+            stock_name: 股票名称
+            block: 所属板块
+            limit_up_reason: 涨停原因
+            date_str: 日期
+            strategy: 用户输入的策略条件
+            
+        Returns:
+            tuple: (success, message, data)
+        """
+        try:
+            if not stock_code or not strategy:
+                return False, '缺少必要参数', None
+            
+            # 处理策略模板变量
+            processed_strategy = self._process_strategy_template(
+                strategy, stock_code, stock_name, block, date_str
+            )
+            
+            # 构建提示词
+            prompt = self._build_comparable_prompt(
+                stock_code, stock_name, block, limit_up_reason, date_str, processed_strategy
+            )
+            
+            # 调用LLM分析
+            success, message, result = self.call_llm_analysis(prompt)
+            
+            if success:
+                # Service层只返回原始AI结果,由Controller层负责解析
+                return True, '分析成功', {
+                    'raw_analysis': result,
+                    'processed_strategy': processed_strategy
+                }
+            else:
+                return False, message, None
+                
+        except Exception as e:
+            return False, str(e), None
+    
+    def _process_strategy_template(self, strategy: str, stock_code: str, 
+                                   stock_name: str, block: str, date_str: str) -> str:
+        """
+        处理策略模板中的变量替换
+        
+        Args:
+            strategy: 策略模板
+            stock_code: 股票代码
+            stock_name: 股票名称
+            block: 所属板块
+            date_str: 日期
+            
+        Returns:
+            处理后的策略
+        """
+        processed = strategy
+        processed = processed.replace('{date}', date_str or '')
+        processed = processed.replace('{code}', stock_code or '')
+        processed = processed.replace('{name}', stock_name or '')
+        processed = processed.replace('{block}', block or '')
+        return processed
+    
+    def _build_comparable_prompt(self, stock_code: str, stock_name: str, 
+                                block: str, limit_up_reason: str,
+                                date_str: str, processed_strategy: str) -> str:
+        """
+        构建找对标分析的提示词
+        
+        Args:
+            stock_code: 股票代码
+            stock_name: 股票名称
+            block: 所属板块
+            limit_up_reason: 涨停原因
+            date_str: 日期
+            processed_strategy: 处理后的策略
+            
+        Returns:
+            构建好的提示词
+        """
+        # 添加涨停原因信息
+        reason_info = ""
+        if limit_up_reason:
+            reason_info = f"- 涨停原因：{limit_up_reason}"
+        
+        prompt = """你是一位资深的A股股票分析师，擅长对标分析和股票推荐。请根据以下信息，找出与目标股票对标相似的股票，并进行多维度深度分析。
+
+## 目标股票基本信息
+- 股票名称：""" + stock_name + """
+- 股票代码：""" + stock_code + """
+- 所属板块：""" + block + """
+""" + reason_info + """
+- 涨停日期：""" + date_str + """
+
+## 用户对标需求
+""" + processed_strategy + """
+
+## 分析要求
+
+请按照以下框架进行全面对标分析，并返回结构化的JSON数据：
+
+### 1. 对标股票筛选（至少推荐3-5只）
+列出符合对标条件的股票，每只股票需包含：
+- **股票代码/股票名称**：清晰标注
+- **涨停日期**：具体涨停日期
+- **细分标签**：如"连板股"、"首板股"、"突破板"等
+- **题材标签**：主要题材概念（2-3个）
+
+### 2. 多维度对标分析（每只对标股票）
+对每只对标股票从以下维度与目标股票对比：
+
+#### A. 基础面对比
+- 市值对比：流通市值、总市值是否相近
+- 估值对比：PE/PB估值水平是否相似
+- 价格对比：股价位置、涨幅情况
+
+#### B. 涨停特征对比
+- 涨停时间：是否相近时段涨停（早盘/午盘/尾盘）
+- 连板天数：是否相同连板级别（首板/2板/3板等）
+- 封单强度：封单金额、封单占比
+- 换手率：涨停当天换手率对比
+
+#### C. 板块题材对比
+- 板块归属：是否同板块或关联板块
+- 题材相似度：题材概念重叠度分析
+- 板块地位：板块内地位（龙头/跟风/补涨）
+
+#### D. 历史表现对比
+- 近期涨停：近期涨停次数对比
+- 连板能力：历史连板表现对比
+- 区间涨幅：近1月/近1年涨幅对比
+
+#### E. 技术形态对比
+- 成交量形态：量价关系是否相似
+- 筹码分布：筹码集中度、套牢盘情况
+- 均线形态：均线支撑/压力位
+- 技术指标：MACD、KDJ等指标状态
+
+### 3. 对标匹配度评分
+为每只对标股票评分（满分10分）：
+- 市值匹配度（2分）
+- 涨停特征匹配度（3分）
+- 板块题材匹配度（2分）
+- 历史表现匹配度（2分）
+- 技术形态匹配度（1分）
+
+### 4. 投资建议
+根据对标分析给出专业建议：
+- **最直接对标**：最相似的股票（匹配度最高）
+- **核心逻辑对标**：逻辑最相近的股票
+- **其他相关对标**：其他值得关注的股票
+- **操作建议**：如何利用对标信息进行操作
+- **风险提示**：对标股票的风险点分析
+
+### 5. 注意事项
+- 只推荐当天涨停的股票（不包含其他日期）
+- 确保推荐股票真实存在（不要虚构股票）
+- 分析要有理有据，避免空洞描述
+- 如找不到完全符合条件的对标股，请说明原因并推荐次优选择
+
+## 返回格式要求【重要】
+
+请直接返回纯JSON对象，不要使用markdown代码块包裹，不要包含任何其他文字说明。
+
+返回的JSON格式如下：
+
+{
+  "summary": "对标分析总结（100字内）",
+  "target_stock": {
+    "code": "目标股票代码",
+    "name": "目标股票名称",
+    "block": "所属板块",
+    "reason": "涨停原因",
+    "date": "涨停日期"
+  },
+  "comparable_stocks": [
+    {
+      "code": "股票代码",
+      "name": "股票名称",
+      "block": "所属板块",
+      "reason": "涨停原因",
+      "date": "涨停日期",
+      "tags": ["连板股", "首板股", "突破板"],
+      "themes": ["题材1", "题材2"],
+      "match_score": 8.5,
+      "match_details": {
+        "market_cap_match": 2.0,
+        "limit_up_match": 3.0,
+        "block_theme_match": 2.0,
+        "history_match": 1.5,
+        "tech_match": 1.0
+      },
+      "analysis": "详细分析说明（200字内）"
+    }
+  ],
+  "recommendations": {
+    "best_match": "最直接对标股票代码",
+    "logic_match": "核心逻辑对标股票代码",
+    "other_matches": ["其他对标股票代码1", "其他对标股票代码2"],
+    "operation_advice": "操作建议（150字内）",
+    "risk_warning": "风险提示（100字内）"
+  }
+}
+
+严格要求：
+1. 直接返回JSON对象，第一个字符必须是左花括号，最后一个字符必须是右花括号
+2. 不要使用代码块包裹（不要用反引号）
+3. 不要在JSON前后添加任何说明文字
+4. JSON格式必须正确，可直接被解析
+5. 确保推荐股票真实存在，不要虚构"""
+
+        return prompt

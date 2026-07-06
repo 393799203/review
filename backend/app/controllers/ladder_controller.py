@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from core.fetch_data import LimitUpFetcher
+from app.core.fetch_data import LimitUpFetcher
 from datetime import datetime, date
 from flask import request
 from app.controllers.base_controller import BaseController

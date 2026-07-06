@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined, AimOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -10,7 +10,7 @@ import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
 import PremiumTrendModal from '../components/PremiumTrendModal';
 import MarketAlertBar from '../components/MarketAlertBar';
-
+import ComparableStockModal from '../components/ComparableStockModal';
 const LadderPage = () => {
   const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode, marketAlerts, setMarketAlerts } = useGlobal();
   const mode = ladderMode || 'ladder';
@@ -35,10 +35,6 @@ const LadderPage = () => {
   const [completedAnalysis, setCompletedAnalysis] = useState(new Map());
 
   const [blockFilterDay, setBlockFilterDay] = useState('today');
-  const [blockStrengthData, setBlockStrengthData] = useState({});
-  const [enableBlur, setEnableBlur] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-  const [loading, setLoading] = useState(true);
   
   const [comparisonData, setComparisonData] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
@@ -51,6 +47,16 @@ const LadderPage = () => {
   const [premiumTrendVisible, setPremiumTrendVisible] = useState(false);
   const [selectedContinuousDays, setSelectedContinuousDays] = useState(null);
   const [premiumTrendType, setPremiumTrendType] = useState('premium');
+  
+  const [comparableVisible, setComparableVisible] = useState(false);
+  const [comparableStock, setComparableStock] = useState(null);
+  const [comparableDate, setComparableDate] = useState(null);
+  
+  const [blockStrengthData, setBlockStrengthData] = useState({ today: { blocks: [] }, tomorrow: { blocks: [] } });
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [enableBlur, setEnableBlur] = useState(false);
+  
   const [showAnnouncement, setShowAnnouncement] = useState(() => {
     // 检查本地存储，如果用户之前点过"知道了"就不再显示
     return !localStorage.getItem('announcement_dismissed');
@@ -140,6 +146,17 @@ const LadderPage = () => {
         return newSet;
       });
     }
+  };
+  
+  const handleComparableClick = (stock, tradeDate) => {
+    setComparableStock({
+      code: stock.code,
+      name: stock.name,
+      block: stock.block,
+      limit_up_reason: stock.limit_up_reason || stock.reason || ''
+    });
+    setComparableDate(tradeDate);
+    setComparableVisible(true);
   };
 
   const loadBlockStrengthData = async () => {
@@ -499,7 +516,7 @@ const LadderPage = () => {
     return colorMap[blockRank.rank] || '#b37feb';
   };
 
-  const renderStockCard = (stock) => {
+  const renderStockCard = (stock, level) => {
     const blockRankColor = getBlockRankColor(stock.block_name);
     
     const reasons = stock.reason ? stock.reason.split('+').filter(r => r.trim()) : ['未分类'];
@@ -510,6 +527,9 @@ const LadderPage = () => {
       if (!text) return '';
       return text.replace(/（免责声明：[^）]+）/g, '').trim();
     };
+    
+    // 判断是否是10点前涨停的股票（排除首板）
+    const isBefore10AM = stock.limit_up_time && stock.limit_up_time < '10:00:00' && level !== 1;
 
     if (isMobile) {
       return (
@@ -605,45 +625,37 @@ const LadderPage = () => {
                   >
                     <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
                   </div>
+                  
+                  {/* 找对标按钮 - 只对10点前涨停的股票显示 */}
+                  {isBefore10AM && (
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 20,
+                        height: 20,
+                        borderRadius: 3,
+                        background: '#1890ff',
+                        cursor: 'pointer',
+                        marginLeft: 4,
+                        flexShrink: 0
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleComparableClick(stock, currentDate.replace(/-/g, ''));
+                      }}
+                    >
+                      <AimOutlined style={{ fontSize: 11, color: '#fff' }} />
+                    </div>
+                  )}
               </div>
                 <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
                   涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | 换手: {stock.turnover_rate?.toFixed(2) || '-'}%
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {reasons.map((reason, index) => (
-                    <Tooltip 
-                      key={index}
-                      title={
-                        hasDetailReason ? (
-                          <div style={{ whiteSpace: 'pre-wrap' }}>
-                            {filterDisclaimer(stock.detail_reason)}
-                          </div>
-                        ) : null
-                      }
-                      placement="top"
-                      styles={{ root: { maxWidth: '390px' } }}
-                    >
-                      <Tag 
-                        color="blue" 
-                        style={{ 
-                          fontSize: 10, 
-                          marginBottom: 0,
-                          cursor: hasDetailReason ? 'pointer' : 'default'
-                        }}
-                      >
-                        {reason.trim()}
-                      </Tag>
-                    </Tooltip>
-                  ))}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', marginLeft: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 'bold', color: '#f5222d' }}>
-                  +{stock.change_percent.toFixed(2)}%
-                </div>
-                {stock.limit_up_price > 0 && (
                   <div style={{ fontSize: 13, fontWeight: 'bold', color: '#f5222d' }}>¥{stock.limit_up_price.toFixed(2)}</div>
-                )}
+                </div>
                 {stock.block_name && (
                   <Tooltip 
                     title={
@@ -782,6 +794,29 @@ const LadderPage = () => {
                 >
                   <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
                 </div>
+                
+                {/* 找对标按钮 - 只对10点前涨停的股票显示 */}
+                {isBefore10AM && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 3,
+                      background: '#1890ff',
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleComparableClick(stock, currentDate.replace(/-/g, ''));
+                    }}
+                  >
+                    <AimOutlined style={{ fontSize: 11, color: '#fff' }} />
+                  </div>
+                )}
               </div>
               <div style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>
                 <strong>涨停:</strong> {stock.limit_up_time || '-'} | <strong>封单:</strong> {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | <strong>换手:</strong> {stock.turnover_rate?.toFixed(2) || '-'}%
@@ -896,7 +931,7 @@ const LadderPage = () => {
           size={isMobile ? 'small' : 'medium'}
         >
           <Row gutter={[isMobile ? 8 : 12, isMobile ? 8 : 12]}>
-            {sortedStocks.map(stock => renderStockCard(stock))}
+            {sortedStocks.map(stock => renderStockCard(stock, item.level))}
           </Row>
         </Card>
       );
@@ -1132,11 +1167,14 @@ const LadderPage = () => {
 
     const firstBoardStocks = displayTodayStocks.filter(stock => stock.continuous_days === 1);
 
-    const renderStockCard = (stock, showYesterdayHeight = false, isRightColumn = false, tradeDate = null) => {
+    const renderStockCard = (stock, showYesterdayHeight = false, isRightColumn = false, tradeDate = null, height = null) => {
       const isPromoted = !isRightColumn && promotedHeights.some(height => {
         const stocks = promotedLadder[height] || [];
         return stocks.some(s => s.code === stock.code);
       });
+      
+      // 判断是否是10点前涨停的股票（排除首板）
+      const isBefore10AM = stock.limit_up_time && stock.limit_up_time < '10:00:00' && height !== 1;
       
       return (
         <div
@@ -1197,6 +1235,28 @@ const LadderPage = () => {
               >
                 <RobotOutlined style={{ fontSize: isMobile ? 9 : 11, color: '#fff' }} />
               </div>
+              
+              {/* 找对标按钮 - 只对10点前涨停的股票显示 */}
+              {isBefore10AM && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: isMobile ? 16 : 20,
+                    height: isMobile ? 16 : 20,
+                    borderRadius: 3,
+                    background: '#1890ff',
+                    cursor: 'pointer'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleComparableClick(stock, tradeDate);
+                  }}
+                >
+                  <AimOutlined style={{ fontSize: isMobile ? 9 : 11, color: '#fff' }} />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1239,7 +1299,7 @@ const LadderPage = () => {
                 </div>
                 {stocks.length > 0 ? (
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: isMobile ? 4 : 8 }}>
-                    {stocks.map(stock => renderStockCard(stock, showYesterdayHeight, isRightColumn))}
+                    {stocks.map(stock => renderStockCard(stock, showYesterdayHeight, isRightColumn, null, height))}
                   </div>
                 ) : (
                   <div style={{ 
@@ -1407,7 +1467,7 @@ const LadderPage = () => {
                   </div>
                   {yesterdayStocks.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
-                      {yesterdayStocks.map(stock => renderStockCard(stock, false, false, comparisonData.yesterday.date.replace(/-/g, '')))}
+                      {yesterdayStocks.map(stock => renderStockCard(stock, false, false, comparisonData.yesterday.date.replace(/-/g, ''), height))}
                     </div>
                   ) : (
                     <div style={{ 
@@ -1439,7 +1499,7 @@ const LadderPage = () => {
                   </div>
                   {promotedStocks.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
-                      {promotedStocks.map(stock => renderStockCard(stock, true, true, comparisonData.today.date.replace(/-/g, '')))}
+                      {promotedStocks.map(stock => renderStockCard(stock, true, true, comparisonData.today.date.replace(/-/g, ''), nextHeight))}
                     </div>
                   ) : (
                     <div style={{ 
@@ -1686,6 +1746,20 @@ const LadderPage = () => {
         onClose={() => {
           setPremiumTrendVisible(false);
           setSelectedContinuousDays(null);
+        }}
+      />
+      
+      <ComparableStockModal
+        visible={comparableVisible}
+        stockCode={comparableStock?.code}
+        stockName={comparableStock?.name}
+        block={comparableStock?.block}
+        limitUpReason={comparableStock?.limit_up_reason}
+        dateStr={comparableDate}
+        onClose={() => {
+          setComparableVisible(false);
+          setComparableStock(null);
+          setComparableDate(null);
         }}
       />
     </>

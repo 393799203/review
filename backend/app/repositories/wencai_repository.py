@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional, List
 from sqlalchemy import desc
-from models import UserWencaiStrategy
+from models import UserStrategy
 from app.repositories.base_repository import BaseRepository
 
 
@@ -10,28 +10,28 @@ class WencaiRepository(BaseRepository):
     """问财策略仓库类"""
     
     def __init__(self):
-        super().__init__(UserWencaiStrategy)
+        super().__init__(UserStrategy)
     
-    def get_by_user_id(self, user_id: str) -> List[UserWencaiStrategy]:
+    def get_by_user_id(self, user_id: str) -> List[UserStrategy]:
         """根据用户ID获取策略列表"""
         session = self.create_session()
         try:
-            return session.query(UserWencaiStrategy).filter(
-                UserWencaiStrategy.user_id == user_id
+            return session.query(UserStrategy).filter(
+                UserStrategy.user_id == user_id
             ).order_by(
-                UserWencaiStrategy.is_default.desc(),
-                UserWencaiStrategy.created_at.asc()
+                UserStrategy.is_default.desc(),
+                UserStrategy.created_at.asc()
             ).all()
         finally:
             session.close()
     
-    def get_by_id_and_user(self, strategy_id: int, user_id: str) -> Optional[UserWencaiStrategy]:
+    def get_by_id_and_user(self, strategy_id: int, user_id: str) -> Optional[UserStrategy]:
         """根据ID和用户ID获取策略"""
         session = self.create_session()
         try:
-            return session.query(UserWencaiStrategy).filter(
-                UserWencaiStrategy.id == strategy_id,
-                UserWencaiStrategy.user_id == user_id
+            return session.query(UserStrategy).filter(
+                UserStrategy.id == strategy_id,
+                UserStrategy.user_id == user_id
             ).first()
         finally:
             session.close()
@@ -40,9 +40,9 @@ class WencaiRepository(BaseRepository):
         """清除用户的默认策略标记"""
         session = self.create_session()
         try:
-            session.query(UserWencaiStrategy).filter(
-                UserWencaiStrategy.user_id == user_id,
-                UserWencaiStrategy.is_default == 1
+            session.query(UserStrategy).filter(
+                UserStrategy.user_id == user_id,
+                UserStrategy.is_default == 1
             ).update({'is_default': 0})
             session.commit()
             return True
@@ -54,7 +54,7 @@ class WencaiRepository(BaseRepository):
     
     def create_strategy(self, user_id: str, strategy_name: str, query_template: str,
                        strategy_type: str = 'custom', description: str = '',
-                       is_default: int = 0) -> UserWencaiStrategy:
+                       is_default: int = 0) -> UserStrategy:
         """创建策略"""
         return self.create(
             user_id=user_id,
@@ -65,13 +65,13 @@ class WencaiRepository(BaseRepository):
             is_default=is_default
         )
     
-    def update_strategy(self, strategy_id: int, user_id: str, **kwargs) -> Optional[UserWencaiStrategy]:
+    def update_strategy(self, strategy_id: int, user_id: str, **kwargs) -> Optional[UserStrategy]:
         """更新策略"""
         session = self.create_session()
         try:
-            strategy = session.query(UserWencaiStrategy).filter(
-                UserWencaiStrategy.id == strategy_id,
-                UserWencaiStrategy.user_id == user_id
+            strategy = session.query(UserStrategy).filter(
+                UserStrategy.id == strategy_id,
+                UserStrategy.user_id == user_id
             ).first()
             
             if not strategy:
@@ -97,9 +97,9 @@ class WencaiRepository(BaseRepository):
         """删除策略"""
         session = self.create_session()
         try:
-            strategy = session.query(UserWencaiStrategy).filter(
-                UserWencaiStrategy.id == strategy_id,
-                UserWencaiStrategy.user_id == user_id
+            strategy = session.query(UserStrategy).filter(
+                UserStrategy.id == strategy_id,
+                UserStrategy.user_id == user_id
             ).first()
             
             if not strategy:

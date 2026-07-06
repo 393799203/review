@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from flask import render_template
 from app.controllers.base_controller import BaseController
-from core.data_fetcher import DataFetcher
+from app.core.data_fetcher import DataFetcher
 
 
 class BaseRoutesController(BaseController):

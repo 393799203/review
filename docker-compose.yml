@@ -19,11 +19,24 @@ services:
       - "5001:5001"
     environment:
       - DATABASE_URL=postgresql://stock_user:DB_PASSWORD_REMOVED@db:5432/stock_review
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=stock_review
+      - DB_USER=stock_user
+      - DB_PASSWORD=DB_PASSWORD_REMOVED
       - FLASK_ENV=production
       - TZ=Asia/Shanghai
       - MAIL_PASSWORD=MAIL_PASSWORD_REMOVED
       - WEIXIN_APP_ID=WEIXIN_APP_ID_REMOVED
       - WEIXIN_APP_SECRET=WEIXIN_APP_SECRET_REMOVED
+      - DEEPSEEK_API_KEY=DEEPSEEK_API_KEY_REMOVED
+      - DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
+      - DEEPSEEK_MODEL=deepseek-v4-flash
+      - DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro
+      - DEEPSEEK_TEMPERATURE=0.7
+      - DEEPSEEK_MAX_TOKENS_SHORT=500
+      - DEEPSEEK_MAX_TOKENS_MEDIUM=1000
+      - DEEPSEEK_MAX_TOKENS_LONG=4000
     depends_on:
       db:
         condition: service_healthy

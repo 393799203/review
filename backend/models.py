@@ -303,12 +303,13 @@ class ClsNews(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-class UserWencaiStrategy(Base):
-    """用户问财策略表"""
-    __tablename__ = 'user_wencai_strategies'
+class UserStrategy(Base):
+    """用户策略表"""
+    __tablename__ = 'user_strategies'
     __table_args__ = (
-        Index('idx_wencai_user_id', 'user_id'),
-        Index('idx_wencai_is_default', 'is_default'),
+        Index('idx_strategy_user_id', 'user_id'),
+        Index('idx_strategy_type', 'strategy_type'),
+        Index('idx_strategy_is_default', 'is_default'),
     )
     
     id = Column(Integer, primary_key=True)
@@ -321,7 +322,7 @@ class UserWencaiStrategy(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
-    user = relationship("User", backref="wencai_strategies")
+    user = relationship("User", backref="strategies")
 
 
 class MarketAlert(Base):
@@ -331,6 +332,7 @@ class MarketAlert(Base):
         Index('idx_alerts_trade_date', 'trade_date'),
         Index('idx_alerts_stock_code', 'stock_code'),
         Index('idx_alerts_created_at', 'created_at'),
+        UniqueConstraint('stock_code', 'alert_type', name='unique_stock_alert'),
     )
 
     id = Column(Integer, primary_key=True)

@@ -3,7 +3,7 @@
 from typing import Optional, Dict, List
 from app.repositories.base_repository import BaseRepository
 from models import ResearchReportAnalysisResult
-from core.data_fetcher import DataFetcher
+from app.core.data_fetcher import DataFetcher
 
 
 class ReportRepository(BaseRepository):

@@ -27,17 +27,30 @@ class LimitUpReasonAnalyzer:
         初始化分析器
         
         Args:
-            api_key: 硅基流动API密钥
+            api_key: DeepSeek API密钥（可选，默认从环境变量读取）
         """
+<<<<<<< HEAD
         self.api_key = api_key or "SILICONFLOW_API_KEY_REMOVED"
         self.api_url = "https://api.siliconflow.cn/v1/chat/completions"
+=======
+        import os
+        self.api_key = api_key or os.environ.get('DEEPSEEK_API_KEY')
+>>>>>>> 410b7cd (add 找对标)
         
-        # 模型降级策略：优先使用V4-Flash，失败后降级到V3.2
-        self.models = [
-            "deepseek-ai/DeepSeek-V4-Flash",
-            "Pro/deepseek-ai/DeepSeek-V3.2"
-        ]
+        if not api_key:
+            raise ValueError("未配置DEEPSEEK_API_KEY环境变量，请在.env文件中设置")
+        
+        self.api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
+
+        # 模型配置：从环境变量读取，支持配置多个模型作为降级策略
+        models_env = os.environ.get('DEEPSEEK_MODELS', 'deepseek-v4-flash,deepseek-v4-pro')
+        self.models = models_env.split(',')
         self.current_model_index = 0
+        
+        # AI参数配置
+        self.temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
+        self.max_tokens_medium = int(os.environ.get('DEEPSEEK_MAX_TOKENS_MEDIUM', '1000'))
+        self.max_tokens_short = int(os.environ.get('DEEPSEEK_MAX_TOKENS_SHORT', '800'))
         
     
     def analyze_with_llm(self, limit_up_reason: str, stock_code: str = None, stock_name: str = None, limit_up_price: float = None, continuous_days: int = None, limit_up_time = None, seal_amount: float = None, turnover_rate: float = None) -> Dict:
@@ -209,8 +222,8 @@ class LimitUpReasonAnalyzer:
                     "messages": [
                         {"role": "user", "content": prompt}
                     ],
-                    "temperature": 0.7,
-                    "max_tokens": 1000
+                    "temperature": self.temperature,
+                    "max_tokens": self.max_tokens_medium
                 }
                 
                 start_time = time.time()
@@ -400,8 +413,8 @@ class LimitUpReasonAnalyzer:
                 "messages": [
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.7,
-                "max_tokens": 800
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens_short
             }
 
             start_time = time.time()

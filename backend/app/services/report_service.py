@@ -3,7 +3,7 @@
 from typing import Optional, Dict, Tuple
 from app.services.base_service import BaseService
 from app.repositories.report_repository import ReportRepository
-from core.data_fetcher import DataFetcher
+from app.core.data_fetcher import DataFetcher
 
 
 class ReportService(BaseService):
