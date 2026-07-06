@@ -206,6 +206,31 @@ const ComparableStockModal = ({
   const [strategyForm] = Form.useForm();
   const [selectedStrategyId, setSelectedStrategyId] = useState(null);
   
+  // 模板变量替换函数
+  const replaceTemplateVariables = (template) => {
+    if (!template) return '';
+    
+    let result = template;
+    
+    // 替换变量
+    if (dateStr) {
+      result = result.replace(/\{date\}/g, dateStr);
+    }
+    if (stockName) {
+      result = result.replace(/\{name\}/g, stockName);
+    }
+    if (stockCode) {
+      result = result.replace(/\{code\}/g, stockCode);
+    }
+    if (block) {
+      result = result.replace(/\{block\}/g, block);
+    }
+    
+    console.log('模板变量替换:', { template, result, dateStr, stockName, stockCode, block });
+    
+    return result;
+  };
+  
 
   
   useEffect(() => {
@@ -234,17 +259,20 @@ const ComparableStockModal = ({
       if (response.data.success) {
         const strategies = response.data.data || [];
         setUserStrategies(strategies);
-        
+
         if (strategies.length > 0) {
           // 查找默认策略
           const defaultStrategy = strategies.find(s => s.is_default === 1 || s.is_default === true);
           if (defaultStrategy) {
             setSelectedStrategyId(defaultStrategy.id);
-            setStrategy(defaultStrategy.query_template);
+            // 替换模板变量后再设置
+            const processedStrategy = replaceTemplateVariables(defaultStrategy.query_template);
+            setStrategy(processedStrategy);
           } else {
-            // 没有默认策略，选择第一个
+            // 没有默认策略，选择第一个并替换模板变量
             setSelectedStrategyId(strategies[0].id);
-            setStrategy(strategies[0].query_template);
+            const processedStrategy = replaceTemplateVariables(strategies[0].query_template);
+            setStrategy(processedStrategy);
           }
         }
       }
@@ -436,7 +464,9 @@ const ComparableStockModal = ({
                       key={strategyItem.id}
                       onClick={() => {
                         setSelectedStrategyId(strategyItem.id);
-                        setStrategy(strategyItem.query_template);
+                        // 替换模板变量
+                        const processedStrategy = replaceTemplateVariables(strategyItem.query_template);
+                        setStrategy(processedStrategy);
                       }}
                       style={{
                         position: 'relative',
