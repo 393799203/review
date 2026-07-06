@@ -25,21 +25,16 @@ class LimitUpReasonAnalyzer:
     def __init__(self, api_key: str = None):
         """
         初始化分析器
-        
+
         Args:
             api_key: DeepSeek API密钥（可选，默认从环境变量读取）
         """
-<<<<<<< HEAD
-        self.api_key = api_key or "SILICONFLOW_API_KEY_REMOVED"
-        self.api_url = "https://api.siliconflow.cn/v1/chat/completions"
-=======
         import os
         self.api_key = api_key or os.environ.get('DEEPSEEK_API_KEY')
->>>>>>> 410b7cd (add 找对标)
-        
-        if not api_key:
+
+        if not self.api_key:
             raise ValueError("未配置DEEPSEEK_API_KEY环境变量，请在.env文件中设置")
-        
+
         self.api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
 
         # 模型配置：从环境变量读取，支持配置多个模型作为降级策略

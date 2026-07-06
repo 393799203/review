@@ -459,10 +459,6 @@ class AIService(BaseService):
             import requests
             import os
             
-<<<<<<< HEAD
-            api_key = "SILICONFLOW_API_KEY_REMOVED"
-            api_url = "https://api.siliconflow.cn/v1/chat/completions"
-=======
             api_key = os.environ.get('DEEPSEEK_API_KEY')
             if not api_key:
                 return False, '未配置DEEPSEEK_API_KEY环境变量', None
@@ -471,7 +467,6 @@ class AIService(BaseService):
             model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-v4-flash')
             temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
             max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_SHORT', '500'))
->>>>>>> 410b7cd (add 找对标)
             
             headers = {
                 "Authorization": f"Bearer {api_key}",
