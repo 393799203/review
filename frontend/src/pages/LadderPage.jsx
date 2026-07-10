@@ -560,14 +560,14 @@ const LadderPage = () => {
               龙头
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', overflow: 'visible' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', overflow: 'visible' }}>
             <div style={{ flex: 1, minWidth: 0, overflow: 'visible' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'nowrap', overflow: 'visible' }}>
-                <span 
-                  style={{ 
-                    fontWeight: 'bold', 
-                    fontSize: 14, 
-                    color: '#1890ff', 
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, flexWrap: 'nowrap', overflow: 'visible' }}>
+                <span
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: 14,
+                    color: '#1890ff',
                     cursor: 'pointer',
                     filter: enableBlur ? 'blur(5px)' : 'none',
                     userSelect: enableBlur ? 'none' : 'auto',
@@ -580,11 +580,11 @@ const LadderPage = () => {
                 >
                   {stock.code}
                 </span>
-                <span 
-                  style={{ 
-                    fontWeight: 'bold', 
-                    fontSize: 14, 
-                    color: '#262626', 
+                <span
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: 14,
+                    color: '#262626',
                     cursor: 'pointer',
                     filter: enableBlur ? 'blur(5px)' : 'none',
                     userSelect: enableBlur ? 'none' : 'auto',
@@ -603,16 +603,16 @@ const LadderPage = () => {
                   {stock.high_days && stock.high_days !== '首板' && (
                     <Tag color={getHighDaysColor(stock.high_days)} style={{ fontSize: 10, margin: 0, padding: '0 4px', flexShrink: 0 }}>{stock.high_days}</Tag>
                   )}
-                  <div 
+                  <div
                     id={`ai-analysis-btn-${stock.code}`}
-                    style={{ 
+                    style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       width: 20,
                       height: 20,
                       borderRadius: 3,
-                      background: completedAnalysis.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#52c41a' : 
+                      background: completedAnalysis.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#52c41a' :
                                   analyzingStocks.has(`${stock.code}_${currentDate.replace(/-/g, '')}`) ? '#fa8c16' : '#722ed1',
                       cursor: 'pointer',
                       marginLeft: 4,
@@ -625,7 +625,7 @@ const LadderPage = () => {
                   >
                     <RobotOutlined style={{ fontSize: 11, color: '#fff' }} />
                   </div>
-                  
+
                   {/* 找对标按钮 - 只对10点前涨停的股票显示 */}
                   {isBefore10AM && (
                     <div
@@ -650,12 +650,14 @@ const LadderPage = () => {
                     </div>
                   )}
               </div>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
-                  涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | 换手: {stock.turnover_rate?.toFixed(2) || '-'}%
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  <div style={{ fontSize: 13, fontWeight: 'bold', color: '#f5222d' }}>¥{stock.limit_up_price.toFixed(2)}</div>
-                </div>
+            </div>
+            <div style={{ textAlign: 'right', marginLeft: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 'bold', color: '#f5222d' }}>¥{stock.limit_up_price.toFixed(2)}</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: '#666', marginBottom: 4, marginTop: 4 }}>
+                涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | 换手: {stock.turnover_rate?.toFixed(2) || '-'}%
+          </div>
                 {stock.block_name && (
                   <Tooltip 
                     title={
@@ -695,8 +697,6 @@ const LadderPage = () => {
                     </Tag>
                   </Tooltip>
                 )}
-              </div>
-            </div>
           </Card>
         </Col>
       );
