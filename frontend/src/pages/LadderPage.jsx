@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined, AimOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from 'react';
+import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty, Switch } from 'antd';
+import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined, AimOutlined, ReloadOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import api, { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
@@ -18,6 +19,14 @@ const LadderPage = () => {
   const [ladderData, setLadderData] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [yesterdayData, setYesterdayData] = useState(null);
+  const [selectedKeyword, setSelectedKeyword] = useState('');
+  const [keywordExpanded, setKeywordExpanded] = useState(false);
+  const [keywordOverflow, setKeywordOverflow] = useState(false);
+  const keywordContainerRef = useRef(null);
+  const [aiKeywordEnabled, setAiKeywordEnabled] = useState(true);
+  const [aiKeywordModalVisible, setAiKeywordModalVisible] = useState(false);
+  const [aiKeywordLoading, setAiKeywordLoading] = useState(false);
+  const [aiKeywordResult, setAiKeywordResult] = useState(null);
   const [selectedBlocks, setSelectedBlocks] = useState([]);
   const [previousSelectedBlocks, setPreviousSelectedBlocks] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -96,6 +105,56 @@ const LadderPage = () => {
       return a.limit_up_time.localeCompare(b.limit_up_time);
     });
   };
+
+  const keywordStats = useMemo(() => {
+    const stats = {};
+    ladderData.forEach(item => {
+      if (!showFirstBoardProp && (item.level === 0 || item.label === '首板')) return;
+      item.stocks.forEach(stock => {
+        if (stock.current_status !== 'close') return;
+        const reasons = stock.reason ? stock.reason.split('+').filter(r => r.trim()) : ['未分类'];
+        reasons.forEach(reason => {
+          const trimmed = reason.trim();
+          stats[trimmed] = (stats[trimmed] || 0) + 1;
+        });
+      });
+    });
+    return Object.entries(stats)
+      .map(([keyword, count]) => ({ keyword, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [ladderData, showFirstBoardProp]);
+
+  // AI合并关键词的source到合并词的映射（如 "火电"->"电力"）
+  const mergedKeywordMap = useMemo(() => {
+    const map = {};
+    if (aiKeywordResult?.merged_keywords) {
+      aiKeywordResult.merged_keywords.forEach(item => {
+        if (item.source) {
+          item.source.forEach(src => { map[src.trim()] = item.keyword; });
+        }
+        map[item.keyword] = item.keyword;
+      });
+    }
+    return map;
+  }, [aiKeywordResult]);
+
+  const isStockKeywordMatched = useCallback((stock) => {
+    if (!selectedKeyword) return false;
+    const reasons = stock.reason ? stock.reason.split('+').filter(r => r.trim()) : ['未分类'];
+    return reasons.some(reason => {
+      const r = reason.trim();
+      return r === selectedKeyword || mergedKeywordMap[r] === selectedKeyword;
+    });
+  }, [selectedKeyword, mergedKeywordMap]);
+
+  useLayoutEffect(() => {
+    const el = keywordContainerRef.current;
+    if (!el) return;
+    // 收起状态下测量：scrollHeight 是否超过两行阈值（56px）
+    // 两行 = 22px(行高) * 2 + 8px(行间距) = 52px，留余量取 56px
+    const THRESHOLD = 56;
+    setKeywordOverflow(el.scrollHeight > THRESHOLD + 2);
+  }, [keywordStats]);
 
   const handleAnalysisClick = async (stock, tradeDate) => {
     const analysisKey = `${stock.code}_${tradeDate}`;
@@ -518,6 +577,7 @@ const LadderPage = () => {
 
   const renderStockCard = (stock, level) => {
     const blockRankColor = getBlockRankColor(stock.block_name);
+    const isKeywordHighlighted = isStockKeywordMatched(stock);
     
     const reasons = stock.reason ? stock.reason.split('+').filter(r => r.trim()) : ['未分类'];
     
@@ -541,6 +601,7 @@ const LadderPage = () => {
             background: blockRankColor ? `${blockRankColor}10` : '#f5f5f5',
             position: 'relative',
             overflow: 'hidden',
+            ...(isKeywordHighlighted ? { border: '2px solid #f5222d' } : {}),
           }}
           styles={{ body: { padding: '8px 10px' } }}
         >
@@ -711,6 +772,7 @@ const LadderPage = () => {
             background: blockRankColor ? `${blockRankColor}10` : '#f5f5f5',
             position: 'relative',
             overflow: 'hidden',
+            ...(isKeywordHighlighted ? { border: '2px solid #f5222d' } : {}),
           }}
         >
           {stock.is_high_stock === 1 && (
@@ -871,24 +933,40 @@ const LadderPage = () => {
             </div>
           </div>
           <div style={{ marginTop: 8 }}>
-            {reasons.map((reason, index) => (
-              <Tooltip 
-                key={index} 
-                title={
-                  hasDetailReason ? (
-                    <div style={{ whiteSpace: 'pre-wrap' }}>
-                      {filterDisclaimer(stock.detail_reason)}
-                    </div>
-                  ) : null
-                } 
-                placement="top"
-                styles={{ root: { maxWidth: '500px' } }}
-              >
-                <Tag color="blue" style={{ marginBottom: 4, fontSize: 11, cursor: hasDetailReason ? 'help' : 'default' }}>
-                  {reason.trim()}
-                </Tag>
-              </Tooltip>
-            ))}
+            {reasons.map((reason, index) => {
+              const trimmedReason = reason.trim();
+              const isReasonSelected = selectedKeyword === trimmedReason || mergedKeywordMap[trimmedReason] === selectedKeyword;
+              return (
+                <Tooltip 
+                  key={index} 
+                  title={
+                    hasDetailReason ? (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>
+                        {filterDisclaimer(stock.detail_reason)}
+                      </div>
+                    ) : null
+                  } 
+                  placement="top"
+                  styles={{ root: { maxWidth: '500px' } }}
+                >
+                  <Tag 
+                    color={isReasonSelected ? 'red' : 'blue'}
+                    style={{ 
+                      marginBottom: 4, 
+                      fontSize: 11, 
+                      cursor: 'pointer',
+                      fontWeight: isReasonSelected ? 'bold' : 'normal'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedKeyword(isReasonSelected ? '' : trimmedReason);
+                    }}
+                  >
+                    {trimmedReason}
+                  </Tag>
+                </Tooltip>
+              );
+            })}
           </div>
         </Card>
       </Col>
@@ -1095,6 +1173,167 @@ const LadderPage = () => {
             )}
           </div>
         </div>
+
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Switch
+            size="small"
+            checked={aiKeywordEnabled}
+            onChange={setAiKeywordEnabled}
+          />
+          <span style={{ fontSize: 12, color: '#666' }}>AI关键词归并</span>
+          {aiKeywordEnabled && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<RobotOutlined />}
+              onClick={() => setAiKeywordModalVisible(true)}
+              style={{ fontSize: isMobile ? 12 : 14, background: '#13c2c2', borderColor: '#13c2c2' }}
+            >
+              AI分析
+            </Button>
+          )}
+        </div>
+
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>涨停关键词：</span>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+            <div
+              ref={keywordContainerRef}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                maxHeight: keywordExpanded ? 'none' : '56px',
+                overflow: 'hidden',
+                flexShrink: 1,
+              }}
+            >
+              {keywordStats.length === 0 ? (
+                <span style={{ color: '#999', fontSize: 12 }}>暂无关键词数据</span>
+              ) : (
+                keywordStats.map(({ keyword, count }) => {
+                  const isSelected = selectedKeyword === keyword;
+                  return (
+                    <Tag
+                      key={keyword}
+                      color={isSelected ? 'red' : 'default'}
+                      style={{
+                        cursor: 'pointer',
+                        margin: 0,
+                        fontWeight: isSelected ? 'bold' : 'normal',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                      onClick={() => {
+                        setSelectedKeyword(isSelected ? '' : keyword);
+                      }}
+                    >
+                      {keyword}
+                      <span style={{
+                        fontSize: 10,
+                        color: isSelected ? '#fff' : '#999',
+                        background: isSelected ? 'rgba(255,255,255,0.3)' : '#f0f0f0',
+                        padding: '0 4px',
+                        borderRadius: 8,
+                        minWidth: 16,
+                        textAlign: 'center'
+                      }}>
+                        {count}
+                      </span>
+                    </Tag>
+                  );
+                })
+              )}
+            </div>
+            {keywordOverflow && (
+              <Tag
+                style={{
+                  cursor: 'pointer',
+                  margin: 0,
+                  flexShrink: 0,
+                  color: '#1890ff',
+                  borderColor: '#1890ff'
+                }}
+                onClick={() => setKeywordExpanded(!keywordExpanded)}
+              >
+                {keywordExpanded ? '收起' : '展开'}
+              </Tag>
+            )}
+          </div>
+        </div>
+
+        {aiKeywordEnabled && (
+          <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>AI涨停关键词二次处理：</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+              {aiKeywordLoading ? (
+                <span style={{ color: '#999', fontSize: 12, lineHeight: '24px' }}>加载中...</span>
+              ) : aiKeywordResult?.merged_keywords?.length > 0 ? (
+                <>
+                  {aiKeywordResult.merged_keywords.map((item, idx) => {
+                    const isSelected = selectedKeyword === item.keyword;
+                    return (
+                      <Tooltip
+                        key={item.keyword}
+                        title={item.source ? `合并自：${item.source.join('、')}` : ''}
+                      >
+                        <Tag
+                          color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
+                          style={{
+                            fontSize: 13,
+                            padding: '2px 8px',
+                            margin: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            cursor: 'pointer',
+                            fontWeight: isSelected ? 'bold' : 'normal',
+                            borderWidth: isSelected ? 2 : 1,
+                            borderColor: isSelected ? '#f5222d' : undefined
+                          }}
+                          onClick={() => {
+                            setSelectedKeyword(isSelected ? '' : item.keyword);
+                          }}
+                        >
+                          {item.keyword}
+                          <Badge
+                            count={item.count}
+                            style={{ backgroundColor: idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff' }}
+                            overflowCount={999}
+                          />
+                        </Tag>
+                      </Tooltip>
+                    );
+                  })}
+                  {aiKeywordResult.from_cache && (
+                    <Tag color="green" style={{ margin: 0, fontSize: 11 }}>缓存</Tag>
+                  )}
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<RobotOutlined />}
+                    onClick={() => setAiKeywordModalVisible(true)}
+                    style={{ fontSize: 12, padding: '0 4px', color: '#13c2c2' }}
+                  >
+                    重新分析
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<RobotOutlined />}
+                  onClick={() => setAiKeywordModalVisible(true)}
+                  style={{ fontSize: 12, padding: 0, color: '#13c2c2' }}
+                >
+                  点击进行 AI 分析
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1607,6 +1846,173 @@ const LadderPage = () => {
     );
   };
 
+  const aiKeywordLoadedRef = useRef('');
+
+  const handleAiAnalyze = useCallback(async () => {
+    setAiKeywordLoading(true);
+    try {
+      const response = await stockApi.analyzeKeywords({
+        date: currentDate,
+        keywords: keywordStats,
+        force_refresh: true
+      });
+      if (response.data.success) {
+        setAiKeywordResult(response.data.data);
+        message.success('AI 分析完成');
+      } else {
+        message.error(response.data.error || '分析失败');
+      }
+    } catch (error) {
+      message.error('分析失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setAiKeywordLoading(false);
+    }
+  }, [currentDate, keywordStats]);
+
+  const loadAiCache = useCallback(async () => {
+    if (aiKeywordLoadedRef.current === currentDate) return;
+    aiKeywordLoadedRef.current = currentDate;
+    setAiKeywordLoading(true);
+    try {
+      const response = await stockApi.getKeywordAnalysis(currentDate);
+      if (response.data.success && response.data.data) {
+        setAiKeywordResult(response.data.data);
+      } else {
+        setAiKeywordResult(null);
+      }
+    } catch (error) {
+      message.error('加载失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setAiKeywordLoading(false);
+    }
+  }, [currentDate]);
+
+  // 切换日期时清空旧结果，重置加载标记，并自动读取缓存（不触发 AI 分析）
+  useEffect(() => {
+    setAiKeywordResult(null);
+    aiKeywordLoadedRef.current = '';
+    loadAiCache();
+  }, [currentDate, loadAiCache]);
+
+  // 打开弹窗时：若当前日期无缓存结果，自动触发 AI 分析
+  useEffect(() => {
+    if (aiKeywordModalVisible && !aiKeywordResult) {
+      handleAiAnalyze();
+    }
+  }, [aiKeywordModalVisible, aiKeywordResult, handleAiAnalyze]);
+
+  const renderAiKeywordModal = () => {
+    if (!aiKeywordModalVisible) return null;
+
+    const mergedKeywords = aiKeywordResult?.merged_keywords || [];
+    const analysisText = aiKeywordResult?.analysis_text || '';
+
+    return (
+      <Modal
+        title={
+          <Space>
+            <span>涨停关键词 AI 分析</span>
+            <Tag color="blue">
+              {currentDate ? dayjs(currentDate, 'YYYYMMDD').format('MM月DD日') : ''}
+            </Tag>
+            {aiKeywordResult?.from_cache && <Tag color="green">缓存</Tag>}
+          </Space>
+        }
+        open={aiKeywordModalVisible}
+        onCancel={() => {
+          setAiKeywordModalVisible(false);
+        }}
+        width={isMobile ? '95%' : 800}
+        footer={null}
+        centered
+        styles={{ body: { maxHeight: '70vh', overflow: 'auto' } }}
+        destroyOnClose
+      >
+        <Spin spinning={aiKeywordLoading}>
+          {mergedKeywords.length > 0 ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                  题材归类结果（按强度降序）
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {mergedKeywords.map((item, idx) => {
+                    const isSelected = selectedKeyword === item.keyword;
+                    return (
+                      <Tooltip
+                        key={item.keyword}
+                        title={item.source ? `合并自：${item.source.join('、')}` : ''}
+                      >
+                        <Tag
+                          color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
+                          style={{
+                            fontSize: 13,
+                            padding: '2px 8px',
+                            cursor: 'pointer',
+                            fontWeight: isSelected ? 'bold' : 'normal',
+                            borderWidth: isSelected ? 2 : 1,
+                            borderColor: isSelected ? '#f5222d' : undefined
+                          }}
+                          onClick={() => {
+                            setSelectedKeyword(isSelected ? '' : item.keyword);
+                          }}
+                        >
+                          {item.keyword}
+                          <Badge
+                            count={item.count}
+                            style={{ backgroundColor: idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff', marginLeft: 6 }}
+                            overflowCount={999}
+                          />
+                        </Tag>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {analysisText && (
+                <div style={{
+                  background: '#fafafa',
+                  padding: 12,
+                  borderRadius: 6,
+                  fontSize: 13,
+                  lineHeight: 1.8,
+                  color: '#333',
+                  whiteSpace: 'pre-wrap',
+                  marginBottom: 16
+                }}>
+                  {analysisText}
+                </div>
+              )}
+
+              <div style={{ textAlign: 'center' }}>
+                <Button
+                  type="primary"
+                  icon={<ReloadOutlined />}
+                  onClick={handleAiAnalyze}
+                  loading={aiKeywordLoading}
+                >
+                  重新 AI 分析
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: 24 }}>
+              <Button
+                type="primary"
+                size="large"
+                onClick={handleAiAnalyze}
+                loading={aiKeywordLoading}
+              >
+                开始 AI 分析
+              </Button>
+            </div>
+          )}
+        </Spin>
+      </Modal>
+    );
+  };
+
   return (
     <>
       <MarketAlertBar />
@@ -1698,6 +2104,8 @@ const LadderPage = () => {
         />
       )}
       
+      {renderAiKeywordModal()}
+      
       {editBlockVisible && editingStock && (
         <EditBlockModal
           visible={editBlockVisible}
@@ -1719,6 +2127,7 @@ const LadderPage = () => {
         visible={klineVisible}
         stockCode={selectedStock?.code}
         stockName={selectedStock?.name}
+        targetDate={currentDate}
         onClose={() => {
           setKlineVisible(false);
           setSelectedStock(null);

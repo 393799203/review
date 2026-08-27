@@ -74,9 +74,9 @@ export const stockApi = {
 
   sellStock: (data) => api.post('/watchlist/sell', data),
 
-  getStockKline: (stockCode, days = 60) => api.get(`/stock/kline/${stockCode}?days=${days}`),
+  getStockKline: (stockCode, days = 60, endDate = '') => api.get(`/stock/kline/${stockCode}?days=${days}${endDate ? `&end_date=${endDate}` : ''}`),
 
-  getStockIntraday: (stockCode) => api.get(`/stock/intraday/${stockCode}`),
+  getStockIntraday: (stockCode, date = '') => api.get(`/stock/intraday/${stockCode}${date ? `?date=${date}` : ''}`),
 
   getStockQuote: (stockCode) => api.get(`/stock/quote/${stockCode}`),
 
@@ -120,6 +120,10 @@ export const stockApi = {
   },
   
   getMarketAlertsHistory: (params) => api.get('/market-alerts/history', { params }),
+
+  getKeywordAnalysis: (dateStr) => api.get(`/keyword-analysis/${dateStr}`),
+
+  analyzeKeywords: (data) => api.post('/keyword-analysis', data, { timeout: 120000 }),
 };
 
 export default api;

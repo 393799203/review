@@ -250,6 +250,22 @@ class HotTopicAnalysisResult(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class KeywordAnalysis(Base):
+    """涨停关键词AI归并分析缓存表"""
+    __tablename__ = 'keyword_analysis'
+    __table_args__ = (
+        Index('idx_ka_trade_date', 'trade_date', unique=True),
+    )
+
+    id = Column(Integer, primary_key=True)
+    trade_date = Column(Date, nullable=False, unique=True)
+    raw_keywords = Column(Text)
+    merged_keywords = Column(Text)
+    analysis_text = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class User(Base):
     """用户表"""
     __tablename__ = 'users'

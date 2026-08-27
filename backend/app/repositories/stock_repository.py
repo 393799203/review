@@ -164,3 +164,19 @@ class StockRepository(BaseRepository):
             return max_level
         finally:
             session.close()
+    
+    def get_prev_reasons_by_codes(self, prev_date: date, stock_codes: List[str]) -> Dict[str, str]:
+        """批量查询上一交易日多个股票的涨停关键词"""
+        if not stock_codes:
+            return {}
+        session = self.create_session()
+        try:
+            stocks = session.query(
+                LimitUpStock.stock_code, LimitUpStock.limit_up_reason
+            ).filter(
+                LimitUpStock.trade_date == prev_date,
+                LimitUpStock.stock_code.in_(stock_codes)
+            ).all()
+            return {code: reason or '' for code, reason in stocks}
+        finally:
+            session.close()

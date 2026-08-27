@@ -49,6 +49,8 @@ class LadderService(BaseService):
             stats = self.stock_repository.get_stats_by_date(trade_date)
             
             trading_start_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
+            trading_end_time = now.replace(hour=15, minute=0, second=0, microsecond=0)
+            is_trading_hours = is_today and trading_start_time <= now <= trading_end_time
             
             if not stocks or not stats:
                 if is_today and now < trading_start_time:
@@ -70,7 +72,7 @@ class LadderService(BaseService):
                     else:
                         return False, '该日期暂无涨停股票数据', None
             
-            ladder = self._build_ladder(stocks)
+            ladder = self._build_ladder(stocks, trade_date, is_trading_hours)
             statistics = self._build_statistics(stats)
             yesterday_data = self._get_yesterday_data(trade_date)
             
@@ -83,9 +85,20 @@ class LadderService(BaseService):
         except Exception as e:
             return False, str(e), None
     
-    def _build_ladder(self, stocks: List[LimitUpStock]) -> List[Dict]:
+    def _build_ladder(self, stocks: List[LimitUpStock], trade_date: date = None, is_trading_hours: bool = False) -> List[Dict]:
         """构建连板天梯数据"""
         ladder_dict = {}
+
+        # 盘中实时时，对首板以上且 reason 为空/"未分类"的股票，批量查询上一交易日 reason
+        prev_reason_map = {}
+        if is_trading_hours and trade_date:
+            need_fallback_codes = [
+                stock.stock_code for stock in stocks
+                if stock.continuous_days >= 2
+                and (not stock.limit_up_reason or stock.limit_up_reason == '未分类')
+            ]
+            if need_fallback_codes:
+                prev_reason_map = self._get_prev_reasons(trade_date, need_fallback_codes)
         
         for stock in stocks:
             level = stock.continuous_days
@@ -96,17 +109,27 @@ class LadderService(BaseService):
                     'label': self.LEVEL_LABELS.get(level, f"{level}连板"),
                     'stocks': []
                 }
+
+            # 回退逻辑：盘中实时，首板以上，reason 为空/"未分类"
+            reason = stock.limit_up_reason or ''
+            if (is_trading_hours and level >= 2
+                and (not reason or reason == '未分类')
+                and stock.stock_code in prev_reason_map):
+                fallback_reason = prev_reason_map[stock.stock_code]
+                if fallback_reason and fallback_reason != '未分类':
+                    reason = fallback_reason
             
             stock_data = {
                 'code': stock.stock_code,
                 'name': stock.stock_name,
+                'continuous_days': stock.continuous_days,
                 'limit_up_time': stock.limit_up_time.strftime('%H:%M') if stock.limit_up_time else '',
                 'seal_amount': float(stock.seal_amount) if stock.seal_amount else 0.0,
                 'seal_amount_wan': round(float(stock.seal_amount) / 10000, 2) if stock.seal_amount else 0.0,
                 'limit_up_price': float(stock.limit_up_price) if stock.limit_up_price else 0.0,
                 'change_percent': float(stock.change_percent) if stock.change_percent else 0.0,
                 'turnover_rate': float(stock.turnover_rate) if stock.turnover_rate else 0.0,
-                'reason': stock.limit_up_reason or '',
+                'reason': reason,
                 'limit_up_type': stock.limit_up_type or '',
                 'high_days': stock.high_days or '',
                 'detail_reason': stock.ths_reason_info or '',
@@ -128,6 +151,23 @@ class LadderService(BaseService):
         ladder = sorted(ladder_dict.values(), key=lambda x: x['level'], reverse=True)
         
         return ladder
+    
+    def _get_prev_reasons(self, trade_date: date, stock_codes: List[str]) -> Dict[str, str]:
+        """获取上一交易日多个股票的涨停关键词"""
+        try:
+            from core.trade_calendar import trade_calendar
+
+            prev_trading_days = trade_calendar.get_recent_trading_days(2, end_date=trade_date)
+            if not prev_trading_days or len(prev_trading_days) < 2:
+                return {}
+
+            prev_date_str = prev_trading_days[1]
+            prev_date = datetime.strptime(prev_date_str, '%Y%m%d').date()
+
+            return self.stock_repository.get_prev_reasons_by_codes(prev_date, stock_codes)
+        except Exception as e:
+            print(f"获取上一交易日涨停关键词失败: {e}")
+            return {}
     
     def _format_stock_data(self, stock: LimitUpStock) -> Dict:
         """格式化股票数据"""

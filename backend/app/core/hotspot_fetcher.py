@@ -8,17 +8,70 @@
 from app.core.data_fetcher import DataFetcher
 from database import get_db_session
 from models import LimitUpStock
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import requests
+
+HOTSPOT_URL = (
+    "http://zx.10jqka.com.cn/event/api/getharden/"
+    "date/{date}/orderby/date/orderway/desc/charset/GBK/"
+)
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "Chrome/117.0.0.0 Safari/537.36"
+)
 
 
 class HotspotFetcher:
     """热点数据获取器"""
-    
+
     def __init__(self):
         self.data_fetcher = DataFetcher()
         self.logger = logging.getLogger(__name__)
-    
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": _UA})
+
+    def get_hot_data(self, date_str: str) -> list:
+        """抓取同花顺某日涨停热点数据（代码/名称/涨幅/题材标签等）"""
+        url = HOTSPOT_URL.format(date=date_str)
+        try:
+            r = self.session.get(url, timeout=15)
+            data = r.json()
+            if data.get("errocode", 0) != 0:
+                self.logger.warning(f"[热点] {date_str} 错误: {data.get('errormsg', '')}")
+                return []
+            return data.get("data") or []
+        except Exception as e:
+            self.logger.error(f"[热点] {date_str} 请求失败: {e}")
+            return []
+
+    def get_multi_day_hot_data(self, dates: list) -> dict:
+        """抓取多个交易日的热点数据，返回 {date: rows}"""
+        result = {}
+        for d in dates:
+            rows = self.get_hot_data(d)
+            if rows:
+                result[d] = rows
+        return result
+
+    def get_trading_days_before(self, base_date_str: str, count: int) -> list:
+        """获取基准日期之前的 count 个交易日（跳过周末，YYYYMMDD）"""
+        try:
+            base = datetime.strptime(base_date_str, "%Y%m%d")
+        except ValueError:
+            return []
+
+        days = []
+        cursor = base - timedelta(days=1)
+        max_lookback = 10
+        while len(days) < count and max_lookback > 0:
+            ds = cursor.strftime("%Y%m%d")
+            if cursor.weekday() < 5:
+                days.append(ds)
+            cursor = cursor - timedelta(days=1)
+            max_lookback -= 1
+        return days
+
     def get_first_limit_up_date(self, stock_code):
         """
         获取股票首次涨停日期

@@ -38,7 +38,7 @@ class LimitUpReasonAnalyzer:
         self.api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
 
         # 模型配置：从环境变量读取，支持配置多个模型作为降级策略
-        models_env = os.environ.get('DEEPSEEK_MODELS', 'deepseek-v4-flash,deepseek-v4-pro')
+        models_env = os.environ.get('DEEPSEEK_MODELS', 'deepseek-chat')
         self.models = models_env.split(',')
         self.current_model_index = 0
         

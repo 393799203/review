@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import re
+import json
 from app.core.fetch_data import LimitUpFetcher
 from datetime import datetime, date
 from flask import request
 from app.controllers.base_controller import BaseController
 from app.services.ladder_service import LadderService
 from database import get_db_session
-from models import Block
+from models import Block, KeywordAnalysis
 
 
 class LadderController(BaseController):
@@ -301,6 +303,145 @@ class LadderController(BaseController):
             else:
                 return self.error('数据不存在', 404)
                 
+        except Exception as e:
+            return self.error(str(e), 500)
+
+    def analyze_keywords(self):
+        """AI 处理涨停关键词"""
+        try:
+            data = self.get_json_data()
+            date_str = data.get('date')
+            keywords_data = data.get('keywords', [])
+            force_refresh = data.get('force_refresh', False)
+
+            if not date_str:
+                return self.error('缺少日期参数', 400)
+
+            trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+
+            # 如果已有缓存且不强制刷新，直接返回
+            if not force_refresh:
+                session = get_db_session()
+                try:
+                    existing = session.query(KeywordAnalysis).filter(
+                        KeywordAnalysis.trade_date == trade_date
+                    ).first()
+                    if existing:
+                        return self.success({
+                            'raw_keywords': json.loads(existing.raw_keywords),
+                            'merged_keywords': json.loads(existing.merged_keywords),
+                            'analysis_text': existing.analysis_text,
+                            'from_cache': True
+                        })
+                finally:
+                    session.close()
+
+            # 无缓存或强制刷新：调用 AI
+            from core.llm_client import llm_client
+
+            # 构建关键词列表字符串
+            keyword_list_str = "\n".join([
+                f"- {item['keyword']}（出现{item['count']}次）"
+                for item in keywords_data
+            ])
+
+            system_prompt = """你是一个A股涨停板题材分析专家。请对给定的涨停股票关键词进行语义归类合并。
+
+规则：
+1. 将含义相近或属于同一大类的关键词合并（如"火电""电力""绿色电力"→统一为"电力"）
+2. 归类后的名称应简洁、通用，能代表该类别的核心概念
+3. 保留无法归类的重要独立关键词
+4. 合并后的 count 为所有源关键词的 count 之和
+5. 统计合并后各关键词的总出现次数，按次数降序排列
+
+请以 JSON 格式返回结果，格式如下：
+{
+  "merged": [
+    {"keyword": "电力", "count": 12, "source": ["火电", "电力", "绿色电力"]},
+    ...
+  ],
+  "analysis": "分析说明（Markdown格式，简要描述主要题材集群和盘面特征）"
+}"""
+
+            user_prompt = f"""以下是今日涨停股票的关键词及其出现次数：
+
+{keyword_list_str}
+
+请进行语义归类合并。"""
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+
+            result_text = llm_client._chat(messages, temperature=0.3, max_tokens=4096)
+
+            # 解析 AI 返回的 JSON
+            json_match = re.search(r'\{[\s\S]*\}', result_text)
+            if not json_match:
+                return self.error('AI 返回格式解析失败', 500)
+
+            result = json.loads(json_match.group())
+            merged_keywords = result.get('merged', [])
+            analysis_text = result.get('analysis', '')
+
+            # 保存到数据库
+            session = get_db_session()
+            try:
+                existing = session.query(KeywordAnalysis).filter(
+                    KeywordAnalysis.trade_date == trade_date
+                ).first()
+
+                if existing:
+                    existing.raw_keywords = json.dumps(keywords_data, ensure_ascii=False)
+                    existing.merged_keywords = json.dumps(merged_keywords, ensure_ascii=False)
+                    existing.analysis_text = analysis_text
+                    existing.updated_at = datetime.now()
+                else:
+                    analysis_record = KeywordAnalysis(
+                        trade_date=trade_date,
+                        raw_keywords=json.dumps(keywords_data, ensure_ascii=False),
+                        merged_keywords=json.dumps(merged_keywords, ensure_ascii=False),
+                        analysis_text=analysis_text
+                    )
+                    session.add(analysis_record)
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
+
+            return self.success({
+                'raw_keywords': keywords_data,
+                'merged_keywords': merged_keywords,
+                'analysis_text': analysis_text,
+                'from_cache': False
+            })
+
+        except Exception as e:
+            return self.error(f'AI 分析失败: {str(e)}', 500)
+
+    def get_keyword_analysis(self, date_str: str):
+        """获取关键词 AI 分析缓存"""
+        try:
+            trade_date = datetime.strptime(date_str, '%Y%m%d').date()
+
+            session = get_db_session()
+            try:
+                existing = session.query(KeywordAnalysis).filter(
+                    KeywordAnalysis.trade_date == trade_date
+                ).first()
+                if existing:
+                    return self.success({
+                        'raw_keywords': json.loads(existing.raw_keywords),
+                        'merged_keywords': json.loads(existing.merged_keywords),
+                        'analysis_text': existing.analysis_text,
+                        'from_cache': True
+                    })
+                return self.success(None)
+            finally:
+                session.close()
         except Exception as e:
             return self.error(str(e), 500)
 

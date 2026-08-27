@@ -464,7 +464,7 @@ class AIService(BaseService):
                 return False, '未配置DEEPSEEK_API_KEY环境变量', None
             
             api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
-            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-v4-flash')
+            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
             temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
             max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_SHORT', '500'))
             
@@ -533,7 +533,7 @@ class AIService(BaseService):
                 return False, '未配置DEEPSEEK_API_KEY环境变量', ''
             
             api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
-            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-v4-flash')
+            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
             temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
             max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_LONG', '4000'))
             print(f"[DEBUG] Using max_tokens: {max_tokens} (from DEEPSEEK_MAX_TOKENS_LONG)")
@@ -598,10 +598,21 @@ class AIService(BaseService):
             processed_strategy = self._process_strategy_template(
                 strategy, stock_code, stock_name, block, date_str
             )
-            
+
+            # 抓取同花顺真实涨停热点数据（目标日期+前2个交易日），防止AI编造数据
+            hot_data = {}
+            if date_str:
+                try:
+                    from app.core.hotspot_fetcher import HotspotFetcher
+                    fetcher = HotspotFetcher()
+                    window_dates = [date_str] + fetcher.get_trading_days_before(date_str, 2)
+                    hot_data = fetcher.get_multi_day_hot_data(window_dates)
+                except Exception as e:
+                    print(f"[WARNING] 获取热点数据失败，将不提供数据grounding: {e}")
+
             # 构建提示词
             prompt = self._build_comparable_prompt(
-                stock_code, stock_name, block, limit_up_reason, date_str, processed_strategy
+                stock_code, stock_name, block, limit_up_reason, date_str, processed_strategy, hot_data
             )
             
             # 调用LLM分析
@@ -641,12 +652,13 @@ class AIService(BaseService):
         processed = processed.replace('{block}', block or '')
         return processed
     
-    def _build_comparable_prompt(self, stock_code: str, stock_name: str, 
+    def _build_comparable_prompt(self, stock_code: str, stock_name: str,
                                 block: str, limit_up_reason: str,
-                                date_str: str, processed_strategy: str) -> str:
+                                date_str: str, processed_strategy: str,
+                                hot_data: dict = None) -> str:
         """
         构建找对标分析的提示词
-        
+
         Args:
             stock_code: 股票代码
             stock_name: 股票名称
@@ -654,7 +666,8 @@ class AIService(BaseService):
             limit_up_reason: 涨停原因
             date_str: 日期
             processed_strategy: 处理后的策略
-            
+            hot_data: 同花顺真实涨停热点数据 {date: [rows]}，用于防止AI编造
+
         Returns:
             构建好的提示词
         """
@@ -662,7 +675,36 @@ class AIService(BaseService):
         reason_info = ""
         if limit_up_reason:
             reason_info = f"- 涨停原因：{limit_up_reason}"
-        
+
+        # 热点数据段（截断保护，只保留最近几个交易日、每天最多200条）
+        hot_data_section = ""
+        grounding_rules = ""
+        if hot_data:
+            import json as _json
+            data_to_use = hot_data
+            hot_data_str = _json.dumps(data_to_use, ensure_ascii=False, indent=2)
+            if len(hot_data_str) > 80000:
+                truncated = {}
+                for d in list(hot_data.keys())[:3]:
+                    truncated[d] = hot_data[d][:200]
+                hot_data_str = _json.dumps(truncated, ensure_ascii=False, indent=2)
+                hot_data_str += "\n\n(数据已截断，只保留最近几个交易日)"
+
+            hot_data_section = """
+## 同花顺真实涨停数据（最近几个交易日）
+数据中包含涨停股票的代码、名称、涨幅、题材标签(reason)等信息：
+
+```json
+""" + hot_data_str + """
+```
+"""
+            grounding_rules = """0. 【最重要】推荐的对标股票必须来自上面提供的真实涨停数据，只使用我提供的数据，绝对不要编造任何股票或数据
+1. 如果提供的数据中没有找到符合条件的对标股票，如实说明，不要虚构
+"""
+        else:
+            grounding_rules = """0. 确保推荐股票真实存在（不要虚构股票）
+"""
+
         prompt = """你是一位资深的A股股票分析师，擅长对标分析和股票推荐。请根据以下信息，找出与目标股票对标相似的股票，并进行多维度深度分析。
 
 ## 目标股票基本信息
@@ -674,7 +716,7 @@ class AIService(BaseService):
 
 ## 用户对标需求
 """ + processed_strategy + """
-
+""" + hot_data_section + """
 ## 分析要求
 
 请按照以下框架进行全面对标分析，并返回结构化的JSON数据：
@@ -733,8 +775,7 @@ class AIService(BaseService):
 - **风险提示**：对标股票的风险点分析
 
 ### 5. 注意事项
-- 只推荐当天涨停的股票（不包含其他日期）
-- 确保推荐股票真实存在（不要虚构股票）
+- 只推荐提供的真实涨停数据中出现的股票
 - 分析要有理有据，避免空洞描述
 - 如找不到完全符合条件的对标股，请说明原因并推荐次优选择
 
@@ -783,10 +824,9 @@ class AIService(BaseService):
 }
 
 严格要求：
-1. 直接返回JSON对象，第一个字符必须是左花括号，最后一个字符必须是右花括号
+""" + grounding_rules + """1. 直接返回JSON对象，第一个字符必须是左花括号，最后一个字符必须是右花括号
 2. 不要使用代码块包裹（不要用反引号）
 3. 不要在JSON前后添加任何说明文字
-4. JSON格式必须正确，可直接被解析
-5. 确保推荐股票真实存在，不要虚构"""
+4. JSON格式必须正确，可直接被解析"""
 
         return prompt

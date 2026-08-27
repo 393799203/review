@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, Spin, message, Button } from 'antd';
+import { Modal, Spin, message, Button, Switch } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { stockApi } from '../services/api';
 import api from '../services/api';
 
-const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
+const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose }) => {
   const [klineLoading, setKlineLoading] = useState(false);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -16,6 +16,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [useLatestKline, setUseLatestKline] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -33,7 +34,13 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     if (!visible) {
       setIsInWatchlist(false);
     }
-  }, [visible, stockCode]);
+  }, [visible, stockCode, targetDate]);
+
+  useEffect(() => {
+    if (visible && stockCode) {
+      loadKlineData();
+    }
+  }, [useLatestKline]);
 
   const loadData = async () => {
     loadKlineData();
@@ -44,7 +51,8 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
     try {
       setKlineLoading(true);
       
-      const klineResponse = await stockApi.getStockKline(stockCode, 250);
+      const endDate = useLatestKline ? '' : (targetDate || '');
+      const klineResponse = await stockApi.getStockKline(stockCode, 250, endDate);
       
       if (klineResponse.data.success) {
         setKlineData(klineResponse.data.data || []);
@@ -64,7 +72,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
       setIntradayLoading(true);
       setQuoteLoading(true);
       
-      const intradayResponse = await stockApi.getStockIntraday(stockCode);
+      const intradayResponse = await stockApi.getStockIntraday(stockCode, targetDate || '');
       
       if (intradayResponse.data.success) {
         const data = intradayResponse.data.data;
@@ -934,6 +942,12 @@ const StockKlineModal = ({ visible, stockCode, stockName, onClose }) => {
         <div style={{ marginBottom: isMobile ? '0px' : '10px' }}>
           {/* 实时行情头部 */}
           {renderQuoteHeader()}
+          {targetDate && (
+            <div style={{ padding: '2px 16px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8c8c8c' }}>
+              <Switch size="small" checked={useLatestKline} onChange={setUseLatestKline} />
+              <span>{useLatestKline ? '实时K线' : `K线截止: ${targetDate}`}</span>
+            </div>
+          )}
           
           <div style={{ display: 'flex' }}>
             {/* 分时图 */}

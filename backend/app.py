@@ -19,6 +19,13 @@ from mootdx.quotes import Quotes
 
 load_dotenv()
 
+# Windows 控制台默认 GBK 编码，print ✓/✗ 等字符会导致 UnicodeEncodeError 崩溃
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors='replace')
+    except Exception:
+        pass
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models import DatabaseConfig, LimitUpStock, LadderStats, init_database, Block, WatchlistStock, TradeRecord, AIAnalysisResult, User, ClsNews, UserStrategy, WatchlistAnalysisResult, ResearchReportAnalysisResult
 from app.core.data_fetcher import DataFetcher
@@ -192,6 +199,18 @@ def get_continuous_blocks():
 def update_stock_block():
     """更新股票板块"""
     return ladder_controller.update_stock_block()
+
+
+@app.route('/api/keyword-analysis/<date_str>', methods=['GET'])
+def get_keyword_analysis(date_str):
+    """获取关键词 AI 分析缓存"""
+    return ladder_controller.get_keyword_analysis(date_str)
+
+
+@app.route('/api/keyword-analysis', methods=['POST'])
+def analyze_keywords():
+    """AI 处理涨停关键词"""
+    return ladder_controller.analyze_keywords()
 
 
 # ==================== 自选股相关路由 ====================
