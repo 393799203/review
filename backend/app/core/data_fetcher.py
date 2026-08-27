@@ -520,7 +520,12 @@ class DataFetcher:
                 "pageNumber": str(page),
             }
             
-            r = self.session.get(REPORT_API, params=params, timeout=30)
+            # 东财 reportapi 会拦截带同花顺 Referer/Origin 的请求(返回567拦截页),
+            # 不能使用 self.session(携带同花顺会话头),用干净请求头单独访问
+            r = requests.get(REPORT_API, params=params, timeout=30, headers={
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+                'Referer': 'https://data.eastmoney.com/report/',
+            })
             d = r.json()
             
             return {
