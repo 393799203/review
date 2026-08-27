@@ -20,9 +20,9 @@ const LadderPage = () => {
   const [statistics, setStatistics] = useState({});
   const [yesterdayData, setYesterdayData] = useState(null);
   const [selectedKeyword, setSelectedKeyword] = useState('');
-  const [keywordExpanded, setKeywordExpanded] = useState(false);
-  const [keywordOverflow, setKeywordOverflow] = useState(false);
-  const keywordContainerRef = useRef(null);
+  const [aiKeywordExpanded, setAiKeywordExpanded] = useState(false);
+  const [aiKeywordOverflow, setAiKeywordOverflow] = useState(false);
+  const aiKeywordContainerRef = useRef(null);
   const [aiKeywordEnabled, setAiKeywordEnabled] = useState(true);
   const [aiKeywordModalVisible, setAiKeywordModalVisible] = useState(false);
   const [aiKeywordLoading, setAiKeywordLoading] = useState(false);
@@ -148,13 +148,21 @@ const LadderPage = () => {
   }, [selectedKeyword, mergedKeywordMap]);
 
   useLayoutEffect(() => {
-    const el = keywordContainerRef.current;
+    // H5 下 AI 归并标签收起为三行，测量是否溢出需要"展开"
+    if (!isMobile) {
+      setAiKeywordOverflow(false);
+      return;
+    }
+    const el = aiKeywordContainerRef.current;
     if (!el) return;
-    // 收起状态下测量：scrollHeight 是否超过两行阈值（56px）
-    // 两行 = 22px(行高) * 2 + 8px(行间距) = 52px，留余量取 56px
-    const THRESHOLD = 56;
-    setKeywordOverflow(el.scrollHeight > THRESHOLD + 2);
-  }, [keywordStats]);
+    const check = () => {
+      // 收起态下内容实际高度超过可视高度即溢出；展开后保持按钮（用于"收起"）
+      setAiKeywordOverflow(el.scrollHeight > el.clientHeight + 2 || aiKeywordExpanded);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [aiKeywordResult, isMobile, aiKeywordEnabled, aiKeywordExpanded]);
 
   const handleAnalysisClick = async (stock, tradeDate) => {
     const analysisKey = `${stock.code}_${tradeDate}`;
@@ -601,9 +609,14 @@ const LadderPage = () => {
             background: blockRankColor ? `${blockRankColor}10` : '#f5f5f5',
             position: 'relative',
             overflow: 'hidden',
+            cursor: 'pointer',
             ...(isKeywordHighlighted ? { border: '2px solid #f5222d' } : {}),
           }}
           styles={{ body: { padding: '8px 10px' } }}
+          onClick={() => {
+            setSelectedStock({ code: stock.code, name: stock.name });
+            setKlineVisible(true);
+          }}
         >
           {stock.is_high_stock === 1 && (
             <div style={{
@@ -719,45 +732,82 @@ const LadderPage = () => {
           <div style={{ fontSize: 11, color: '#666', marginBottom: 4, marginTop: 4 }}>
                 涨停: {stock.limit_up_time || '-'} | 封单: {(stock.seal_amount_wan / 10000).toFixed(2)}亿 | 换手: {stock.turnover_rate?.toFixed(2) || '-'}%
           </div>
-                {stock.block_name && (
-                  <Tooltip 
-                    title={
-                      stock.block_info && Object.keys(stock.block_info).length > 0 ? (
-                        <div>
-                          <div>板块涨跌幅: {stock.block_info.change_rate.toFixed(2)}%</div>
-                          <div>涨停家数: {stock.block_info.limit_up_num}</div>
-                          <div>连板家数: {stock.block_info.continuous_num}</div>
-                          {stock.block_info.high && <div>板块高度: {stock.block_info.high}</div>}
-                          <div>上榜天数: {stock.block_info.list_days}</div>
-                          {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
-                        </div>
-                      ) : null
-                    }
-                    placement="left"
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4, alignItems: 'center' }}>
+            {reasons.map((reason, index) => {
+              const trimmedReason = reason.trim();
+              const isReasonSelected = selectedKeyword === trimmedReason || mergedKeywordMap[trimmedReason] === selectedKeyword;
+              return (
+                <Tooltip
+                  key={index}
+                  title={
+                    hasDetailReason ? (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>
+                        {filterDisclaimer(stock.detail_reason)}
+                      </div>
+                    ) : null
+                  }
+                  placement="top"
+                  styles={{ root: { maxWidth: '390px' } }}
+                >
+                  <Tag
+                    color={isReasonSelected ? 'red' : 'blue'}
+                    style={{
+                      fontSize: 10,
+                      margin: 0,
+                      cursor: 'pointer',
+                      fontWeight: isReasonSelected ? 'bold' : 'normal'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedKeyword(isReasonSelected ? '' : trimmedReason);
+                    }}
                   >
-                    <Tag 
-                      color="#722ed1" 
-                      style={{ 
-                        fontSize: 10, 
-                        marginTop: 4, 
-                        cursor: 'default',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
-                    >
-                      {stock.block_name}
-                      <EditOutlined 
-                        style={{ fontSize: 10, cursor: 'pointer' }} 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingStock(stock);
-                          setEditBlockVisible(true);
-                        }}
-                      />
-                    </Tag>
-                  </Tooltip>
-                )}
+                    {trimmedReason}
+                  </Tag>
+                </Tooltip>
+              );
+            })}
+            {stock.block_name && (
+              <Tooltip
+                title={
+                  stock.block_info && Object.keys(stock.block_info).length > 0 ? (
+                    <div>
+                      <div>板块涨跌幅: {stock.block_info.change_rate.toFixed(2)}%</div>
+                      <div>涨停家数: {stock.block_info.limit_up_num}</div>
+                      <div>连板家数: {stock.block_info.continuous_num}</div>
+                      {stock.block_info.high && <div>板块高度: {stock.block_info.high}</div>}
+                      <div>上榜天数: {stock.block_info.list_days}</div>
+                      {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
+                    </div>
+                  ) : null
+                }
+                placement="left"
+              >
+                <Tag
+                  color="#722ed1"
+                  style={{
+                    fontSize: 10,
+                    margin: 0,
+                    marginLeft: 'auto',
+                    cursor: 'default',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  {stock.block_name}
+                  <EditOutlined
+                    style={{ fontSize: 10, cursor: 'pointer' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingStock(stock);
+                      setEditBlockVisible(true);
+                    }}
+                  />
+                </Tag>
+              </Tooltip>
+            )}
+          </div>
           </Card>
         </Col>
       );
@@ -1174,80 +1224,28 @@ const LadderPage = () => {
           </div>
         </div>
 
-        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: isMobile ? 50 : 84, lineHeight: '24px', flexShrink: 0 }}>{isMobile ? 'AI归并：' : '关键词AI归并：'}</span>
           <Switch
             size="small"
             checked={aiKeywordEnabled}
             onChange={setAiKeywordEnabled}
+            style={{ marginTop: 3, flexShrink: 0 }}
           />
-          <span style={{ fontSize: 12, color: '#666' }}>AI关键词归并</span>
-          {aiKeywordEnabled && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<RobotOutlined />}
-              onClick={() => setAiKeywordModalVisible(true)}
-              style={{ fontSize: isMobile ? 12 : 14, background: '#13c2c2', borderColor: '#13c2c2' }}
-            >
-              AI分析
-            </Button>
-          )}
-        </div>
-
-        <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>涨停关键词：</span>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-            <div
-              ref={keywordContainerRef}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                flexWrap: 'wrap',
-                maxHeight: keywordExpanded ? 'none' : '56px',
-                overflow: 'hidden',
-                flexShrink: 1,
-              }}
-            >
-              {keywordStats.length === 0 ? (
-                <span style={{ color: '#999', fontSize: 12 }}>暂无关键词数据</span>
-              ) : (
-                keywordStats.map(({ keyword, count }) => {
-                  const isSelected = selectedKeyword === keyword;
-                  return (
-                    <Tag
-                      key={keyword}
-                      color={isSelected ? 'red' : 'default'}
-                      style={{
-                        cursor: 'pointer',
-                        margin: 0,
-                        fontWeight: isSelected ? 'bold' : 'normal',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
-                      onClick={() => {
-                        setSelectedKeyword(isSelected ? '' : keyword);
-                      }}
-                    >
-                      {keyword}
-                      <span style={{
-                        fontSize: 10,
-                        color: isSelected ? '#fff' : '#999',
-                        background: isSelected ? 'rgba(255,255,255,0.3)' : '#f0f0f0',
-                        padding: '0 4px',
-                        borderRadius: 8,
-                        minWidth: 16,
-                        textAlign: 'center'
-                      }}>
-                        {count}
-                      </span>
-                    </Tag>
-                  );
-                })
-              )}
-            </div>
-            {keywordOverflow && (
+          {/* 控制组：分析按钮 + 展开/收起，固定同一行靠右 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, height: 24, marginLeft: 'auto', order: isMobile ? 2 : 3 }}>
+            {aiKeywordEnabled && (
+              <Button
+                type="link"
+                size="small"
+                icon={<RobotOutlined />}
+                onClick={() => setAiKeywordModalVisible(true)}
+                style={{ fontSize: 12, padding: 0, color: '#13c2c2' }}
+              >
+                {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行 AI 分析'}
+              </Button>
+            )}
+            {aiKeywordEnabled && isMobile && aiKeywordOverflow && (
               <Tag
                 style={{
                   cursor: 'pointer',
@@ -1256,84 +1254,73 @@ const LadderPage = () => {
                   color: '#1890ff',
                   borderColor: '#1890ff'
                 }}
-                onClick={() => setKeywordExpanded(!keywordExpanded)}
+                onClick={() => setAiKeywordExpanded(!aiKeywordExpanded)}
               >
-                {keywordExpanded ? '收起' : '展开'}
+                {aiKeywordExpanded ? '收起' : '展开'}
               </Tag>
             )}
           </div>
-        </div>
-
-        {aiKeywordEnabled && (
-          <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: 70, lineHeight: '24px' }}>AI涨停关键词二次处理：</span>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-              {aiKeywordLoading ? (
-                <span style={{ color: '#999', fontSize: 12, lineHeight: '24px' }}>加载中...</span>
-              ) : aiKeywordResult?.merged_keywords?.length > 0 ? (
-                <>
-                  {aiKeywordResult.merged_keywords.map((item, idx) => {
-                    const isSelected = selectedKeyword === item.keyword;
-                    return (
-                      <Tooltip
-                        key={item.keyword}
-                        title={item.source ? `合并自：${item.source.join('、')}` : ''}
+          {aiKeywordEnabled && (
+            aiKeywordLoading ? (
+              <span style={{ color: '#999', fontSize: 12, lineHeight: '24px', order: isMobile ? 3 : 2 }}>加载中...</span>
+            ) : aiKeywordResult?.merged_keywords?.length > 0 ? (
+              <div
+                ref={aiKeywordContainerRef}
+                style={{
+                  display: 'inline-flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 8,
+                  flex: 1,
+                  minWidth: isMobile ? '100%' : 200,
+                  order: isMobile ? 3 : 2,
+                  maxHeight: isMobile && !aiKeywordExpanded ? '88px' : 'none',
+                  overflow: 'hidden',
+                }}
+              >
+                {aiKeywordResult.merged_keywords.map((item, idx) => {
+                  const isSelected = selectedKeyword === item.keyword;
+                  return (
+                    <Tooltip
+                      key={item.keyword}
+                      title={item.source ? `合并自：${item.source.join('、')}` : ''}
+                    >
+                      <Tag
+                        color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
+                        style={{
+                          fontSize: isMobile ? 12 : 13,
+                          padding: isMobile ? '1px 6px' : '2px 8px',
+                          margin: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          cursor: 'pointer',
+                          fontWeight: isSelected ? 'bold' : 'normal',
+                          borderWidth: isSelected ? 2 : 1,
+                          borderColor: isSelected ? '#f5222d' : undefined
+                        }}
+                        onClick={() => {
+                          setSelectedKeyword(isSelected ? '' : item.keyword);
+                        }}
                       >
-                        <Tag
-                          color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
-                          style={{
-                            fontSize: 13,
-                            padding: '2px 8px',
-                            margin: 0,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            cursor: 'pointer',
-                            fontWeight: isSelected ? 'bold' : 'normal',
-                            borderWidth: isSelected ? 2 : 1,
-                            borderColor: isSelected ? '#f5222d' : undefined
-                          }}
-                          onClick={() => {
-                            setSelectedKeyword(isSelected ? '' : item.keyword);
-                          }}
-                        >
-                          {item.keyword}
-                          <Badge
-                            count={item.count}
-                            style={{ backgroundColor: idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff' }}
-                            overflowCount={999}
-                          />
-                        </Tag>
-                      </Tooltip>
-                    );
-                  })}
-                  {aiKeywordResult.from_cache && (
-                    <Tag color="green" style={{ margin: 0, fontSize: 11 }}>缓存</Tag>
-                  )}
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<RobotOutlined />}
-                    onClick={() => setAiKeywordModalVisible(true)}
-                    style={{ fontSize: 12, padding: '0 4px', color: '#13c2c2' }}
-                  >
-                    重新分析
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<RobotOutlined />}
-                  onClick={() => setAiKeywordModalVisible(true)}
-                  style={{ fontSize: 12, padding: 0, color: '#13c2c2' }}
-                >
-                  点击进行 AI 分析
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+                        {item.keyword}
+                        <Badge
+                          count={item.count}
+                          size={isMobile ? 'small' : 'default'}
+                          style={{ backgroundColor: idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff' }}
+                          overflowCount={999}
+                        />
+                      </Tag>
+                    </Tooltip>
+                  );
+                })}
+                {aiKeywordResult.from_cache && (
+                  <Tag color="green" style={{ margin: 0, fontSize: 11 }}>缓存</Tag>
+                )}
+              </div>
+            ) : null
+          )}
+        </div>
       </div>
     );
   };
@@ -1946,8 +1933,8 @@ const LadderPage = () => {
                         <Tag
                           color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
                           style={{
-                            fontSize: 13,
-                            padding: '2px 8px',
+                            fontSize: isMobile ? 12 : 13,
+                            padding: isMobile ? '1px 6px' : '2px 8px',
                             cursor: 'pointer',
                             fontWeight: isSelected ? 'bold' : 'normal',
                             borderWidth: isSelected ? 2 : 1,
