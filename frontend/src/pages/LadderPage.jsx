@@ -21,8 +21,6 @@ const LadderPage = () => {
   const [yesterdayData, setYesterdayData] = useState(null);
   const [selectedKeyword, setSelectedKeyword] = useState('');
   const [aiKeywordExpanded, setAiKeywordExpanded] = useState(false);
-  const [aiKeywordOverflow, setAiKeywordOverflow] = useState(false);
-  const aiKeywordContainerRef = useRef(null);
   const [aiKeywordEnabled, setAiKeywordEnabled] = useState(true);
   const [aiKeywordModalVisible, setAiKeywordModalVisible] = useState(false);
   const [aiKeywordLoading, setAiKeywordLoading] = useState(false);
@@ -146,23 +144,6 @@ const LadderPage = () => {
       return r === selectedKeyword || mergedKeywordMap[r] === selectedKeyword;
     });
   }, [selectedKeyword, mergedKeywordMap]);
-
-  useLayoutEffect(() => {
-    // H5 下 AI 归并标签收起为三行，测量是否溢出需要"展开"
-    if (!isMobile) {
-      setAiKeywordOverflow(false);
-      return;
-    }
-    const el = aiKeywordContainerRef.current;
-    if (!el) return;
-    const check = () => {
-      // 收起态下内容实际高度超过可视高度即溢出；展开后保持按钮（用于"收起"）
-      setAiKeywordOverflow(el.scrollHeight > el.clientHeight + 2 || aiKeywordExpanded);
-    };
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, [aiKeywordResult, isMobile, aiKeywordEnabled, aiKeywordExpanded]);
 
   const handleAnalysisClick = async (stock, tradeDate) => {
     const analysisKey = `${stock.code}_${tradeDate}`;
@@ -1245,7 +1226,7 @@ const LadderPage = () => {
                 {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行 AI 分析'}
               </Button>
             )}
-            {aiKeywordEnabled && isMobile && aiKeywordOverflow && (
+            {aiKeywordEnabled && isMobile && aiKeywordResult?.merged_keywords?.length > 0 && (
               <Tag
                 style={{
                   cursor: 'pointer',
@@ -1265,7 +1246,6 @@ const LadderPage = () => {
               <span style={{ color: '#999', fontSize: 12, lineHeight: '24px', order: isMobile ? 3 : 2 }}>加载中...</span>
             ) : aiKeywordResult?.merged_keywords?.length > 0 ? (
               <div
-                ref={aiKeywordContainerRef}
                 style={{
                   display: 'inline-flex',
                   flexWrap: 'wrap',
