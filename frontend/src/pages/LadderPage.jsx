@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from 'react';
-import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty, Switch } from 'antd';
+import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
 import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined, AimOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api, { stockApi } from '../services/api';
@@ -12,6 +12,11 @@ import StockAnalysisModal from '../components/StockAnalysisModal';
 import PremiumTrendModal from '../components/PremiumTrendModal';
 import MarketAlertBar from '../components/MarketAlertBar';
 import ComparableStockModal from '../components/ComparableStockModal';
+
+// AI 归并关键词趋势颜色：增强=红，新发=蓝，衰退=绿，平稳=灰
+const TREND_TAG_COLORS = { '增强': 'red', '新发': 'blue', '衰退': 'green', '平稳': 'default' };
+const TREND_BADGE_COLORS = { '增强': '#cf1322', '新发': '#1890ff', '衰退': '#389e0d', '平稳': '#8c8c8c' };
+
 const LadderPage = () => {
   const { currentDate, loading: globalLoading, setLoading: setGlobalLoading, refreshKey, autoRefresh, showFirstBoard, ladderMode, marketAlerts, setMarketAlerts } = useGlobal();
   const mode = ladderMode || 'ladder';
@@ -21,7 +26,6 @@ const LadderPage = () => {
   const [yesterdayData, setYesterdayData] = useState(null);
   const [selectedKeyword, setSelectedKeyword] = useState('');
   const [aiKeywordExpanded, setAiKeywordExpanded] = useState(false);
-  const [aiKeywordEnabled, setAiKeywordEnabled] = useState(true);
   const [aiKeywordModalVisible, setAiKeywordModalVisible] = useState(false);
   const [aiKeywordLoading, setAiKeywordLoading] = useState(false);
   const [aiKeywordResult, setAiKeywordResult] = useState(null);
@@ -717,35 +721,24 @@ const LadderPage = () => {
             {reasons.map((reason, index) => {
               const trimmedReason = reason.trim();
               const isReasonSelected = selectedKeyword === trimmedReason || mergedKeywordMap[trimmedReason] === selectedKeyword;
+              // 移动端不用 Tooltip(触碰即弹,干扰筛选);详细原因仅桌面端悬停查看
               return (
-                <Tooltip
+                <Tag
                   key={index}
-                  title={
-                    hasDetailReason ? (
-                      <div style={{ whiteSpace: 'pre-wrap' }}>
-                        {filterDisclaimer(stock.detail_reason)}
-                      </div>
-                    ) : null
-                  }
-                  placement="top"
-                  styles={{ root: { maxWidth: '390px' } }}
+                  color={isReasonSelected ? 'red' : 'blue'}
+                  style={{
+                    fontSize: 10,
+                    margin: 0,
+                    cursor: 'pointer',
+                    fontWeight: isReasonSelected ? 'bold' : 'normal'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedKeyword(isReasonSelected ? '' : trimmedReason);
+                  }}
                 >
-                  <Tag
-                    color={isReasonSelected ? 'red' : 'blue'}
-                    style={{
-                      fontSize: 10,
-                      margin: 0,
-                      cursor: 'pointer',
-                      fontWeight: isReasonSelected ? 'bold' : 'normal'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedKeyword(isReasonSelected ? '' : trimmedReason);
-                    }}
-                  >
-                    {trimmedReason}
-                  </Tag>
-                </Tooltip>
+                  {trimmedReason}
+                </Tag>
               );
             })}
             {stock.block_name && (
@@ -1207,26 +1200,18 @@ const LadderPage = () => {
 
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: isMobile ? 50 : 84, lineHeight: '24px', flexShrink: 0 }}>{isMobile ? 'AI归并：' : '关键词AI归并：'}</span>
-          <Switch
-            size="small"
-            checked={aiKeywordEnabled}
-            onChange={setAiKeywordEnabled}
-            style={{ marginTop: 3, flexShrink: 0 }}
-          />
           {/* 控制组：分析按钮 + 展开/收起，固定同一行靠右 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, height: 24, marginLeft: 'auto', order: isMobile ? 2 : 3 }}>
-            {aiKeywordEnabled && (
-              <Button
-                type="link"
-                size="small"
-                icon={<RobotOutlined />}
-                onClick={() => setAiKeywordModalVisible(true)}
-                style={{ fontSize: 12, padding: 0, color: '#13c2c2' }}
-              >
-                {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行 AI 分析'}
-              </Button>
-            )}
-            {aiKeywordEnabled && isMobile && aiKeywordResult?.merged_keywords?.length > 0 && (
+            <Button
+              type="link"
+              size="small"
+              icon={<RobotOutlined />}
+              onClick={() => setAiKeywordModalVisible(true)}
+              style={{ fontSize: 12, padding: 0, color: '#13c2c2' }}
+            >
+              {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行 AI 分析'}
+            </Button>
+            {isMobile && aiKeywordResult?.merged_keywords?.length > 0 && (
               <Tag
                 style={{
                   cursor: 'pointer',
@@ -1241,7 +1226,7 @@ const LadderPage = () => {
               </Tag>
             )}
           </div>
-          {aiKeywordEnabled && (
+          {(
             aiKeywordLoading ? (
               <span style={{ color: '#999', fontSize: 12, lineHeight: '24px', order: isMobile ? 3 : 2 }}>加载中...</span>
             ) : aiKeywordResult?.merged_keywords?.length > 0 ? (
@@ -1266,7 +1251,7 @@ const LadderPage = () => {
                       title={item.source ? `合并自：${item.source.join('、')}` : ''}
                     >
                       <Tag
-                        color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
+                        color={isSelected ? 'red' : (TREND_TAG_COLORS[item.trend] || (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue'))}
                         style={{
                           fontSize: isMobile ? 12 : 13,
                           padding: isMobile ? '1px 6px' : '2px 8px',
@@ -1287,16 +1272,13 @@ const LadderPage = () => {
                         <Badge
                           count={item.count}
                           size={isMobile ? 'small' : 'default'}
-                          style={{ backgroundColor: idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff' }}
+                          style={{ backgroundColor: TREND_BADGE_COLORS[item.trend] || (idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff') }}
                           overflowCount={999}
                         />
                       </Tag>
                     </Tooltip>
                   );
                 })}
-                {aiKeywordResult.from_cache && (
-                  <Tag color="green" style={{ margin: 0, fontSize: 11 }}>缓存</Tag>
-                )}
               </div>
             ) : null
           )}
@@ -1882,7 +1864,6 @@ const LadderPage = () => {
             <Tag color="blue">
               {currentDate ? dayjs(currentDate, 'YYYYMMDD').format('MM月DD日') : ''}
             </Tag>
-            {aiKeywordResult?.from_cache && <Tag color="green">缓存</Tag>}
           </Space>
         }
         open={aiKeywordModalVisible}
@@ -1911,7 +1892,7 @@ const LadderPage = () => {
                         title={item.source ? `合并自：${item.source.join('、')}` : ''}
                       >
                         <Tag
-                          color={isSelected ? 'red' : (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue')}
+                          color={isSelected ? 'red' : (TREND_TAG_COLORS[item.trend] || (idx < 3 ? 'red' : idx < 6 ? 'orange' : 'blue'))}
                           style={{
                             fontSize: isMobile ? 12 : 13,
                             padding: isMobile ? '1px 6px' : '2px 8px',
@@ -1927,7 +1908,7 @@ const LadderPage = () => {
                           {item.keyword}
                           <Badge
                             count={item.count}
-                            style={{ backgroundColor: idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff', marginLeft: 6 }}
+                            style={{ backgroundColor: TREND_BADGE_COLORS[item.trend] || (idx < 3 ? '#cf1322' : idx < 6 ? '#d46b08' : '#1890ff'), marginLeft: 6 }}
                             overflowCount={999}
                           />
                         </Tag>

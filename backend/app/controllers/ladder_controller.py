@@ -8,7 +8,7 @@ from flask import request
 from app.controllers.base_controller import BaseController
 from app.services.ladder_service import LadderService
 from database import get_db_session
-from models import Block, KeywordAnalysis
+from models import Block, KeywordAnalysis, LimitUpStock
 
 
 class LadderController(BaseController):
@@ -338,36 +338,85 @@ class LadderController(BaseController):
 
             # 无缓存或强制刷新：调用 AI
             from core.llm_client import llm_client
+            from core.trade_calendar import trade_calendar
 
-            # 构建关键词列表字符串
-            keyword_list_str = "\n".join([
-                f"- {item['keyword']}（出现{item['count']}次）"
-                for item in keywords_data
-            ])
+            # 汇总今日及前两个交易日的涨停关键词，用于主线轮动分析
+            def aggregate_keywords_by_date(day):
+                session = get_db_session()
+                try:
+                    rows = session.query(LimitUpStock.limit_up_reason).filter(
+                        LimitUpStock.trade_date == day,
+                        LimitUpStock.current_status == 'close'
+                    ).all()
+                    stats = {}
+                    for (reason,) in rows:
+                        for kw in (reason or '').split('+'):
+                            kw = kw.strip()
+                            if kw:
+                                stats[kw] = stats.get(kw, 0) + 1
+                    return sorted(
+                        [{'keyword': k, 'count': v} for k, v in stats.items()],
+                        key=lambda x: -x['count']
+                    )
+                finally:
+                    session.close()
 
-            system_prompt = """你是一个A股涨停板题材分析专家。请对给定的涨停股票关键词进行语义归类合并。
+            def format_keywords(items):
+                if not items:
+                    return '（无数据）'
+                return "\n".join([
+                    f"- {item['keyword']}（出现{item['count']}次）"
+                    for item in items
+                ])
 
-规则：
+            # 近三个交易日（含当日，倒序：[当日, 前1日, 前2日]）
+            recent_days = trade_calendar.get_recent_trading_days(3, end_date=trade_date)
+            day_sections = []
+            for i, day in enumerate(recent_days):
+                label = '今日' if i == 0 else f'前{i}个交易日'
+                # 当日关键词优先使用前端传入的（盘中可能未入库），其余从库里聚合
+                if i == 0 and keywords_data:
+                    day_keywords = keywords_data
+                else:
+                    day_date = datetime.strptime(day, '%Y%m%d').date()
+                    day_keywords = aggregate_keywords_by_date(day_date)
+                day_sections.append(f"【{label}（{day}）涨停关键词】\n{format_keywords(day_keywords)}")
+
+            system_prompt = """你是一个A股涨停板主线题材分析专家，擅长从涨停数据识别市场主线和题材轮动。
+
+我会提供【今日】及【前两个交易日】的涨停股票关键词及出现次数。
+
+任务一：今日关键词语义归并
 1. 将含义相近或属于同一大类的关键词合并（如"火电""电力""绿色电力"→统一为"电力"）
 2. 归类后的名称应简洁、通用，能代表该类别的核心概念
 3. 保留无法归类的重要独立关键词
-4. 合并后的 count 为所有源关键词的 count 之和
-5. 统计合并后各关键词的总出现次数，按次数降序排列
+4. 合并后的 count 为所有源关键词的 count 之和，按次数降序排列
+5. 【重要】merged 只归并【今日】的关键词；前两日数据仅用于任务二的轮动对比，严禁混入 merged
+6. 为每个归并后的关键词标注 trend 字段，对比前两日同题材关键词的出现次数（按语义匹配，如"电力"对比前两日的"火电""绿色电力"等），取值：
+   - "增强"：今日次数显著多于前两日
+   - "衰退"：前两日较多，今日明显减少
+   - "新发"：前两日未出现，今日新出现
+   - "平稳"：与前两日基本持平
+
+任务二：主线轮动分析（重点，写入 analysis 字段）
+结合最近三天的关键词及出现次数变化，分析：
+1. 今日主线：今日最强的题材集群是什么
+2. 持续性：哪些题材连续多日走强（真主线），哪些是今日新发酵，哪些正在退潮（次数逐日减少）
+3. 轮动路径：资金在题材之间的切换方向
+4. 只基于我提供的数据进行分析，不要编造数据
 
 请以 JSON 格式返回结果，格式如下：
 {
   "merged": [
-    {"keyword": "电力", "count": 12, "source": ["火电", "电力", "绿色电力"]},
+    {"keyword": "电力", "count": 12, "source": ["火电", "电力", "绿色电力"], "trend": "增强"},
     ...
   ],
-  "analysis": "分析说明（Markdown格式，简要描述主要题材集群和盘面特征）"
+  "analysis": "主线轮动分析（Markdown格式，包含：今日主线、近三日题材持续/发酵/退潮判断、轮动路径）"
 }"""
 
-            user_prompt = f"""以下是今日涨停股票的关键词及其出现次数：
+            user_prompt = f"""{chr(10).join(day_sections)}
 
-{keyword_list_str}
-
-请进行语义归类合并。"""
+请先完成任务一（今日关键词归并），再完成任务二（结合三天数据的主线轮动分析）。"""
 
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -376,12 +425,43 @@ class LadderController(BaseController):
 
             result_text = llm_client._chat(messages, temperature=0.3, max_tokens=4096)
 
-            # 解析 AI 返回的 JSON
-            json_match = re.search(r'\{[\s\S]*\}', result_text)
-            if not json_match:
+            # 解析 AI 返回的 JSON（括号配平提取，避免 analysis 文本中的花括号干扰）
+            def extract_json(text):
+                start = text.find('{')
+                if start < 0:
+                    return None
+                depth = 0
+                in_str = False
+                escape = False
+                for i in range(start, len(text)):
+                    ch = text[i]
+                    if in_str:
+                        if escape:
+                            escape = False
+                        elif ch == '\\':
+                            escape = True
+                        elif ch == '"':
+                            in_str = False
+                        continue
+                    if ch == '"':
+                        in_str = True
+                    elif ch == '{':
+                        depth += 1
+                    elif ch == '}':
+                        depth -= 1
+                        if depth == 0:
+                            return text[start:i + 1]
+                return None
+
+            json_str = extract_json(result_text)
+            if not json_str:
                 return self.error('AI 返回格式解析失败', 500)
 
-            result = json.loads(json_match.group())
+            try:
+                result = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] 关键词分析 JSON 解析失败: {e}, 原文: {result_text[:500]}")
+                return self.error('AI 返回格式解析失败', 500)
             merged_keywords = result.get('merged', [])
             analysis_text = result.get('analysis', '')
 
