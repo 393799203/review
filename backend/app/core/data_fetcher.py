@@ -200,6 +200,7 @@ class DataFetcher:
                 
                 volatility = None
                 turnover = None
+                total_mv = None
                 
                 try:
                     high = float(q.get('high', 0) or 0)
@@ -218,6 +219,13 @@ class DataFetcher:
                             if liutongguben > 0:
                                 vol_shares = volume * 100
                                 turnover = (vol_shares / liutongguben) * 100
+                            # 总市值 = 总股本(股) × 现价（元）
+                            try:
+                                zongguben = float(finance_data['zongguben'].iloc[0])
+                                if zongguben > 0 and price > 0:
+                                    total_mv = zongguben * price
+                            except (KeyError, IndexError, TypeError, ValueError):
+                                pass
                 except Exception as e:
                     print(f"计算波动率和换手率失败: {e}")
                 
@@ -235,6 +243,7 @@ class DataFetcher:
                     'change_percent': ((price - prev_close) / prev_close * 100) if prev_close else 0,
                     'volatility': round(volatility, 2) if volatility else None,
                     'turnover': round(turnover, 2) if turnover else None,
+                    'total_mv': round(total_mv, 2) if total_mv else None,
                     'bid1': float(q.get('bid1', 0) or 0),
                     'bid2': float(q.get('bid2', 0) or 0),
                     'bid3': float(q.get('bid3', 0) or 0),

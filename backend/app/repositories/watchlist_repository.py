@@ -65,6 +65,47 @@ class WatchlistRepository(BaseRepository):
             raise e
         finally:
             session.close()
+
+    def delete_by_user_and_codes(self, user_id: str, stock_codes: list) -> int:
+        """批量删除自选股，返回删除数量"""
+        session = self.create_session()
+        try:
+            deleted = 0
+            for stock_code in stock_codes:
+                stock = session.query(WatchlistStock).filter(
+                    WatchlistStock.user_id == user_id,
+                    WatchlistStock.stock_code == stock_code
+                ).first()
+                if stock:
+                    session.delete(stock)
+                    deleted += 1
+            session.commit()
+            return deleted
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def update_alert_price(self, user_id: str, stock_code: str, alert_price) -> Optional[WatchlistStock]:
+        """更新自选股预警价格（alert_price 为 None 时表示清除）"""
+        session = self.create_session()
+        try:
+            stock = session.query(WatchlistStock).filter(
+                WatchlistStock.user_id == user_id,
+                WatchlistStock.stock_code == stock_code
+            ).first()
+            if stock is None:
+                return None
+            stock.alert_price = alert_price
+            session.commit()
+            session.refresh(stock)
+            return stock
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
     
     def get_total_profit(self, user_id: str, stock_code: str) -> float:
         """获取股票总盈亏"""

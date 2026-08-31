@@ -19,6 +19,35 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _extract_json_object(text: str):
+    """从文本中提取第一个括号配平的 JSON 对象（贪婪正则会跨 JSON 块匹配导致解析失败）"""
+    start = text.find('{')
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
+
+
 class LimitUpReasonAnalyzer:
     """涨停原因智能分析器"""
     
@@ -276,10 +305,9 @@ class LimitUpReasonAnalyzer:
                     
                     # 解析JSON结果
                     try:
-                        # 提取JSON部分
-                        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                        if json_match:
-                            json_str = json_match.group()
+                        # 提取JSON部分（括号配平，避免跨块贪婪匹配）
+                        json_str = _extract_json_object(content)
+                        if json_str:
                             logger.info(f"提取的JSON字符串长度: {len(json_str)} 字符")
                             
                             analysis = json.loads(json_str)
@@ -436,9 +464,8 @@ class LimitUpReasonAnalyzer:
                 logger.info(f"API返回内容: {content[:300]}...")
 
                 try:
-                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group()
+                    json_str = _extract_json_object(content)
+                    if json_str:
                         analysis = json.loads(json_str)
 
                         logger.info(f"========== 新闻分析完成 ==========")

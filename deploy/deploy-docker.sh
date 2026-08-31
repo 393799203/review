@@ -54,14 +54,14 @@ ENDSSH
 fi
 
 echo ""
-echo "[3/5] 同步项目文件到服务器..."
-ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} "mkdir -p ${PROJECT_DIR}"
+echo "[3/5] 本地构建前端并同步项目文件到服务器..."
+cd ${LOCAL_DIR}/frontend && npm run build && cd ${LOCAL_DIR}
+ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} "mkdir -p ${PROJECT_DIR}/frontend"
 
 if [ "$FRONTEND_ONLY" = true ]; then
-    rsync -avz -e "ssh ${SSH_OPTS}" --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
-        --exclude='.git' --exclude='*.log' --exclude='venv' --exclude='.env' \
-        --exclude='backend' \
-        ${LOCAL_DIR}/frontend ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
+    # 前端为本地构建产物(nginx 直接挂载 dist),只需同步 dist 和 nginx.conf
+    rsync -avz --delete -e "ssh ${SSH_OPTS}" ${LOCAL_DIR}/frontend/dist ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/frontend/
+    rsync -avz -e "ssh ${SSH_OPTS}" ${LOCAL_DIR}/frontend/nginx.conf ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/frontend/
     rsync -avz -e "ssh ${SSH_OPTS}" ${LOCAL_DIR}/docker-compose.yml ${SERVER_USER}@${SERVER_IP}:${PROJECT_DIR}/
 else
     rsync -avz -e "ssh ${SSH_OPTS}" --exclude='node_modules' --exclude='*.pyc' --exclude='__pycache__' \
@@ -72,15 +72,24 @@ fi
 echo ""
 echo "[4/5] 构建并启动Docker容器..."
 ssh ${SSH_OPTS} ${SERVER_USER}@${SERVER_IP} << ENDSSH
+set -e
 cd ${PROJECT_DIR}
 
-echo "构建Docker镜像..."
 if [ "$FRONTEND_ONLY" = true ]; then
-    docker compose build --no-cache frontend
-    echo "重建前端容器..."
+    # 前端无需在服务器构建，直接用最新 dist 重建容器
+    echo "重建前端容器(本地构建产物)..."
     docker compose up -d --force-recreate frontend
 else
-    docker compose build --no-cache
+    # 磁盘空间不足时先自动清理，避免构建因 ENOSPC 静默失败
+    AVAIL_GB=\$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+    if [ "\$AVAIL_GB" -lt 3 ]; then
+        echo "磁盘可用空间不足(\${AVAIL_GB}G),自动清理 Docker 构建缓存和悬空镜像..."
+        docker builder prune -af
+        docker image prune -f
+    fi
+
+    echo "构建后端Docker镜像(前端为本地构建产物,无需服务器构建)..."
+    docker compose build --no-cache backend
     echo "启动容器..."
     docker compose down
     docker compose up -d
@@ -91,6 +100,18 @@ sleep 10
 
 echo "检查容器状态..."
 docker compose ps
+
+# 关键容器必须处于运行状态，否则判定部署失败
+if [ "$FRONTEND_ONLY" = true ]; then
+    docker compose ps frontend --status running --format '{{.Name}}' | grep -q frontend || { echo "✗ 前端容器未正常运行,部署失败"; exit 1; }
+else
+    docker compose ps backend --status running --format '{{.Name}}' | grep -q backend || { echo "✗ 后端容器未正常运行,部署失败"; exit 1; }
+    docker compose ps frontend --status running --format '{{.Name}}' | grep -q frontend || { echo "✗ 前端容器未正常运行,部署失败"; exit 1; }
+fi
+
+# 部署成功后清理构建缓存和悬空镜像，防止磁盘被 Docker 占满
+docker builder prune -f > /dev/null 2>&1 || true
+docker image prune -f > /dev/null 2>&1 || true
 ENDSSH
 
 echo ""

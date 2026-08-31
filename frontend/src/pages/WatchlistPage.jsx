@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip, AutoComplete, Input } from 'antd';
-import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined, HeartOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip, AutoComplete, Input, Checkbox } from 'antd';
+import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined, HeartOutlined, AlertOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
 import WatchlistAnalysisModal from '../components/WatchlistAnalysisModal';
@@ -28,6 +28,25 @@ const WatchlistPage = () => {
   const [comfortResult, setComfortResult] = useState('');
   const [analyzingStocks, setAnalyzingStocks] = useState(new Set());
   const [completedAnalysis, setCompletedAnalysis] = useState(new Map());
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [alertModalVisible, setAlertModalVisible] = useState(false);
+  const [alertStock, setAlertStock] = useState(null);
+  const [alertForm] = Form.useForm();
+  const [mobileSelectMode, setMobileSelectMode] = useState(false);
+  const [mobileSelected, setMobileSelected] = useState(new Set());
+
+  // 告警判定：当日最低价低于预警价
+  const isAlert = (record) => {
+    if (record.day_low == null || record.alert_price == null) return false;
+    return Number(record.day_low) < Number(record.alert_price);
+  };
+
+  // 排序：触发预警的股票置顶，其余保持原顺序
+  const sortedWatchlist = useMemo(() => {
+    const alerts = watchlist.filter(isAlert);
+    const others = watchlist.filter((r) => !isAlert(r));
+    return [...alerts, ...others];
+  }, [watchlist]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -68,6 +87,86 @@ const WatchlistPage = () => {
       
       if (response.data.success) {
         message.success('删除成功');
+        loadWatchlist();
+      } else {
+        message.error(response.data.error || '删除失败');
+      }
+    } catch (error) {
+      message.error('删除失败：' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  // 加入类型标签：策略加入的标签显示策略名，其他显示"手动"
+  const renderAddType = (record) => {
+    if (record.add_type === 'strategy') {
+      return (
+        <Tag color="orange" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
+          {record.add_reason || '策略'}
+        </Tag>
+      );
+    }
+    return (
+      <Tag color="green" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
+        手动
+      </Tag>
+    );
+  };
+
+  // 策略日期（标签下方显示），非策略返回 null
+  const renderStrategyInfo = (record) => {
+    if (record.add_type !== 'strategy') return null;
+    const dateStr = record.add_date
+      ? `${record.add_date.slice(0, 4)}-${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}`
+      : '';
+    if (!dateStr) return null;
+    return (
+      <div style={{ fontSize: 11, color: '#666', lineHeight: 1.4, marginTop: 2 }}>
+        {dateStr}
+      </div>
+    );
+  };
+
+  const handleAlertEdit = (stock) => {
+    setAlertStock(stock);
+    alertForm.setFieldsValue({
+      alert_price: stock.alert_price,
+    });
+    setAlertModalVisible(true);
+  };
+
+  const handleAlertSubmit = async () => {
+    try {
+      const values = await alertForm.validateFields();
+      const response = await stockApi.updateAlertPrice({
+        stock_code: alertStock.stock_code,
+        alert_price: values.alert_price ?? null,
+      });
+      
+      if (response.data.success) {
+        message.success(response.data.message || '预警价格已更新');
+        setAlertModalVisible(false);
+        alertForm.resetFields();
+        loadWatchlist();
+      } else {
+        message.error(response.data.error || '更新失败');
+      }
+    } catch (error) {
+      message.error('更新失败：' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleBatchDelete = async (stockCodes) => {
+    if (!stockCodes || stockCodes.length === 0) {
+      message.warning('请先勾选要删除的股票');
+      return;
+    }
+    try {
+      const response = await stockApi.batchDeleteWatchlist(stockCodes);
+      if (response.data.success) {
+        message.success(response.data.message || '删除成功');
+        setSelectedRowKeys([]);
+        setMobileSelected(new Set());
+        setMobileSelectMode(false);
         loadWatchlist();
       } else {
         message.error(response.data.error || '删除失败');
@@ -311,8 +410,9 @@ const WatchlistPage = () => {
     
     return (
       <div>
-        {watchlist.map((record) => {
+        {sortedWatchlist.map((record) => {
           const isHolding = record.position_status === '持仓';
+          const alertActive = isAlert(record);
           const positionProfit = record.position_profit !== null && record.position_profit !== undefined ? parseFloat(record.position_profit) : null;
           const positionProfitRatio = record.position_profit_ratio !== null && record.position_profit_ratio !== undefined ? parseFloat(record.position_profit_ratio) : null;
           const totalProfit = record.total_profit || 0;
@@ -345,13 +445,27 @@ const WatchlistPage = () => {
               size="small"
               style={{ 
                 marginBottom: 8,
-                borderLeft: `3px solid ${totalProfitColor}`,
-                background: `${totalProfitColor}08`,
+                borderLeft: `3px solid ${alertActive ? '#faad14' : totalProfitColor}`,
+                background: alertActive ? '#fffbe6' : `${totalProfitColor}08`,
                 position: 'relative',
                 overflow: 'hidden',
               }}
               styles={{ body: { padding: '8px 10px' } }}
             >
+              {mobileSelectMode && (
+                <Checkbox
+                  checked={mobileSelected.has(record.stock_code)}
+                  onChange={(e) => {
+                    setMobileSelected((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(record.stock_code);
+                      else next.delete(record.stock_code);
+                      return next;
+                    });
+                  }}
+                  style={{ position: 'absolute', top: 8, left: 8, zIndex: 10 }}
+                />
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, height: 22 }}>
@@ -389,14 +503,22 @@ const WatchlistPage = () => {
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 22 }}>
-                    <Tag color={isHolding ? 'blue' : 'default'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
-                      {isHolding ? '持仓' : '空仓'}
-                    </Tag>
-                    <Tag color={record.add_type === 'strategy' ? 'orange' : 'green'} style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
-                      {record.add_type === 'strategy' ? '策略' : '手动'}
-                    </Tag>
+                    {alertActive && (
+                      <Tag color="red" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
+                        告警
+                      </Tag>
+                    )}
+                    {renderAddType(record)}
                     <Tag color="purple" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>
                       {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
+                    </Tag>
+                    <Tag
+                      color={record.alert_price ? 'red' : 'default'}
+                      icon={<AlertOutlined />}
+                      style={{ fontSize: 10, margin: 0, padding: '0 4px', cursor: 'pointer' }}
+                      onClick={() => handleAlertEdit(record)}
+                    >
+                      {record.alert_price ? `预警 ¥${Number(record.alert_price).toFixed(2)}` : '设预警'}
                     </Tag>
                   </div>
                 </div>
@@ -440,6 +562,10 @@ const WatchlistPage = () => {
                 <div style={{ textAlign: 'right', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
                   <span style={{ color: '#8c8c8c' }}>现价: </span>
                   <span style={{ fontWeight: 'bold', color: dayChangeColor }}>¥{record.current_price ? record.current_price.toFixed(2) : '-'}</span>
+                  <span style={{ color: '#8c8c8c', marginLeft: 4 }}>最低: </span>
+                  <span style={{ fontWeight: 'bold', color: alertActive ? '#fa8c16' : '#666' }}>
+                    ¥{record.day_low ? record.day_low.toFixed(2) : '-'}
+                  </span>
                   {dayChangePct !== null && (
                     <span style={{ fontWeight: 'bold', color: dayChangeColor, marginLeft: 4 }}>
                       ({dayChangePct > 0 ? '+' : ''}{dayChangePct.toFixed(2)}%)
@@ -455,13 +581,20 @@ const WatchlistPage = () => {
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 4 }}>
                 <div style={{ flex: 1 }}>
-                  {record.limit_up_reason_category && (
-                    <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
-                      {record.limit_up_reason_category}
-                    </Tag>
+                  {mobileSelectMode ? (
+                    <span style={{ color: '#8c8c8c', fontSize: 11 }}>
+                      {mobileSelected.has(record.stock_code) ? '已选中' : '未选中'}
+                    </span>
+                  ) : (
+                    record.limit_up_reason_category && (
+                      <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
+                        {record.limit_up_reason_category}
+                      </Tag>
+                    )
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 3 }}>
+                {!mobileSelectMode && (
+                  <div style={{ display: 'flex', gap: 3 }}>
                   <Button
                     type="primary"
                     size="small"
@@ -510,7 +643,8 @@ const WatchlistPage = () => {
                       </Button>
                     </Popconfirm>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             </Card>
           );
@@ -568,52 +702,56 @@ const WatchlistPage = () => {
         },
       },
       {
-        title: '持仓状态',
-        dataIndex: 'position_status',
-        key: 'position_status',
-        width: 80,
-        render: (text) => (
-          <Tag color={text === '持仓' ? 'blue' : 'default'}>
-            {text || '空仓'}
-          </Tag>
+        title: '策略',
+        key: 'strategy_info',
+        width: 130,
+        render: (_, record) => (
+          <div>
+            {renderAddType(record)}
+            {renderStrategyInfo(record)}
+          </div>
         ),
       },
       {
-        title: '加入类型',
-        dataIndex: 'add_type',
-        key: 'add_type',
-        width: 80,
-        render: (text) => (
-          <Tag color={text === 'strategy' ? 'orange' : 'green'}>
-            {text === 'strategy' ? '策略' : '手动'}
-          </Tag>
+        title: '加入/预警价',
+        key: 'add_alert_price',
+        width: 130,
+        render: (_, record) => (
+          <div>
+            <div style={{ fontSize: 13 }}>
+              {record.add_price ? `¥${record.add_price.toFixed(2)}` : '-'}
+            </div>
+            <a onClick={() => handleAlertEdit(record)} style={{ fontSize: 11 }}>
+              {record.alert_price ? `预警 ¥${Number(record.alert_price).toFixed(2)}` : '设预警'}
+            </a>
+          </div>
         ),
       },
       {
-        title: '加入价格',
-        dataIndex: 'add_price',
-        key: 'add_price',
-        width: 100,
-        render: (value) => value ? `¥${value.toFixed(2)}` : '-',
-      },
-      {
-        title: '当前价格',
-        dataIndex: 'current_price',
+        title: '现价/最低',
         key: 'current_price',
-        width: 120,
-        render: (value, record) => {
+        width: 130,
+        render: (_, record) => {
           const dayChange = record.day_change_pct;
           const dayChangeColor = dayChange > 0 ? '#f5222d' : dayChange < 0 ? '#52c41a' : '#8c8c8c';
-          return value ? (
+          const alertActive = isAlert(record);
+          return (
             <div>
-              <div style={{ color: dayChangeColor, fontWeight: 'bold' }}>¥{value.toFixed(2)}</div>
-              {dayChange !== null && dayChange !== undefined && (
-                <div style={{ color: dayChangeColor, fontSize: 10 }}>
-                  ({dayChange > 0 ? '+' : ''}{dayChange.toFixed(2)}%)
-                </div>
-              )}
+              <div>
+                <span style={{ color: dayChangeColor, fontWeight: 'bold' }}>
+                  ¥{record.current_price ? record.current_price.toFixed(2) : '-'}
+                </span>
+                {dayChange !== null && dayChange !== undefined && (
+                  <span style={{ color: dayChangeColor, fontSize: 10, marginLeft: 4 }}>
+                    ({dayChange > 0 ? '+' : ''}{dayChange.toFixed(2)}%)
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: alertActive ? '#fa8c16' : '#8c8c8c', fontWeight: alertActive ? 'bold' : 'normal' }}>
+                最低 ¥{record.day_low ? record.day_low.toFixed(2) : '-'}
+              </div>
             </div>
-          ) : '-';
+          );
         },
       },
       {
@@ -661,16 +799,6 @@ const WatchlistPage = () => {
             </div>
           );
         },
-      },
-      {
-        title: '策略日期',
-        key: 'source_info',
-        width: 80,
-        render: (_, record) => (
-          <Tag color="purple" style={{ fontSize: 11 }}>
-            {record.add_date ? `${record.add_date.slice(4, 6)}-${record.add_date.slice(6, 8)}` : '-'}
-          </Tag>
-        ),
       },
       {
         title: '涨停原因',
@@ -749,8 +877,15 @@ const WatchlistPage = () => {
     return (
       <Table
         columns={columns}
-        dataSource={watchlist}
+        dataSource={sortedWatchlist}
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+        }}
+        onRow={(record) => ({
+          style: isAlert(record) ? { background: '#fffbe6' } : {},
+        })}
         pagination={{
           pageSize: 20,
           showSizeChanger: true,
@@ -779,8 +914,8 @@ const WatchlistPage = () => {
           styles={{ body: { padding: isMobile ? '8px' : '12px' } }}
         >
           <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>共 {watchlist.length} 只自选股，{watchlist.filter(s => s.position_status === '持仓').length} 只持仓中</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>共 {watchlist.length} 只自选股，{watchlist.filter(isAlert).length} 只触发预警</span>
               {loading && !isFirstLoad && (
                 <div style={{
                   display: 'flex',
@@ -792,6 +927,68 @@ const WatchlistPage = () => {
                   <LoadingOutlined spin />
                   <span>数据同步中...</span>
                 </div>
+              )}
+              {isMobile ? (
+                mobileSelectMode ? (
+                  <>
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        if (mobileSelected.size === 0) {
+                          message.warning('请先勾选要删除的股票');
+                          return;
+                        }
+                        Modal.confirm({
+                          title: `确定删除选中的 ${mobileSelected.size} 只自选股？`,
+                          okText: '确定',
+                          cancelText: '取消',
+                          onOk: () => handleBatchDelete([...mobileSelected]),
+                        });
+                      }}
+                    >
+                      删除所选
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setMobileSelectMode(false);
+                        setMobileSelected(new Set());
+                      }}
+                    >
+                      取消
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => setMobileSelectMode(true)}
+                  >
+                    批量删除
+                  </Button>
+                )
+              ) : (
+                <Popconfirm
+                  title={`确定删除选中的 ${selectedRowKeys.length} 只自选股？`}
+                  onConfirm={() => handleBatchDelete(
+                    watchlist.filter((r) => selectedRowKeys.includes(r.id)).map((r) => r.stock_code)
+                  )}
+                  okText="确定"
+                  cancelText="取消"
+                  disabled={selectedRowKeys.length === 0}
+                >
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    批量删除{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
+                  </Button>
+                </Popconfirm>
               )}
             </div>
             
@@ -931,6 +1128,41 @@ const WatchlistPage = () => {
               placeholder="请输入卖出数量（100股的倍数）"
             />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={alertStock ? `设置预警价格 - ${alertStock.stock_name}` : '设置预警价格'}
+        open={alertModalVisible}
+        onOk={handleAlertSubmit}
+        onCancel={() => {
+          setAlertModalVisible(false);
+          alertForm.resetFields();
+        }}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form form={alertForm} layout="vertical">
+          <Form.Item
+            label="预警价格"
+            name="alert_price"
+            extra={alertStock?.alert_price
+              ? `当前预警：¥${Number(alertStock.alert_price).toFixed(2)}；清空输入框可清除预警`
+              : '清空输入框可清除预警'}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              precision={2}
+              min={0}
+              step={0.01}
+              placeholder="输入预警价格（留空清除）"
+            />
+          </Form.Item>
+          {alertStock?.current_price != null && (
+            <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+              当前价格：¥{Number(alertStock.current_price).toFixed(2)}
+            </div>
+          )}
         </Form>
       </Modal>
 

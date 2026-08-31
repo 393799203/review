@@ -12,20 +12,33 @@ class LLMClient:
 
     def __init__(self, api_key: str = None, base_url: str = None):
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
-        self.base_url = base_url or "https://api.deepseek.com/v1"
+        self.base_url = base_url or os.environ.get("DEEPSEEK_API_URL", "https://api.deepseek.com/v1")
+        self.model = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+
+    @property
+    def _chat_url(self) -> str:
+        """base_url 允许配置为完整端点（.../v1/chat/completions）或 API 根（.../v1）"""
+        base = self.base_url.rstrip("/")
+        if base.endswith("/chat/completions"):
+            return base
+        return f"{base}/chat/completions"
+
+    def chat(self, messages: list, temperature: float = 0.3, max_tokens: int = 2048) -> Optional[str]:
+        """通用对话接口（公开方法，供各业务复用）"""
+        return self._chat(messages, temperature=temperature, max_tokens=max_tokens)
 
     def _chat(self, messages: list, temperature: float = 0.3, max_tokens: int = 2048) -> Optional[str]:
         if not self.api_key:
             raise ValueError("DeepSeek API Key 未配置，请在环境变量中设置 DEEPSEEK_API_KEY")
 
         try:
-            url = f"{self.base_url}/chat/completions"
+            url = self._chat_url
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "deepseek-chat",
+                "model": self.model,
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens

@@ -44,6 +44,7 @@ class WatchlistController(BaseController):
         source = data.get('source', 'wencai')
         add_type = data.get('add_type', 'manual')
         limit_up_reason_category = data.get('limit_up_reason_category', '')
+        alert_price = data.get('alert_price')
         
         if not stock_code or not stock_name or not add_date_str:
             return self.error('缺少必要参数', 400)
@@ -55,7 +56,7 @@ class WatchlistController(BaseController):
         
         success, message = self.watchlist_service.add_to_watchlist(
             user_id, stock_code, stock_name, add_date, add_price,
-            add_reason, source, add_type, limit_up_reason_category
+            add_reason, source, add_type, limit_up_reason_category, alert_price
         )
         
         if success:
@@ -79,6 +80,54 @@ class WatchlistController(BaseController):
                 return self.error(message, 400)
             else:
                 return self.error(message, 404)
+
+    def remove_many(self):
+        """批量删除自选股"""
+        user_id = self.get_current_user_uid()
+        
+        if not user_id:
+            return self.error('未提供用户ID', 401)
+        
+        data = self.get_json_data()
+        stock_codes = data.get('stock_codes', [])
+        if not isinstance(stock_codes, list):
+            return self.error('参数格式错误：stock_codes 应为数组', 400)
+        stock_codes = [str(c).strip() for c in stock_codes if str(c).strip()]
+        
+        success, message, deleted, skipped = self.watchlist_service.remove_many(
+            user_id, stock_codes
+        )
+        
+        if success:
+            return self.success({
+                'deleted': deleted,
+                'skipped': skipped,
+            }, message=message)
+        else:
+            return self.error(message, 400)
+
+    def update_alert_price(self):
+        """更新自选股预警价格"""
+        user_id = self.get_current_user_uid()
+        
+        if not user_id:
+            return self.error('未提供用户ID', 401)
+        
+        data = self.get_json_data()
+        stock_code = data.get('stock_code')
+        alert_price = data.get('alert_price')
+        
+        if not stock_code:
+            return self.error('缺少股票代码', 400)
+        
+        success, message = self.watchlist_service.update_alert_price(
+            user_id, str(stock_code), alert_price
+        )
+        
+        if success:
+            return self.success(message=message)
+        else:
+            return self.error(message, 400)
     
     def update_prices(self):
         """更新自选股价格(已废弃)"""

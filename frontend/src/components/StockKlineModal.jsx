@@ -5,7 +5,7 @@ import ReactECharts from 'echarts-for-react';
 import { stockApi } from '../services/api';
 import api from '../services/api';
 
-const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose }) => {
+const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate, onClose }) => {
   const [klineLoading, setKlineLoading] = useState(false);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -470,6 +470,34 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose })
       }
     });
 
+    // 抄底放量信号：在首个放量日 K 线高点上方打标记
+    const signalMarks = [];
+    if (signalDate) {
+      const normalized = signalDate.replace(/-/g, '').substring(0, 8);
+      const idx = klineData.findIndex(
+        (item) => (item.date || '').replace(/-/g, '').substring(0, 8) === normalized
+      );
+      if (idx >= 0) {
+        signalMarks.push({
+          name: '放量首日',
+          coord: [idx, klineData[idx].high],
+          value: '放量首日',
+          symbolSize: 44,
+          itemStyle: {
+            color: '#fa8c16'
+          },
+          label: {
+            show: true,
+            position: 'top',
+            color: '#fa8c16',
+            fontSize: 11,
+            fontWeight: 'bold',
+            formatter: '放量首日'
+          }
+        });
+      }
+    }
+
     return {
       tooltip: {
         trigger: 'axis',
@@ -610,7 +638,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose })
           markPoint: {
             symbol: 'pin',
             symbolSize: 30,
-            data: exDividendMarks,
+            data: [...exDividendMarks, ...signalMarks],
             label: {
               show: true,
               fontSize: 10
@@ -657,7 +685,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose })
         }
       ]
     };
-  }, [klineData, isMobile]);
+  }, [klineData, isMobile, signalDate]);
 
   const renderQuotePanel = () => {
     if (!quoteData) return null;
@@ -733,6 +761,8 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose })
     const color = change >= 0 ? '#f5222d' : '#52c41a';
     const volatility = quoteData.volatility;
     const turnover = quoteData.turnover;
+    const totalMv = quoteData.total_mv;
+    const totalMvText = totalMv ? `${(totalMv / 100000000).toFixed(2)}亿` : '--';
     
     const getPriceColor = (currentPrice) => {
       if (!currentPrice || !prevClose) return '#333';
@@ -819,6 +849,10 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose })
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: '10px', color: '#666' }}>波动率</div>
               <div style={{ fontSize: '11px', color: '#333' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: '#666' }}>总市值</div>
+              <div style={{ fontSize: '11px', color: '#333' }}>{totalMvText}</div>
             </div>
           </div>
         </div>
@@ -912,6 +946,10 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, onClose })
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#666' }}>波动率</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#666' }}>总市值</div>
+              <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{totalMvText}</div>
             </div>
           </div>
         </div>

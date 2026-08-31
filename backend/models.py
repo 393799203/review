@@ -138,6 +138,7 @@ class WatchlistStock(Base):
     stock_name = Column(String(50), nullable=False)
     add_date = Column(Date, nullable=False)
     add_price = Column(Numeric(10, 2))
+    alert_price = Column(Numeric(10, 2))
     add_reason = Column(String(200))
     source = Column(String(50))
     add_type = Column(String(20), default='manual')

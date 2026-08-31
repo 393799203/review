@@ -193,6 +193,7 @@ CREATE TABLE watchlist_stocks (
     stock_name VARCHAR(50) NOT NULL,
     add_date DATE NOT NULL,
     add_price DECIMAL(10, 2),
+    alert_price DECIMAL(10, 2),
     add_reason VARCHAR(200),
     source VARCHAR(50),
     add_type VARCHAR(20) DEFAULT 'manual',

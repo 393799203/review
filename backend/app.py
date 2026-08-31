@@ -48,6 +48,9 @@ from app.controllers.admin_controller import admin_controller
 from app.controllers.weixin_controller import weixin_controller
 from app.controllers.comparable_controller import comparable_controller
 from app.controllers.strategy_controller import strategy_controller
+from app.controllers.screening_controller import screening_controller
+from app.controllers.strategy_gen_controller import strategy_gen_controller
+from app.utils.decorators import login_required
 app = Flask(__name__)
 CORS(app)
 
@@ -237,6 +240,18 @@ def remove_from_watchlist(stock_code):
 def update_watchlist_prices():
     """更新自选股价格"""
     return watchlist_controller.update_prices()
+
+
+@app.route('/api/watchlist/alert-price', methods=['PUT'])
+def update_watchlist_alert_price():
+    """更新自选股预警价格"""
+    return watchlist_controller.update_alert_price()
+
+
+@app.route('/api/watchlist/batch-delete', methods=['POST'])
+def batch_delete_watchlist():
+    """批量删除自选股"""
+    return watchlist_controller.remove_many()
 
 
 @app.route('/api/stock/search', methods=['GET'])
@@ -517,6 +532,33 @@ def send_custom_email():
 def weixin_signature():
     """微信JS-SDK签名接口"""
     return weixin_controller.get_signature()
+
+
+
+# ==================== 量化筛选路由 ====================
+
+@app.route('/api/screening/dates', methods=['GET'])
+@login_required
+def get_screening_dates():
+    """获取最近有数据的交易日列表"""
+    return screening_controller.get_available_dates()
+
+
+@app.route('/api/screening/run', methods=['POST'])
+@login_required
+def run_screening():
+    """执行量化筛选"""
+    return screening_controller.run_screening()
+
+
+
+# ==================== 策略代码生成路由 ====================
+
+@app.route('/api/strategy-gen/generate', methods=['POST'])
+@login_required
+def generate_strategy_code():
+    """根据自然语言条件生成策略代码（只生成文本，服务端不执行）"""
+    return strategy_gen_controller.generate()
 
 
 

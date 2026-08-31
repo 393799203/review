@@ -99,3 +99,48 @@ docker compose up -d
 - [API文档](./API.md)
 - [数据库设计](./database/README.md)
 - [部署指南](../deploy/README.md)
+
+## 📈 量化筛选模块（screening）
+
+新增"量化筛选"功能，查询外部 TDX 行情库（PostgreSQL，schema=tdx，只读）：
+
+- `app/core/tdx_db.py` - TDX 库连接（懒加载单例 engine，小连接池，只读）
+- `app/repositories/screening_repository.py` - 筛选 SQL（窗口函数实现）
+- `app/services/screening_service.py` - 参数校验与筛选公式说明（docstring）
+- `app/controllers/screening_controller.py` - 接口控制器
+
+接口（均需登录）：
+
+- `GET /api/screening/dates` - 最近有数据的交易日列表
+- `POST /api/screening/run` - 执行筛选，支持 `strategy` 参数切换策略：
+  - `bottom`（默认，抄底放量）：D 向前连续 3 日逐日放量校验
+    （第 1 天 ≥ 均量×day1_mult，第 2/3 天 ≥ 均量×day23_mult，vol_window 默认 20）
+  - `breakout`（突破放量）：高换手 + 短上影 + 放量突破 N 日前高 + 不过度追高
+
+### 配置
+
+需要在 `review/.env` 中自行添加 TDX 行情库连接串（不配置时接口返回 503）：
+
+```
+TDX_DATABASE_URL=postgresql://user:pass@host:5432/quantdb
+```
+
+依赖表/视图：`tdx.raw_stocks_daily`、`tdx.raw_stocks_basic`、
+`tdx.dim_sw_industry`、`tdx.v_sw_industry_daily`。
+
+## 🤖 策略代码生成模块（strategy-gen）
+
+用户输入自然语言选股/量化条件，调用 DeepSeek 生成自包含可运行的 Python
+策略脚本（psycopg2 + pandas，读 TDX 行情库，连接串从脚本环境变量 `DB_URL` 读取）：
+
+- `app/services/strategy_gen_service.py` - prompt 构建与代码提取（数据环境说明固定在 system prompt）
+- `app/controllers/strategy_gen_controller.py` - 接口控制器
+
+接口（需登录）：
+
+- `POST /api/strategy-gen/generate` - 入参 `{ requirement, with_backtest }`，
+  出参 `{ code, model }`；未配置 `DEEPSEEK_API_KEY` 时返回 503。
+
+**安全说明：服务端只生成代码文本，不执行任何生成的代码**；
+生成的脚本由用户下载后在本地自行运行（需 `pip install psycopg2-binary pandas`
+并设置 `DB_URL`）。

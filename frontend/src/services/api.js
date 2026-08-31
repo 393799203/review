@@ -68,6 +68,18 @@ export const stockApi = {
 
   getWatchlist: () => api.get('/watchlist'),
 
+  addWatchlist: (data) => api.post('/watchlist', data),
+
+  updateAlertPrice: (data) => api.put('/watchlist/alert-price', data),
+
+  batchDeleteWatchlist: (stockCodes) => api.post('/watchlist/batch-delete', { stock_codes: stockCodes }),
+
+  getScreeningDates: () => api.get('/screening/dates'),
+
+  runScreening: (params) => api.post('/screening/run', params, { timeout: 60000 }),
+
+  generateStrategy: (data) => api.post('/strategy-gen/generate', data, { timeout: 120000 }),
+
   updateWatchlistPrices: () => api.post('/watchlist/update-prices'),
 
   buyStock: (data) => api.post('/watchlist/buy', data),

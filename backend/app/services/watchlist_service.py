@@ -102,6 +102,7 @@ class WatchlistService(BaseService):
         quote = quotes_dict.get(stock_code_num)
         current_price = quote['price'] if quote else None
         prev_close = quote['prev_close'] if quote else None
+        day_low = quote.get('low') if quote else None
         
         if current_price and prev_close and prev_close > 0:
             day_change_pct = (current_price - prev_close) / prev_close * 100
@@ -134,7 +135,9 @@ class WatchlistService(BaseService):
             'stock_name': stock.stock_name,
             'add_date': stock.add_date.strftime('%Y%m%d') if stock.add_date else '',
             'add_price': float(stock.add_price) if stock.add_price else None,
+            'alert_price': float(stock.alert_price) if stock.alert_price else None,
             'current_price': float(current_price) if current_price else None,
+            'day_low': float(day_low) if day_low else None,
             'day_change_pct': float(day_change_pct) if day_change_pct is not None else None,
             'add_reason': stock.add_reason or '',
             'source': stock.source or '',
@@ -153,7 +156,7 @@ class WatchlistService(BaseService):
     def add_to_watchlist(self, user_id: str, stock_code: str, stock_name: str, 
                         add_date: date, add_price: float = None, add_reason: str = '',
                         source: str = 'wencai', add_type: str = 'manual',
-                        limit_up_reason_category: str = '') -> Tuple[bool, str]:
+                        limit_up_reason_category: str = '', alert_price: float = None) -> Tuple[bool, str]:
         """
         添加股票到自选
         
@@ -167,6 +170,7 @@ class WatchlistService(BaseService):
             source: 来源
             add_type: 添加类型
             limit_up_reason_category: 涨停原因分类
+            alert_price: 预警价格（可为 None）
             
         Returns:
             tuple: (success, message)
@@ -181,6 +185,7 @@ class WatchlistService(BaseService):
                 stock_name=stock_name,
                 add_date=add_date,
                 add_price=add_price,
+                alert_price=alert_price,
                 add_reason=add_reason,
                 source=source,
                 add_type=add_type,
@@ -212,6 +217,76 @@ class WatchlistService(BaseService):
         try:
             self.watchlist_repository.delete_by_user_and_code(user_id, stock_code)
             return True, '删除成功'
+        except Exception as e:
+            return False, str(e)
+
+    def remove_many(self, user_id: str, stock_codes: list) -> Tuple[bool, str, int, list]:
+        """
+        批量删除自选股（持仓中的股票跳过不删）
+        
+        Args:
+            user_id: 用户ID
+            stock_codes: 股票代码列表
+            
+        Returns:
+            tuple: (success, message, deleted_count, skipped_codes)
+        """
+        if not stock_codes:
+            return False, '请选择要删除的股票', 0, []
+
+        deleted = 0
+        skipped = []
+        for stock_code in stock_codes:
+            stock = self.watchlist_repository.get_by_user_and_code(user_id, stock_code)
+            if not stock:
+                continue
+            if self.watchlist_repository.has_position(user_id, stock_code):
+                skipped.append(stock_code)
+                continue
+            try:
+                self.watchlist_repository.delete_by_user_and_code(user_id, stock_code)
+                deleted += 1
+            except Exception:
+                skipped.append(stock_code)
+
+        if deleted == 0 and skipped:
+            return False, '所选股票均在持仓中，请先卖出后再删除', deleted, skipped
+        msg = f'已删除 {deleted} 只'
+        if skipped:
+            msg += f'，{len(skipped)} 只持仓中已跳过'
+        return True, msg, deleted, skipped
+
+    def update_alert_price(self, user_id: str, stock_code: str, alert_price) -> Tuple[bool, str]:
+        """
+        更新自选股预警价格（alert_price 为 None 时清除）
+        
+        Args:
+            user_id: 用户ID
+            stock_code: 股票代码
+            alert_price: 预警价格（float 或 None）
+            
+        Returns:
+            tuple: (success, message)
+        """
+        if alert_price is not None:
+            try:
+                price = float(alert_price)
+                if price <= 0:
+                    return False, '预警价格必须大于 0'
+            except (TypeError, ValueError):
+                return False, '预警价格格式错误'
+        else:
+            price = None
+
+        stock = self.watchlist_repository.get_by_user_and_code(user_id, stock_code)
+        if not stock:
+            return False, '股票不在自选列表中'
+
+        try:
+            self.watchlist_repository.update_alert_price(user_id, stock_code, price)
+            if price is None:
+                return True, '预警价格已清除'
+            return True, '预警价格已更新'
         except Exception as e:
             return False, str(e)
     
