@@ -33,7 +33,7 @@ const DEFAULT_PARAMS = { ...BREAKOUT_DEFAULT_PARAMS, ...BOTTOM_DEFAULT_PARAMS };
 const renderChangePct = (value) => {
   if (value === null || value === undefined) return '-';
   const color = value >= 0 ? '#cf1322' : '#3f8600';
-  return <span style={{ color }}>{value.toFixed(2)}</span>;
+  return <span style={{ color }}>{value > 0 ? '+' : ''}{value.toFixed(2)}%</span>;
 };
 
 const ScreeningPage = () => {
@@ -199,71 +199,74 @@ const ScreeningPage = () => {
 
   const columns = [
     {
-      title: '代码',
-      dataIndex: 'code',
-      key: 'code',
-      width: 90,
-      render: (code, record) => (
+      title: '代码/简称',
+      key: 'code_name',
+      width: 110,
+      render: (_, record) => (
         <a
           onClick={() => {
-            setSelectedStock({ code, name: record.name, signalDate: record.signal_date });
+            setSelectedStock({ code: record.code, name: record.name, signalDate: record.signal_date });
             setKlineVisible(true);
           }}
         >
-          {code}
+          <div>{record.code}</div>
+          <div style={{ fontSize: 11, color: '#666' }}>{record.name || '-'}</div>
         </a>
       ),
     },
-    { title: '简称', dataIndex: 'name', key: 'name', width: 100, render: (v) => v || '-' },
-    { title: '日期', dataIndex: 'date', key: 'date', width: 110 },
-    { title: '放量首日', dataIndex: 'signal_date', key: 'signal_date', width: 100, render: (v) => v || '-' },
+    { title: '日期', dataIndex: 'date', key: 'date', width: 90 },
+    { title: '放量首日', dataIndex: 'signal_date', key: 'signal_date', width: 90, render: (v) => v || '-' },
     {
-      title: '收盘',
-      dataIndex: 'close',
-      key: 'close',
-      width: 90,
-      align: 'right',
-      render: (v) => (v === null || v === undefined ? '-' : v.toFixed(2)),
-    },
-    {
-      title: '换手率%',
-      dataIndex: 'turnover',
-      key: 'turnover',
-      width: 90,
-      align: 'right',
-      render: (v) => (v === null || v === undefined ? '-' : v.toFixed(2)),
-    },
-    {
-      title: '涨跌幅%',
-      dataIndex: 'change_pct',
-      key: 'change_pct',
-      width: 90,
-      align: 'right',
-      render: renderChangePct,
-    },
-    { title: '申万一级', dataIndex: 'sw1_name', key: 'sw1_name', width: 100, render: (v) => v || '-' },
-    {
-      title: '行业涨跌%',
-      dataIndex: 'sw1_change_pct',
-      key: 'sw1_change_pct',
+      title: '收盘/涨跌',
+      key: 'close_change',
       width: 100,
-      align: 'right',
-      render: renderChangePct,
-    },
-    { title: '申万二级', dataIndex: 'sw2_name', key: 'sw2_name', width: 110, render: (v) => v || '-' },
-    {
-      title: '二级涨跌%',
-      dataIndex: 'sw2_change_pct',
-      key: 'sw2_change_pct',
-      width: 100,
-      align: 'right',
-      render: renderChangePct,
+      render: (_, record) => (
+        <div>
+          <div>{record.close === null || record.close === undefined ? '-' : record.close.toFixed(2)}</div>
+          <div>{renderChangePct(record.change_pct)}</div>
+        </div>
+      ),
     },
     {
-      title: 'ML评分',
+      title: '换手率/总市值',
+      key: 'turnover_mv',
+      width: 105,
+      render: (_, record) => (
+        <div>
+          <div>{record.turnover === null || record.turnover === undefined ? '-' : `${record.turnover.toFixed(2)}%`}</div>
+          <div style={{ fontSize: 11, color: '#666' }}>
+            {record.totalmv ? `${(record.totalmv / 100000000).toFixed(1)}亿` : '-'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '申万一级/涨跌',
+      key: 'sw1',
+      width: 115,
+      render: (_, record) => (
+        <div>
+          <div>{record.sw1_name || '-'}</div>
+          <div>{renderChangePct(record.sw1_change_pct)}</div>
+        </div>
+      ),
+    },
+    {
+      title: '申万二级/涨跌',
+      key: 'sw2',
+      width: 125,
+      render: (_, record) => (
+        <div>
+          <div>{record.sw2_name || '-'}</div>
+          <div>{renderChangePct(record.sw2_change_pct)}</div>
+        </div>
+      ),
+    },
+    {
+      title: '评分',
       dataIndex: 'ml_score',
       key: 'ml_score',
-      width: 90,
+      width: 65,
       align: 'right',
       render: (v) => (v === null || v === undefined ? '-' : v),
     },
@@ -434,7 +437,7 @@ const ScreeningPage = () => {
               dataSource={results}
               loading={loading}
               size="small"
-              scroll={isMobile ? undefined : { x: 1100 }}
+              scroll={isMobile ? undefined : { x: 800 }}
               pagination={{ pageSize: 20, showSizeChanger: !isMobile, showTotal: (t) => `共 ${t} 只` }}
               rowSelection={{
                 selectedRowKeys,

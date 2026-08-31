@@ -79,6 +79,8 @@ class ScreeningRepository:
                     b.preclose,
                     b.turnover,
                     b.change_pct,
+                    b.totalmv,
+                    b.amplitude,
                     MAX(d.high) OVER (
                         PARTITION BY d.symbol ORDER BY d.date
                         ROWS BETWEEN {prev_high_days} PRECEDING AND 1 PRECEDING
@@ -118,6 +120,13 @@ class ScreeningRepository:
                 h.low AS low,
                 h.turnover AS turnover,
                 h.change_pct AS change_pct,
+                -- 打分特征
+                h.volume / NULLIF(h.avg_vol, 0) AS vol_ratio,
+                h.close / NULLIF(h.prev_high, 0) AS prev_high_ratio,
+                h.close / NULLIF(h.ma_close, 0) AS ma_ratio,
+                (h.high - GREATEST(h.open, h.close)) / NULLIF(h.preclose, 0) * 100 AS upper_shadow,
+                h.totalmv AS totalmv,
+                h.amplitude AS amplitude,
                 i.sw1_name AS sw1_name,
                 i1.avg_pct AS sw1_change_pct,
                 i.sw2_name AS sw2_name,
@@ -188,6 +197,8 @@ class ScreeningRepository:
                     d.volume,
                     b.turnover,
                     b.change_pct,
+                    b.totalmv,
+                    b.amplitude,
                     ROW_NUMBER() OVER (
                         PARTITION BY d.symbol ORDER BY d.date DESC
                     ) AS rn,
@@ -220,7 +231,14 @@ class ScreeningRepository:
                     MAX(CASE WHEN rn = 1 THEN low END) AS low,
                     MAX(CASE WHEN rn = 3 THEN low END) AS signal_low,
                     MAX(CASE WHEN rn = 1 THEN turnover END) AS turnover,
-                    MAX(CASE WHEN rn = 1 THEN change_pct END) AS change_pct
+                    MAX(CASE WHEN rn = 1 THEN change_pct END) AS change_pct,
+                    -- 打分特征
+                    MAX(CASE WHEN rn = 3 THEN volume / NULLIF(avg_vol, 0) END) AS day1_vol_ratio,
+                    MAX(CASE WHEN rn = 1 THEN volume / NULLIF(avg_vol, 0) END) AS day23_vol_ratio,
+                    MAX(CASE WHEN rn = 3 AND avg_vol > 0 THEN vol_std / avg_vol END) AS cv,
+                    MAX(CASE WHEN rn = 3 THEN change_pct END) AS day1_change_pct,
+                    MAX(CASE WHEN rn = 1 THEN totalmv END) AS totalmv,
+                    MAX(CASE WHEN rn = 1 THEN amplitude END) AS amplitude
                 FROM hist
                 WHERE rn <= 3
                 GROUP BY symbol
@@ -260,6 +278,12 @@ class ScreeningRepository:
                 p.signal_low AS signal_low,
                 p.turnover AS turnover,
                 p.change_pct AS change_pct,
+                p.day1_vol_ratio AS day1_vol_ratio,
+                p.day23_vol_ratio AS day23_vol_ratio,
+                p.cv AS cv,
+                p.day1_change_pct AS day1_change_pct,
+                p.totalmv AS totalmv,
+                p.amplitude AS amplitude,
                 i.sw1_name AS sw1_name,
                 i1.avg_pct AS sw1_change_pct,
                 i.sw2_name AS sw2_name,
@@ -308,6 +332,17 @@ class ScreeningRepository:
                 ),
                 'turnover': float(row['turnover']) if row['turnover'] is not None else None,
                 'change_pct': float(row['change_pct']) if row['change_pct'] is not None else None,
+                # 打分特征（ml_score 由 service 层计算）
+                'day1_vol_ratio': float(row['day1_vol_ratio']) if row.get('day1_vol_ratio') is not None else None,
+                'day23_vol_ratio': float(row['day23_vol_ratio']) if row.get('day23_vol_ratio') is not None else None,
+                'cv': float(row['cv']) if row.get('cv') is not None else None,
+                'day1_change_pct': float(row['day1_change_pct']) if row.get('day1_change_pct') is not None else None,
+                'vol_ratio': float(row['vol_ratio']) if row.get('vol_ratio') is not None else None,
+                'prev_high_ratio': float(row['prev_high_ratio']) if row.get('prev_high_ratio') is not None else None,
+                'ma_ratio': float(row['ma_ratio']) if row.get('ma_ratio') is not None else None,
+                'upper_shadow': float(row['upper_shadow']) if row.get('upper_shadow') is not None else None,
+                'totalmv': float(row['totalmv']) if row.get('totalmv') is not None else None,
+                'amplitude': float(row['amplitude']) if row.get('amplitude') is not None else None,
                 'sw1_name': row['sw1_name'],
                 'sw1_change_pct': float(row['sw1_change_pct']) if row['sw1_change_pct'] is not None else None,
                 'sw2_name': row['sw2_name'],

@@ -47,6 +47,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from app.core.tdx_db import TdxNotConfiguredError
+from app.core.scoring import scorer
 from app.repositories.screening_repository import ScreeningRepository
 
 DEFAULT_PARAMS = {
@@ -126,6 +127,9 @@ class ScreeningService:
                 data = repository.run_screening(
                     self._normalize_breakout_params(payload, trade_date)
                 )
+            # 规则打分卡：为每条结果计算 ml_score（0~100）
+            for row in (data or []):
+                row['ml_score'] = scorer.score(row, strategy)
             return True, '筛选成功', data
         except ValueError as e:
             return False, str(e), None
