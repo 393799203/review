@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.cache/
+logs/
+embed/datatool
+embed/datatool.exe
