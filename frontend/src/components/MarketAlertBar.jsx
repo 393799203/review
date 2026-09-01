@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Modal, List, Tag, Empty } from 'antd';
-import { BellOutlined, FireOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Modal, Tag, Empty } from 'antd';
+import { BellOutlined, CloseOutlined } from '@ant-design/icons';
 import { useGlobal } from '../contexts/GlobalContext';
 import { stockApi } from '../services/api';
 
@@ -90,16 +90,22 @@ const MarketAlertBar = () => {
       return;
     }
 
+    // 日期切换：立即清空旧基准与旧提示条。
+    // 对比只在同一天内进行，新日期的第一批数据只作为基准线，不触发任何提示。
     if (currentDate && prevDateRef.current !== currentDate) {
-      prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      prevAlertsRef.current = [];
       prevDateRef.current = currentDate;
       isDateJustChangedRef.current = true;
-      // 切换日期时清空旧日期的告警
       setAlerts([]);
+      setIsVisible(false);
+      setDisplayedAlerts([]);
+      setIsFadingOut(false);
       return;
     }
 
-    // 切换日期后的第一次更新，只同步基准线，不触发提示
+    // 日期切换后的第一批数据：只同步基准线，不触发对比
     if (isDateJustChangedRef.current) {
       prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
       isDateJustChangedRef.current = false;
@@ -226,123 +232,257 @@ const MarketAlertBar = () => {
     }
   };
 
-  const getAlertTypeIcon = (alertType) => {
-    if (alertType === 'limit_up') {
-      return <FireOutlined style={{ color: '#ff4d4f' }} />;
-    } else if (alertType === 'break板' || alertType === '开板') {
-      return <ThunderboltOutlined style={{ color: '#fa8c16' }} />;
-    }
-    return <BellOutlined style={{ color: '#fff' }} />;
-  };
-
   return (
     <>
       {isVisible && displayedAlerts.length > 0 && (
         <div
-          onClick={() => setModalVisible(true)}
           style={{
             position: 'fixed',
             top: isMobile ? 46 : 64,
-            left: isMobile ? 0 : 200,
-            right: 0,
+            right: isMobile ? 8 : 16,
+            width: isMobile ? 'calc(100% - 16px)' : 380,
             zIndex: 99,
-            background: 'linear-gradient(90deg, #1890ff 0%, #096dd9 100%)',
-            color: '#fff',
-            cursor: 'pointer',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.3)',
+            background: '#fff',
+            borderRadius: 10,
+            overflow: 'hidden',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.18)',
+            border: '1px solid #e6f4ff',
             opacity: isFadingOut ? 0 : 1,
             transform: isFadingOut ? 'translateY(-10px)' : 'translateY(0)',
             transition: `opacity ${FADE_DURATION}ms ease-out, transform ${FADE_DURATION}ms ease-out`,
           }}
         >
-          {displayedAlerts.map((alert) => (
-            <div
-              key={`${alert.code}_${alert.time}`}
-              style={{
-                padding: isMobile ? '6px 12px' : '8px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: isMobile ? 12 : 14,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                {getAlertTypeIcon(alert.alertType)}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span style={{ fontWeight: 500 }}>{formatTime(alert.time)}</span>
-                  {' '}
-                  <span>{alert.name}</span>
-                  {' '}
-                  <span style={{ color: '#ffd700' }}>{alert.continuous_days}连板</span>
-                  {' '}
-                  {getStatusTag(alert.status)}
-                </span>
-              </div>
-              <span style={{ fontSize: isMobile ? 10 : 12, opacity: 0.8, flexShrink: 0 }}>
-                点击查看全部 ({alerts.length})
+          {/* 标题栏：点击打开弹窗 */}
+          <div
+            onClick={() => setModalVisible(true)}
+            style={{
+              background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+              color: '#fff',
+              padding: '9px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
+              <BellOutlined style={{ fontSize: 14 }} />
+              市场动态
+              <span
+                style={{
+                  background: 'rgba(255,255,255,0.25)',
+                  borderRadius: 8,
+                  padding: '0 7px',
+                  fontSize: 11,
+                }}
+              >
+                {alerts.length}
               </span>
             </div>
-          ))}
+            <div style={{ fontSize: 12, opacity: 0.92 }}>查看全部 ›</div>
+          </div>
+
+          {/* 条目列表 */}
+          <div style={{ maxHeight: isMobile ? '42vh' : '60vh', overflowY: 'auto' }}>
+            {displayedAlerts.map((alert) => (
+              <div
+                key={`${alert.code}_${alert.time}`}
+                onClick={() => setModalVisible(true)}
+                style={{
+                  padding: '8px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  borderBottom: '1px solid #f5f5f5',
+                  cursor: 'pointer',
+                }}
+              >
+                {/* 时间徽章 */}
+                <div
+                  style={{
+                    minWidth: 46,
+                    textAlign: 'center',
+                    background: '#f5f5f5',
+                    borderRadius: 6,
+                    padding: '2px 4px',
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#595959',
+                    flexShrink: 0,
+                  }}
+                >
+                  {formatTime(alert.time) || '--:--'}
+                </div>
+                {/* 名称 + 连板 */}
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 13,
+                    color: '#262626',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{alert.name || '-'}</span>{' '}
+                  <span style={{ color: '#ff4d4f', fontWeight: 700, fontSize: 12 }}>
+                    {alert.continuous_days || 1}连板
+                  </span>
+                </div>
+                {/* 状态标签 */}
+                <div style={{ flexShrink: 0 }}>{getStatusTag(alert.status)}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>市场动态消息 ({alerts.length})</span>
-            <button
-              onClick={() => setModalVisible(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 18,
-                color: '#999',
-                padding: '0 4px',
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        }
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        width={isMobile ? '95vw' : 600}
-        style={{ top: isMobile ? 60 : 80 }}
+        width={isMobile ? '95vw' : 620}
+        style={{ top: isMobile ? 50 : 80 }}
         styles={{
-          body: { maxHeight: isMobile ? '60vh' : '70vh', overflow: 'auto' }
+          body: { padding: 0, maxHeight: isMobile ? '70vh' : '72vh', overflow: 'auto' },
+          content: { borderRadius: 12, overflow: 'hidden' },
         }}
+        className="market-alert-modal"
       >
+        {/* 头部渐变栏 */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+            color: '#fff',
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <BellOutlined style={{ fontSize: 18 }} />
+            <span style={{ fontSize: 16, fontWeight: 600 }}>市场动态</span>
+            <span
+              style={{
+                background: 'rgba(255,255,255,0.25)',
+                borderRadius: 10,
+                padding: '1px 10px',
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              {alerts.length} 条
+            </span>
+          </div>
+          <button
+            onClick={() => setModalVisible(false)}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              cursor: 'pointer',
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: 13,
+            }}
+          >
+            <CloseOutlined />
+          </button>
+        </div>
+
         {alerts.length === 0 ? (
-          <Empty description="暂无市场动态" />
+          <div style={{ padding: '60px 0' }}>
+            <Empty description="暂无市场动态" />
+          </div>
         ) : (
-          <List
-            dataSource={alerts}
-            renderItem={(item, index) => (
-              <List.Item
-                key={`${item.code}_${item.time}_${index}`}
-                style={{
-                  padding: '12px 0',
-                  borderBottom: '1px solid #f0f0f0',
-                  background: item.changed ? '#fffbe6' : 'transparent',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 12 }}>
-                  <span style={{ color: '#999', fontSize: 12, minWidth: 50 }}>
-                    {formatTime(item.time)}
-                  </span>
-                  <span style={{ fontWeight: 500, minWidth: 80 }}>
-                    {item.name}
-                  </span>
-                  <span style={{ color: '#ff4d4f', minWidth: 60 }}>
-                    {item.continuous_days}连板
-                  </span>
-                  {getStatusTag(item.status)}
+          <>
+            {/* 状态统计 */}
+            <div style={{ display: 'flex', gap: 10, padding: '14px 20px 4px' }}>
+              {[
+                { label: '涨停', count: alerts.filter(a => ['close', 'still_close', 'new'].includes(a.status)).length, color: '#ff4d4f', bg: '#fff1f0' },
+                { label: '开板', count: alerts.filter(a => ['open', 'opened', 'still_open'].includes(a.status)).length, color: '#fa8c16', bg: '#fff7e6' },
+                { label: '回封', count: alerts.filter(a => a.status === 'reclose').length, color: '#52c41a', bg: '#f6ffed' },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  style={{
+                    flex: 1,
+                    background: s.bg,
+                    borderRadius: 8,
+                    padding: '8px 0',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 20, fontWeight: 700, color: s.color, lineHeight: 1.2 }}>
+                    {s.count}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 2 }}>{s.label}</div>
                 </div>
-              </List.Item>
-            )}
-          />
+              ))}
+            </div>
+
+            {/* 列表 */}
+            <div style={{ padding: '12px 20px 20px' }}>
+              {alerts.map((item, index) => (
+                <div
+                  key={`${item.code}_${item.time}_${index}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    marginBottom: 8,
+                    borderRadius: 8,
+                    background: item.changed ? '#fffbe6' : '#fafafa',
+                    border: `1px solid ${item.changed ? '#ffe58f' : '#f0f0f0'}`,
+                  }}
+                >
+                  {/* 时间 */}
+                  <div
+                    style={{
+                      minWidth: 52,
+                      textAlign: 'center',
+                      background: '#fff',
+                      border: '1px solid #f0f0f0',
+                      borderRadius: 6,
+                      padding: '3px 6px',
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#595959',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {formatTime(item.time) || '--:--'}
+                  </div>
+                  {/* 名称 + 代码 */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#262626' }}>{item.name || '-'}</div>
+                    <div style={{ fontSize: 11, color: '#8c8c8c', fontFamily: 'monospace' }}>
+                      {item.code || ''}
+                    </div>
+                  </div>
+                  {/* 连板 + 状态 */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ color: '#ff4d4f', fontWeight: 700, fontSize: 13 }}>
+                      {item.continuous_days || 1}连板
+                    </div>
+                    <div style={{ marginTop: 2 }}>{getStatusTag(item.status)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Modal>
     </>

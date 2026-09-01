@@ -801,7 +801,7 @@ const WatchlistPage = () => {
         },
       },
       {
-        title: '涨停原因',
+        title: '入选原因',
         dataIndex: 'limit_up_reason_category',
         key: 'limit_up_reason_category',
         width: 230,

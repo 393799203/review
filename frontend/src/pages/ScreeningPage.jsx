@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Form, DatePicker, InputNumber, Button, Table, Card, message, Empty, Alert, Row, Col, Space, Radio } from 'antd';
+import { Form, DatePicker, InputNumber, Button, Table, Card, message, Empty, Row, Col, Space, Radio } from 'antd';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
@@ -170,6 +170,10 @@ const ScreeningPage = () => {
           ? (row.signal_low != null ? row.signal_low : row.low)
           : row.low;
         const alertPrice = volDayLow != null ? Number((volDayLow * 1.02).toFixed(2)) : undefined;
+        // 入选原因：申万一级-申万二级（如"电子-半导体"）
+        const category = row.sw1_name && row.sw2_name
+          ? `${row.sw1_name}-${row.sw2_name}`
+          : (row.sw1_name || '');
         const response = await stockApi.addWatchlist({
           stock_code: row.code,
           stock_name: row.name || row.code,
@@ -179,6 +183,7 @@ const ScreeningPage = () => {
           source: 'screening',
           add_type: 'strategy',
           alert_price: alertPrice,
+          limit_up_reason_category: category,
         });
         if (response.data.success) {
           successCount += 1;
@@ -446,12 +451,6 @@ const ScreeningPage = () => {
             />
           )}
         </Card>
-        <Alert
-          style={{ marginTop: 16 }}
-          type="info"
-          showIcon
-          message="回踩提示：突破日后大多数股票会回踩3-5天再拉升。建议等回踩结束后再观察买入信号。"
-        />
       </Col>
     </Row>
   );
