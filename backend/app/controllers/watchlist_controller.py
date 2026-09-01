@@ -45,6 +45,7 @@ class WatchlistController(BaseController):
         add_type = data.get('add_type', 'manual')
         limit_up_reason_category = data.get('limit_up_reason_category', '')
         alert_price = data.get('alert_price')
+        signal_date_str = data.get('signal_date')
         
         if not stock_code or not stock_name or not add_date_str:
             return self.error('缺少必要参数', 400)
@@ -54,9 +55,16 @@ class WatchlistController(BaseController):
         except:
             return self.error('日期格式错误', 400)
         
+        signal_date = None
+        if signal_date_str:
+            try:
+                signal_date = datetime.strptime(str(signal_date_str).replace('-', ''), '%Y%m%d').date()
+            except:
+                signal_date = None
+        
         success, message = self.watchlist_service.add_to_watchlist(
             user_id, stock_code, stock_name, add_date, add_price,
-            add_reason, source, add_type, limit_up_reason_category, alert_price
+            add_reason, source, add_type, limit_up_reason_category, alert_price, signal_date
         )
         
         if success:

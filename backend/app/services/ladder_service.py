@@ -73,11 +73,10 @@ class LadderService(BaseService):
                     else:
                         return False, '该日期暂无涨停股票数据', None
             
-            ladder = self._build_ladder(stocks, trade_date, is_trading_hours)
+            ladder = self._build_ladder(stocks, trade_date, is_trading_hours, self._load_blocks(trade_date))
             statistics = self._build_statistics(stats)
             yesterday_data = self._get_yesterday_data(trade_date)
             opened_data = self._get_opened_stocks(trade_date)
-            
             return True, '获取成功', {
                 'ladder': ladder,
                 'statistics': statistics,
@@ -105,7 +104,54 @@ class LadderService(BaseService):
         except Exception:
             return []
     
-    def _build_ladder(self, stocks: List[LimitUpStock], trade_date: date = None, is_trading_hours: bool = False) -> List[Dict]:
+    def _load_blocks(self, trade_date) -> List[Dict]:
+        """
+        加载板块候选池（全量）：
+        - dim_block 全量板块（概念 + block_top 补充，含当日涨跌幅）
+        - 当天 blocks 统计（涨停数/连板/成分股）按板块名合并
+        """
+        try:
+            import json
+            blocks_orm = self.stock_repository.get_blocks_by_date(trade_date)
+            day_stats = {}
+            for b in blocks_orm:
+                try:
+                    codes = json.loads(b.stock_codes) if b.stock_codes else []
+                except (ValueError, TypeError):
+                    codes = []
+                day_stats[b.block_name] = {
+                    'limit_up_num': b.limit_up_num or 0,
+                    'continuous_plate_num': b.continuous_plate_num or 0,
+                    'change_rate': float(b.change_rate) if b.change_rate else 0,
+                    'stock_codes': codes,
+                }
+
+            # dim_block 全量板块（名称 + 当日涨跌幅）
+            session = self.stock_repository.create_session()
+            try:
+                from models import DimBlock
+                dim_rows = session.query(DimBlock.plate_name, DimBlock.change_pct).all()
+            finally:
+                session.close()
+
+            blocks = []
+            for name, change_pct in dim_rows:
+                name = (name or '').strip()
+                if not name:
+                    continue
+                stat = day_stats.get(name, {})
+                blocks.append({
+                    'block_name': name,
+                    'limit_up_num': stat.get('limit_up_num', 0) or 0,
+                    'continuous_plate_num': stat.get('continuous_plate_num', 0) or 0,
+                    'change_rate': stat.get('change_rate') if stat else (float(change_pct) if change_pct else 0),
+                    'stock_codes': stat.get('stock_codes', []),
+                })
+            return blocks
+        except Exception:
+            return []
+
+    def _build_ladder(self, stocks: List[LimitUpStock], trade_date: date = None, is_trading_hours: bool = False, blocks: List[Dict] = None) -> List[Dict]:
         """构建连板天梯数据"""
         ladder_dict = {}
 
@@ -165,7 +211,17 @@ class LadderService(BaseService):
                 'is_high_stock': stock.is_high_stock or 0,
                 'current_status': stock.current_status or 'close'
             }
-            
+
+            # 当日所走板块：向量匹配（语义）优先，同花顺官方归属兜底
+            from app.core.block_matcher import pick_trend_block
+            trend = pick_trend_block(
+                stock.stock_code,
+                stock.limit_up_reason,
+                blocks or []
+            )
+            stock_data['trend_block'] = trend['block_name'] if trend else ''
+            stock_data['trend_block_info'] = trend
+
             ladder_dict[level]['stocks'].append(stock_data)
         
         ladder = sorted(ladder_dict.values(), key=lambda x: x['level'], reverse=True)

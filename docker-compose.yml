@@ -41,6 +41,7 @@ services:
       - DEEPSEEK_MAX_TOKENS_SHORT=500
       - DEEPSEEK_MAX_TOKENS_MEDIUM=1000
       - DEEPSEEK_MAX_TOKENS_LONG=4000
+      - FASTEMBED_CACHE_PATH=/root/.cache/fastembed
     depends_on:
       db:
         condition: service_healthy
@@ -49,6 +50,7 @@ services:
     restart: always
     volumes:
       - backend-logs:/app/logs
+      - ./embed-cache:/root/.cache/fastembed
 
   db:
     image: postgres:15-alpine

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, Tooltip, AutoComplete, Input, Checkbox } from 'antd';
+import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, AutoComplete, Input, Checkbox } from 'antd';
 import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined, HeartOutlined, AlertOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
 import StockKlineModal from '../components/StockKlineModal';
@@ -446,7 +446,7 @@ const WatchlistPage = () => {
               style={{ 
                 marginBottom: 8,
                 borderLeft: `3px solid ${alertActive ? '#faad14' : totalProfitColor}`,
-                background: alertActive ? '#fffbe6' : `${totalProfitColor}08`,
+                background: alertActive ? '#fff1f0' : `${totalProfitColor}08`,
                 position: 'relative',
                 overflow: 'hidden',
               }}
@@ -472,7 +472,7 @@ const WatchlistPage = () => {
                     <span 
                       style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
                       onClick={() => {
-                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
                         setKlineVisible(true);
                       }}
                     >
@@ -481,7 +481,7 @@ const WatchlistPage = () => {
                     <span 
                       style={{ fontWeight: 'bold', fontSize: 14, color: '#262626', cursor: 'pointer' }}
                       onClick={() => {
-                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
                         setKlineVisible(true);
                       }}
                     >
@@ -666,7 +666,7 @@ const WatchlistPage = () => {
                 <span 
                   style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
                   onClick={() => {
-                    setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                    setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
                     setKlineVisible(true);
                   }}
                 >
@@ -691,7 +691,7 @@ const WatchlistPage = () => {
               <span 
                 style={{ color: '#1890ff', cursor: 'pointer', fontSize: 12 }}
                 onClick={() => {
-                  setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name });
+                  setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
                   setKlineVisible(true);
                 }}
               >
@@ -805,15 +805,17 @@ const WatchlistPage = () => {
         dataIndex: 'limit_up_reason_category',
         key: 'limit_up_reason_category',
         width: 230,
-        ellipsis: true,
         render: (text) => {
           if (!text) return '-';
+          const items = String(text).split('/').filter(Boolean);
           return (
-            <Tooltip title={text}>
-              <Tag color="blue" style={{ fontSize: 11 }}>
-                {text}
-              </Tag>
-            </Tooltip>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {items.map((item, i) => (
+                <Tag key={i} color={i === 0 ? 'purple' : 'blue'} style={{ fontSize: 11, margin: 0 }}>
+                  {item}
+                </Tag>
+              ))}
+            </div>
           );
         },
       },
@@ -884,7 +886,7 @@ const WatchlistPage = () => {
           onChange: setSelectedRowKeys,
         }}
         onRow={(record) => ({
-          style: isAlert(record) ? { background: '#fffbe6' } : {},
+          style: isAlert(record) ? { background: '#fff1f0' } : {},
         })}
         pagination={{
           pageSize: 20,
@@ -1180,6 +1182,7 @@ const WatchlistPage = () => {
         visible={klineVisible}
         stockCode={klineStock?.code}
         stockName={klineStock?.name}
+        signalDate={klineStock?.signalDate}
         onClose={() => {
           setKlineVisible(false);
           setKlineStock(null);

@@ -130,11 +130,86 @@ class ScreeningService:
             # 规则打分卡：为每条结果计算 ml_score（0~100）
             for row in (data or []):
                 row['ml_score'] = scorer.score(row, strategy)
+            # 补充"当日所走概念板块"（向量匹配；无涨停原因的用申万行业近似）
+            self._enrich_concept_block(data, trade_date)
             return True, '筛选成功', data
         except ValueError as e:
             return False, str(e), None
         except Exception as e:
             return False, str(e), None
+
+    def _enrich_concept_block(self, data: List[Dict], trade_date) -> None:
+        """
+        为筛选结果补充"当日所走概念板块"
+
+        匹配优先级：
+          1. 东财 F10 核心题材（官方归属 + 相关度排名，覆盖所有股票）
+          2. 当天涨停原因向量匹配（仅涨停股）
+          3. 申万行业名近似向量匹配
+          4. 同花顺官方归属（stock_codes）
+        """
+        if not data:
+            return
+        try:
+            # 1. 东财批量获取板块归属（并发 + 缓存）
+            from app.core.em_fetcher import get_stock_boards_batch
+            em_map = get_stock_boards_batch([str(r.get('code', '')) for r in data])
+
+            # 2. 主库当天涨停股 reason（code -> reason）
+            from models import LimitUpStock
+            from app.repositories.stock_repository import StockRepository
+            reasons = {}
+            try:
+                session = StockRepository().create_session()
+                try:
+                    rows = session.query(
+                        LimitUpStock.stock_code, LimitUpStock.limit_up_reason
+                    ).filter(
+                        LimitUpStock.trade_date == trade_date,
+                        LimitUpStock.limit_up_reason.isnot(None),
+                    ).all()
+                    reasons = {str(r[0]): r[1] for r in rows if r[1]}
+                finally:
+                    session.close()
+            except Exception:
+                pass
+
+            # 3. 板块候选池（dim_block 全量 + 当天 blocks 强度）
+            blocks = []
+            try:
+                from app.services.ladder_service import LadderService
+                blocks = LadderService()._load_blocks(trade_date)
+            except Exception:
+                blocks = []
+
+            from app.core.block_matcher import (
+                pick_official_block, pick_trend_block_vec, pick_trend_blocks_em
+            )
+            for row in data:
+                code = str(row.get('code', ''))
+                trend_list = []
+                # 东财归属（优先，返回 Top3）
+                if code in em_map:
+                    trend_list = pick_trend_blocks_em(code, blocks, em_map[code], top_n=3)
+                # 兜底：涨停原因向量 / 申万近似 / 官方归属（单个）
+                if not trend_list:
+                    trend = None
+                    reason = reasons.get(code)
+                    if reason:
+                        trend = pick_trend_block_vec(code, reason, blocks)
+                    if trend is None:
+                        sw_text = ' '.join(filter(None, [row.get('sw1_name'), row.get('sw2_name')]))
+                        if sw_text.strip():
+                            trend = pick_trend_block_vec(code, sw_text, blocks)
+                    if trend is None:
+                        trend = pick_official_block(code, blocks)
+                    if trend:
+                        trend_list = [trend]
+                row['concept_blocks'] = trend_list
+                row['concept_block'] = trend_list[0]['block_name'] if trend_list else ''
+                row['concept_block_info'] = trend_list[0] if trend_list else None
+        except Exception as e:
+            print(f'⚠️ 富化概念板块失败: {e}')
 
     def _normalize_breakout_params(self, payload: Dict, trade_date) -> Dict:
         """归一化"突破放量"策略参数"""

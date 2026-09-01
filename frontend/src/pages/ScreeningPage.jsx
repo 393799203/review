@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Form, DatePicker, InputNumber, Button, Table, Card, message, Empty, Row, Col, Space, Radio } from 'antd';
+import { Form, DatePicker, InputNumber, Button, Table, Card, message, Empty, Row, Col, Space, Radio, Tooltip, Tag, Switch } from 'antd';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
@@ -51,6 +51,71 @@ const ScreeningPage = () => {
 
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoLogs, setAutoLogs] = useState([]);
+
+  // 加载每日自动筛选配置
+  useEffect(() => {
+    const loadAutoConfig = async () => {
+      try {
+        const response = await stockApi.getAutoScreeningConfig();
+        if (response.data.success) {
+          setAutoEnabled(response.data.data?.enabled || false);
+        }
+        const logsResponse = await stockApi.getAutoScreeningLogs();
+        if (logsResponse.data.success) {
+          setAutoLogs(logsResponse.data.data || []);
+        }
+      } catch (error) {
+        // 配置接口失败不打扰用户
+        console.warn('加载自动筛选配置失败:', error);
+      }
+    };
+    loadAutoConfig();
+  }, []);
+
+  // 开关：保存配置（带当前表单参数）
+  const handleAutoToggle = async (checked) => {
+    setAutoSaving(true);
+    try {
+      const values = form.getFieldsValue();
+      const params = {
+        date: values.date ? values.date.format('YYYY-MM-DD') : undefined,
+        vol_window: values.vol_window,
+      };
+      if (strategy === 'bottom') {
+        params.day1_mult = values.day1_mult;
+        params.day23_mult = values.day23_mult;
+        params.cv_max = values.cv_max;
+        params.day1_change_min = values.day1_change_min;
+      } else {
+        params.turnover_min = values.turnover_min;
+        params.upper_shadow_max = values.upper_shadow_max;
+        params.prev_high_days = values.prev_high_days;
+        params.prev_high_coef = values.prev_high_coef;
+        params.vol_pct = values.vol_pct;
+        params.close_window = values.close_window;
+        params.close_ratio = values.close_ratio;
+      }
+      const response = await stockApi.saveAutoScreeningConfig({
+        enabled: checked,
+        strategy,
+        params,
+      });
+      if (response.data.success) {
+        setAutoEnabled(checked);
+        message.success(checked ? '已开启每日 19:00 自动筛选' : '已关闭每日自动筛选');
+      } else {
+        message.error(response.data.error || '保存失败');
+      }
+    } catch (error) {
+      message.error('保存失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setAutoSaving(false);
+    }
+  };
 
   // 移动端适配（与 MainLayout 同一套判断）
   const [isMobile, setIsMobile] = useState(false);
@@ -116,6 +181,27 @@ const ScreeningPage = () => {
     });
   };
 
+  // 手动立即执行一次
+  const handleRunNow = async () => {
+    setAutoRunning(true);
+    try {
+      const response = await stockApi.runAutoScreeningNow();
+      if (response.data.success) {
+        message.success('执行完成，已加入自选');
+        const logsResponse = await stockApi.getAutoScreeningLogs();
+        if (logsResponse.data.success) {
+          setAutoLogs(logsResponse.data.data || []);
+        }
+      } else {
+        message.error(response.data.error || '执行失败');
+      }
+    } catch (error) {
+      message.error('执行失败：' + (error.response?.data?.error || error.message));
+    } finally {
+      setAutoRunning(false);
+    }
+  };
+
   const handleRun = async (values) => {
     setLoading(true);
     setSelectedRowKeys([]);
@@ -170,10 +256,10 @@ const ScreeningPage = () => {
           ? (row.signal_low != null ? row.signal_low : row.low)
           : row.low;
         const alertPrice = volDayLow != null ? Number((volDayLow * 1.02).toFixed(2)) : undefined;
-        // 入选原因：申万一级-申万二级（如"电子-半导体"）
-        const category = row.sw1_name && row.sw2_name
-          ? `${row.sw1_name}-${row.sw2_name}`
-          : (row.sw1_name || '');
+        // 入选原因：当日所走概念板块（前 3 个拼接，如"传媒/AI应用/人工智能"）
+        const conceptBlocks = row.concept_blocks
+          || (row.concept_block ? [row.concept_block_info].filter(Boolean) : []);
+        const category = conceptBlocks.slice(0, 3).map((b) => b.block_name).filter(Boolean).join('/');
         const response = await stockApi.addWatchlist({
           stock_code: row.code,
           stock_name: row.name || row.code,
@@ -183,6 +269,7 @@ const ScreeningPage = () => {
           source: 'screening',
           add_type: 'strategy',
           alert_price: alertPrice,
+          signal_date: (row.signal_date || '').replace(/-/g, '') || undefined,
           limit_up_reason_category: category,
         });
         if (response.data.success) {
@@ -219,8 +306,17 @@ const ScreeningPage = () => {
         </a>
       ),
     },
-    { title: '日期', dataIndex: 'date', key: 'date', width: 90 },
-    { title: '放量首日', dataIndex: 'signal_date', key: 'signal_date', width: 90, render: (v) => v || '-' },
+    {
+      title: '日期/放量日',
+      key: 'date_signal',
+      width: 100,
+      render: (_, record) => (
+        <div>
+          <div>{record.date || '-'}</div>
+          <div style={{ fontSize: 11, color: '#666' }}>{record.signal_date || '-'}</div>
+        </div>
+      ),
+    },
     {
       title: '收盘/涨跌',
       key: 'close_change',
@@ -266,6 +362,41 @@ const ScreeningPage = () => {
           <div>{renderChangePct(record.sw2_change_pct)}</div>
         </div>
       ),
+    },
+    {
+      title: '概念板块',
+      key: 'concept_block',
+      width: 200,
+      render: (_, record) => {
+        const blocks = record.concept_blocks
+          || (record.concept_block ? [record.concept_block_info].filter(Boolean) : []);
+        if (blocks.length === 0) return '-';
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            {blocks.slice(0, 3).map((b, i) => (
+              <Tooltip
+                key={`${b.block_name}_${i}`}
+                title={
+                  b.matched_tag ? (
+                    <div>
+                      <div>{b.block_name}</div>
+                      <div>依据: {b.matched_tag}</div>
+                      <div>板块涨跌: {b.change_rate ? `${b.change_rate > 0 ? '+' : ''}${b.change_rate.toFixed(1)}%` : '-'}</div>
+                    </div>
+                  ) : null
+                }
+              >
+                <Tag
+                  color={i === 0 ? 'purple' : 'default'}
+                  style={{ fontSize: 10, margin: 0, cursor: 'help' }}
+                >
+                  {b.block_name}
+                </Tag>
+              </Tooltip>
+            ))}
+          </div>
+        );
+      },
     },
     {
       title: '评分',
@@ -407,6 +538,24 @@ const ScreeningPage = () => {
                 </Form.Item>
               </>
             )}
+            <div style={{ marginBottom: 12, padding: '8px 10px', background: '#fafafa', borderRadius: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 500 }}>每日 19:00 自动筛选</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>按当前参数自动执行并加入自选</div>
+                </div>
+                <Button size="small" onClick={handleRunNow} loading={autoRunning} style={{ flexShrink: 0 }}>
+                  立即执行
+                </Button>
+                <Switch checked={autoEnabled} onChange={handleAutoToggle} loading={autoSaving} size="small" />
+              </div>
+              {autoLogs.length > 0 && (
+                <div style={{ fontSize: 11, color: '#999', marginTop: 6, lineHeight: 1.5 }}>
+                  上次执行：{autoLogs[0].run_date} 新增 {autoLogs[0].added_count} 只
+                  {autoLogs[0].skipped_count > 0 ? `（${autoLogs[0].skipped_count} 只在自选中跳过）` : ''}
+                </div>
+              )}
+            </div>
             <Form.Item style={{ marginBottom: 0 }}>
               <Button type="primary" htmlType="submit" icon={<SearchOutlined />} loading={loading} block>
                 执行筛选
@@ -442,7 +591,7 @@ const ScreeningPage = () => {
               dataSource={results}
               loading={loading}
               size="small"
-              scroll={isMobile ? undefined : { x: 800 }}
+              scroll={isMobile ? undefined : { x: 940 }}
               pagination={{ pageSize: 20, showSizeChanger: !isMobile, showTotal: (t) => `共 ${t} 只` }}
               rowSelection={{
                 selectedRowKeys,

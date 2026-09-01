@@ -140,6 +140,7 @@ class WatchlistStock(Base):
     add_date = Column(Date, nullable=False)
     add_price = Column(Numeric(10, 2))
     alert_price = Column(Numeric(10, 2))
+    signal_date = Column(Date)  # 放量首日（策略信号日）
     add_reason = Column(String(200))
     source = Column(String(50))
     add_type = Column(String(20), default='manual')
@@ -341,6 +342,46 @@ class UserStrategy(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     user = relationship("User", backref="strategies")
+
+
+class DimBlock(Base):
+    """全量板块维表（同花顺概念板块 + block_top 补充）"""
+    __tablename__ = 'dim_block'
+
+    plate_code = Column(String(20), primary_key=True)
+    plate_name = Column(String(100), nullable=False)
+    board_type = Column(String(20), default='concept')
+    change_pct = Column(Numeric(10, 4))
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class AutoScreeningConfig(Base):
+    """每日自动筛选配置（用户级开关）"""
+    __tablename__ = 'auto_screening_config'
+
+    user_id = Column(String(36), ForeignKey('users.uid'), primary_key=True)
+    enabled = Column(Integer, default=0)  # 0 关 / 1 开
+    strategy = Column(String(20), default='bottom')
+    params = Column(Text)  # JSON 筛选参数
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    user = relationship("User", backref="auto_screening_config")
+
+
+class AutoScreeningLog(Base):
+    """每日自动筛选执行日志"""
+    __tablename__ = 'auto_screening_logs'
+    __table_args__ = (
+        Index('idx_auto_screening_user_date', 'user_id', 'run_date'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.uid'), nullable=False)
+    run_date = Column(Date, nullable=False)
+    added_count = Column(Integer, default=0)
+    skipped_count = Column(Integer, default=0)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
 
 
 class MarketAlert(Base):

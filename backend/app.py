@@ -50,6 +50,7 @@ from app.controllers.comparable_controller import comparable_controller
 from app.controllers.strategy_controller import strategy_controller
 from app.controllers.screening_controller import screening_controller
 from app.controllers.strategy_gen_controller import strategy_gen_controller
+from app.controllers.auto_screening_controller import auto_screening_controller
 from app.utils.decorators import login_required
 app = Flask(__name__)
 CORS(app)
@@ -562,6 +563,37 @@ def generate_strategy_code():
 
 
 
+# ==================== 每日自动筛选路由 ====================
+
+@app.route('/api/auto-screening/config', methods=['GET'])
+@login_required
+def get_auto_screening_config():
+    """获取每日自动筛选配置"""
+    return auto_screening_controller.get_config()
+
+
+@app.route('/api/auto-screening/config', methods=['PUT'])
+@login_required
+def save_auto_screening_config():
+    """保存每日自动筛选配置"""
+    return auto_screening_controller.save_config()
+
+
+@app.route('/api/auto-screening/logs', methods=['GET'])
+@login_required
+def get_auto_screening_logs():
+    """获取每日自动筛选执行日志"""
+    return auto_screening_controller.get_logs()
+
+
+@app.route('/api/auto-screening/run-now', methods=['POST'])
+@login_required
+def run_auto_screening_now():
+    """手动立即执行一次自动筛选"""
+    return auto_screening_controller.run_now()
+
+
+
 # ==================== 其他路由（待重构） ====================
 # 这里会逐步添加其他模块的路由
 
@@ -569,5 +601,8 @@ def generate_strategy_code():
 if __name__ == '__main__':
     # 初始化同花顺会话
     init_ths_session()
+    # 启动每日自动筛选调度（每天 19:00）
+    from app.core.auto_screening_job import start_scheduler
+    start_scheduler()
     # 启动应用
     app.run(host='0.0.0.0', port=5001, debug=True, threaded=True)

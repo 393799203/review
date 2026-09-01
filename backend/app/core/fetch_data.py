@@ -308,6 +308,24 @@ class LimitUpFetcher:
                 session.flush()
                 block_id_dict[block_code] = block_obj.id
 
+            # 顺带同步到全量板块表 dim_block（新板块 + 当日涨跌幅）
+            try:
+                from models import DimBlock
+                change_val = Decimal(str(block.get('change', 0))) if block.get('change') else None
+                dim = session.query(DimBlock).filter(DimBlock.plate_code == block_code).first()
+                if dim:
+                    dim.plate_name = block_name
+                    dim.change_pct = change_val
+                else:
+                    session.add(DimBlock(
+                        plate_code=block_code,
+                        plate_name=block_name,
+                        board_type='block_top',
+                        change_pct=change_val,
+                    ))
+            except Exception as e:
+                print(f"⚠️ 同步 dim_block 失败: {e}")
+
             for stock in stock_list:
                 stock_code = stock.get('code', '')
                 if stock_code and stock_code not in stock_to_block_code:

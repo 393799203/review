@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Card, Row, Col, Tag, Spin, message, Tooltip, Button, Modal, Badge, Select, Table, Space, Statistic, Empty } from 'antd';
-import { EditOutlined, DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined, AimOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DiffOutlined, RobotOutlined, LoadingOutlined, ArrowUpOutlined, ArrowDownOutlined, MinusOutlined, StockOutlined, RiseOutlined, FallOutlined, ArrowRightOutlined, MailOutlined, AimOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api, { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
 import WencaiAssistant from '../components/WencaiAssistant';
 import BlockStrengthModal from '../components/BlockStrengthModal';
-import EditBlockModal from '../components/EditBlockModal';
 import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
 import PremiumTrendModal from '../components/PremiumTrendModal';
@@ -34,8 +33,6 @@ const LadderPage = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [wencaiVisible, setWencaiVisible] = useState(false);
   const [blockStrengthVisible, setBlockStrengthVisible] = useState(false);
-  const [editBlockVisible, setEditBlockVisible] = useState(false);
-  const [editingStock, setEditingStock] = useState(null);
   const [klineVisible, setKlineVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
 
@@ -757,17 +754,18 @@ const LadderPage = () => {
                 </Tag>
               );
             })}
-            {stock.block_name && (
+            {stock.trend_block && (
               <Tooltip
                 title={
-                  stock.block_info && Object.keys(stock.block_info).length > 0 ? (
+                  stock.trend_block_info ? (
                     <div>
-                      <div>板块涨跌幅: {stock.block_info.change_rate.toFixed(2)}%</div>
-                      <div>涨停家数: {stock.block_info.limit_up_num}</div>
-                      <div>连板家数: {stock.block_info.continuous_num}</div>
-                      {stock.block_info.high && <div>板块高度: {stock.block_info.high}</div>}
-                      <div>上榜天数: {stock.block_info.list_days}</div>
-                      {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{stock.trend_block}</div>
+                      <div>板块涨跌幅: {stock.trend_block_info.change_rate.toFixed(1)}%</div>
+                      <div>涨停: {stock.trend_block_info.limit_up_num} 家</div>
+                      <div>连板: {stock.trend_block_info.continuous_plate_num} 家</div>
+                      {stock.trend_block_info.matched_tag && (
+                        <div>匹配依据: {stock.trend_block_info.matched_tag}</div>
+                      )}
                     </div>
                   ) : null
                 }
@@ -785,15 +783,7 @@ const LadderPage = () => {
                     gap: 4
                   }}
                 >
-                  {stock.block_name}
-                  <EditOutlined
-                    style={{ fontSize: 10, cursor: 'pointer' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingStock(stock);
-                      setEditBlockVisible(true);
-                    }}
-                  />
+                  {stock.trend_block}
                 </Tag>
               </Tooltip>
             )}
@@ -931,42 +921,35 @@ const LadderPage = () => {
               {stock.limit_up_price > 0 && (
                 <div style={{ fontSize: 15, fontWeight: 'bold', color: '#f5222d', marginBottom: 4 }}>¥{stock.limit_up_price.toFixed(2)}</div>
               )}
-              {stock.block_name && (
-                <Tooltip 
+              {stock.trend_block && (
+                <Tooltip
                   title={
-                    stock.block_info && Object.keys(stock.block_info).length > 0 ? (
+                    stock.trend_block_info ? (
                       <div>
-                        <div>板块涨跌幅: {stock.block_info.change_rate.toFixed(2)}%</div>
-                        <div>涨停家数: {stock.block_info.limit_up_num}</div>
-                        <div>连板家数: {stock.block_info.continuous_num}</div>
-                        {stock.block_info.high && <div>板块高度: {stock.block_info.high}</div>}
-                        <div>上榜天数: {stock.block_info.list_days}</div>
-                        {stock.block_info.high_stock_name && <div>连板龙头: {stock.block_info.high_stock_name}</div>}
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{stock.trend_block}</div>
+                        <div>板块涨跌幅: {stock.trend_block_info.change_rate.toFixed(1)}%</div>
+                        <div>涨停: {stock.trend_block_info.limit_up_num} 家</div>
+                        <div>连板: {stock.trend_block_info.continuous_plate_num} 家</div>
+                        {stock.trend_block_info.matched_tag && (
+                          <div>匹配依据: {stock.trend_block_info.matched_tag}</div>
+                        )}
                       </div>
                     ) : null
                   }
                   placement="left"
                 >
-                  <Tag 
-                    color="#722ed1" 
-                    style={{ 
-                      fontSize: 10, 
-                      margin: 0, 
+                  <Tag
+                    color="#722ed1"
+                    style={{
+                      fontSize: 10,
+                      margin: 0,
                       cursor: 'default',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 4
                     }}
                   >
-                    {stock.block_name}
-                    <EditOutlined 
-                      style={{ fontSize: 10, cursor: 'pointer' }} 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingStock(stock);
-                        setEditBlockVisible(true);
-                      }}
-                    />
+                    {stock.trend_block}
                   </Tag>
                 </Tooltip>
               )}
@@ -2089,23 +2072,6 @@ const LadderPage = () => {
       )}
       
       {renderAiKeywordModal()}
-      
-      {editBlockVisible && editingStock && (
-        <EditBlockModal
-          visible={editBlockVisible}
-          onClose={() => {
-            setEditBlockVisible(false);
-            setEditingStock(null);
-          }}
-          stockCode={editingStock.code}
-          stockName={editingStock.name}
-          currentBlock={editingStock.block_name}
-          dateStr={currentDate}
-          onSuccess={() => {
-            loadData(currentDate);
-          }}
-        />
-      )}
       
       <StockKlineModal
         visible={klineVisible}

@@ -136,6 +136,7 @@ class WatchlistService(BaseService):
             'add_date': stock.add_date.strftime('%Y%m%d') if stock.add_date else '',
             'add_price': float(stock.add_price) if stock.add_price else None,
             'alert_price': float(stock.alert_price) if stock.alert_price else None,
+            'signal_date': stock.signal_date.strftime('%Y%m%d') if stock.signal_date else None,
             'current_price': float(current_price) if current_price else None,
             'day_low': float(day_low) if day_low else None,
             'day_change_pct': float(day_change_pct) if day_change_pct is not None else None,
@@ -156,7 +157,8 @@ class WatchlistService(BaseService):
     def add_to_watchlist(self, user_id: str, stock_code: str, stock_name: str, 
                         add_date: date, add_price: float = None, add_reason: str = '',
                         source: str = 'wencai', add_type: str = 'manual',
-                        limit_up_reason_category: str = '', alert_price: float = None) -> Tuple[bool, str]:
+                        limit_up_reason_category: str = '', alert_price: float = None,
+                        signal_date: date = None) -> Tuple[bool, str]:
         """
         添加股票到自选
         
@@ -171,6 +173,7 @@ class WatchlistService(BaseService):
             add_type: 添加类型
             limit_up_reason_category: 涨停原因分类
             alert_price: 预警价格（可为 None）
+            signal_date: 放量首日（策略信号日，可为 None）
             
         Returns:
             tuple: (success, message)
@@ -186,6 +189,7 @@ class WatchlistService(BaseService):
                 add_date=add_date,
                 add_price=add_price,
                 alert_price=alert_price,
+                signal_date=signal_date,
                 add_reason=add_reason,
                 source=source,
                 add_type=add_type,
