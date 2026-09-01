@@ -56,3 +56,11 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+# TDX_daily 运行时目录（保留源码，排除环境/缓存）
+tdx_daily/.venv/
+tdx_daily/.env
+tdx_daily/cache/
+tdx_daily/logs/
+tdx_daily/__pycache__/
+tdx_daily/.DS_Store
+tdx_daily/*.pyc
