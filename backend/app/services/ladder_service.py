@@ -58,7 +58,8 @@ class LadderService(BaseService):
                     return True, '今日暂无数据', {
                         'ladder': [],
                         'statistics': self._get_empty_statistics(),
-                        'yesterday': yesterday_data
+                        'yesterday': yesterday_data,
+                        'opened': []
                     }
                 else:
                     if data_fetcher:
@@ -75,15 +76,34 @@ class LadderService(BaseService):
             ladder = self._build_ladder(stocks, trade_date, is_trading_hours)
             statistics = self._build_statistics(stats)
             yesterday_data = self._get_yesterday_data(trade_date)
+            opened_data = self._get_opened_stocks(trade_date)
             
             return True, '获取成功', {
                 'ladder': ladder,
                 'statistics': statistics,
-                'yesterday': yesterday_data
+                'yesterday': yesterday_data,
+                'opened': opened_data
             }
             
         except Exception as e:
             return False, str(e), None
+    
+    def _get_opened_stocks(self, trade_date) -> List[Dict]:
+        """获取当天开板股票列表（current_status='open'），供前端市场动态对比出开板提示"""
+        try:
+            all_stocks = self.stock_repository.get_stocks_by_date(trade_date)
+            opened = [
+                s for s in all_stocks if (s.current_status or 'close') == 'open'
+            ]
+            return [{
+                'code': s.stock_code,
+                'name': s.stock_name,
+                'continuous_days': s.continuous_days,
+                'limit_up_time': s.limit_up_time.strftime('%H:%M') if s.limit_up_time else '',
+                'current_status': 'open'
+            } for s in opened]
+        except Exception:
+            return []
     
     def _build_ladder(self, stocks: List[LimitUpStock], trade_date: date = None, is_trading_hours: bool = False) -> List[Dict]:
         """构建连板天梯数据"""

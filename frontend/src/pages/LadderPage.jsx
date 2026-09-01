@@ -92,6 +92,11 @@ const LadderPage = () => {
     }
   }, [currentDate, refreshKey, mode]);
 
+  // 切换模式（天梯/晋级对比）时清空市场动态，避免数据源切换触发误提示
+  useEffect(() => {
+    setMarketAlerts([]);
+  }, [mode, setMarketAlerts]);
+
   useEffect(() => {
     const tomorrowBlocks = blockStrengthData.tomorrow?.blocks || [];
     if (tomorrowBlocks.length === 0 && blockFilterDay === 'tomorrow') {
@@ -342,6 +347,17 @@ const LadderPage = () => {
               limit_up_time: stock.limit_up_time,
               current_status: stock.current_status
             });
+          });
+        });
+
+        // 合并开板股票（用于市场动态对比出开板提示）
+        (data.opened || []).forEach(stock => {
+          currentStocks.push({
+            code: stock.code,
+            name: stock.name,
+            level: stock.continuous_days,
+            limit_up_time: stock.limit_up_time,
+            current_status: 'open'
           });
         });
 
@@ -1008,10 +1024,27 @@ const LadderPage = () => {
         return null;
       }
 
+      // 根据选中的板块过滤股票：优先用同花顺板块成分股代码（stock_codes），
+      // 与强势板块弹窗的涨停数口径一致；接口无 stock_codes 时回退到板块名匹配
+      const selectedBlockCodes = new Set();
+      if (selectedBlocks.length > 0) {
+        const dayBlocks = blockStrengthData[blockFilterDay]?.blocks || [];
+        selectedBlocks.forEach((blockName) => {
+          const blk = dayBlocks.find((b) => b.block_name === blockName);
+          (blk?.stock_codes || []).forEach((c) => selectedBlockCodes.add(String(c)));
+        });
+      }
+
+      const isStockInSelectedBlock = (stock) => {
+        if (selectedBlocks.length === 0) return true;
+        if (selectedBlockCodes.size > 0) return selectedBlockCodes.has(String(stock.code));
+        return selectedBlocks.includes(stock.block_name);
+      };
+
       // 根据选中的板块过滤股票
-      const filteredStocks = selectedBlocks.length > 0
-        ? item.stocks.filter(stock => selectedBlocks.includes(stock.block_name) && stock.current_status === 'close')
-        : item.stocks.filter(stock => stock.current_status === 'close');
+      const filteredStocks = item.stocks.filter(stock =>
+        isStockInSelectedBlock(stock) && stock.current_status === 'close'
+      );
       
       const displayStocks = filteredStocks;
       
@@ -1876,7 +1909,7 @@ const LadderPage = () => {
         styles={{ body: { maxHeight: '70vh', overflow: 'auto' } }}
         destroyOnClose
       >
-        <Spin spinning={aiKeywordLoading}>
+        <Spin spinning={aiKeywordLoading && mergedKeywords.length > 0}>
           {mergedKeywords.length > 0 ? (
             <>
               <div style={{ marginBottom: 16 }}>
@@ -1938,19 +1971,22 @@ const LadderPage = () => {
                   type="primary"
                   icon={<ReloadOutlined />}
                   onClick={handleAiAnalyze}
-                  loading={aiKeywordLoading}
                 >
                   重新 AI 分析
                 </Button>
               </div>
             </>
+          ) : aiKeywordLoading ? (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <Spin size="large" />
+              <div style={{ marginTop: 12, color: '#8c8c8c', fontSize: 13 }}>AI 分析中，请稍候...</div>
+            </div>
           ) : (
             <div style={{ textAlign: 'center', padding: 24 }}>
               <Button
                 type="primary"
                 size="large"
                 onClick={handleAiAnalyze}
-                loading={aiKeywordLoading}
               >
                 开始 AI 分析
               </Button>

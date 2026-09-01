@@ -37,6 +37,7 @@ class Block(Base):
     list_days = Column(Integer, default=0)
     high_stock_code = Column(String(10))
     high_stock_name = Column(String(50))
+    stock_codes = Column(Text)  # 同花顺板块成分股代码列表（JSON 数组）
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     

@@ -79,7 +79,19 @@ const MarketAlertBar = () => {
   }, [hideAlertBar, currentDate]);
 
   useEffect(() => {
-    if (!marketAlerts || marketAlerts.length === 0) return;
+    // 数据被清空（如切换天梯/晋级对比模式）：重置基准线，
+    // 下一批数据只作为基准吸收，避免数据源切换触发误提示
+    if (!marketAlerts || marketAlerts.length === 0) {
+      prevAlertsRef.current = [];
+      prevDateRef.current = '';
+      isDateJustChangedRef.current = true;
+      setAlerts([]);
+      setIsVisible(false);
+      setDisplayedAlerts([]);
+      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      return;
+    }
 
     const prevAlerts = prevAlertsRef.current;
     
@@ -105,7 +117,7 @@ const MarketAlertBar = () => {
       return;
     }
 
-    // 日期切换后的第一批数据：只同步基准线，不触发对比
+    // 日期切换后的第一批数据：只同步基准线，不触发对比（开板提示依赖盘中状态变化）
     if (isDateJustChangedRef.current) {
       prevAlertsRef.current = marketAlerts.map(a => ({ ...a, hasShownFirstTime: true }));
       isDateJustChangedRef.current = false;

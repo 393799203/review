@@ -197,6 +197,11 @@ class LadderController(BaseController):
                     
                     block_list = []
                     for index, block in enumerate(blocks, 1):
+                        import json as _json
+                        try:
+                            stock_codes = _json.loads(block.stock_codes) if block.stock_codes else []
+                        except (ValueError, TypeError):
+                            stock_codes = []
                         block_list.append({
                             'block_code': block.block_code,
                             'block_name': block.block_name,
@@ -206,6 +211,7 @@ class LadderController(BaseController):
                             'high': block.high,
                             'high_num': block.high_num,
                             'rank': index,
+                            'stock_codes': stock_codes,
                             'high_stock_code': block.high_stock_code,
                             'high_stock_name': block.high_stock_name,
                         })

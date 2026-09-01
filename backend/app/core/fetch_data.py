@@ -268,6 +268,13 @@ class LimitUpFetcher:
                     max_continue_num = continue_num
                     high_stock_code = stock.get('code', '')
 
+            # 板块成分股代码列表（JSON 数组，用于天梯页按板块过滤）
+            import json as _json
+            stock_codes_json = _json.dumps(
+                [s.get('code', '') for s in stock_list if s.get('code')],
+                ensure_ascii=False
+            )
+
             existing_block = existing_block_codes.get(block_code)
 
             if existing_block:
@@ -279,6 +286,7 @@ class LimitUpFetcher:
                 existing_block.high_num = block.get('high_num', 0) or 0
                 existing_block.list_days = block.get('days', 0) or 0
                 existing_block.high_stock_code = high_stock_code
+                existing_block.stock_codes = stock_codes_json
                 existing_block.updated_at = datetime.now()
                 session.flush()
                 block_id_dict[block_code] = existing_block.id
@@ -293,7 +301,8 @@ class LimitUpFetcher:
                     high=block.get('high', ''),
                     high_num=block.get('high_num', 0) or 0,
                     list_days=block.get('days', 0) or 0,
-                    high_stock_code=high_stock_code
+                    high_stock_code=high_stock_code,
+                    stock_codes=stock_codes_json
                 )
                 session.add(block_obj)
                 session.flush()

@@ -20,6 +20,7 @@ CREATE TABLE blocks (
     list_days INTEGER DEFAULT 0,
     high_stock_code VARCHAR(10),
     high_stock_name VARCHAR(50),
+    stock_codes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_block_date UNIQUE (block_code, trade_date)
