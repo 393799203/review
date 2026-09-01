@@ -35,6 +35,16 @@ CREATE INDEX idx_blocks_continuous_num ON blocks(continuous_plate_num);
 
 COMMENT ON TABLE blocks IS '板块表';
 
+-- 概念板块全量维表（由 scripts/fetch_dim_blocks.py 维护，筛选/概念匹配用）
+CREATE TABLE IF NOT EXISTS dim_block (
+    plate_code TEXT PRIMARY KEY,
+    plate_name TEXT NOT NULL,
+    board_type TEXT NOT NULL DEFAULT 'concept',
+    change_pct DOUBLE PRECISION,
+    updated_at TIMESTAMP DEFAULT now()
+);
+COMMENT ON TABLE dim_block IS '概念板块全量维表';
+
 -- 2. 涨停股票表
 CREATE TABLE limit_up_stocks (
     id SERIAL PRIMARY KEY,
@@ -369,3 +379,40 @@ CREATE INDEX idx_alerts_created_at ON market_alerts(created_at);
 COMMENT ON TABLE market_alerts IS '市场动态消息表';
 COMMENT ON COLUMN market_alerts.alert_type IS '告警类型(limit_up/break板/回封)';
 COMMENT ON COLUMN market_alerts.status IS '状态(close/open/new/reclose)';
+
+-- 关键词 AI 分析缓存表（每日涨停关键词归并分析结果）
+CREATE TABLE IF NOT EXISTS keyword_analysis (
+    id SERIAL PRIMARY KEY,
+    trade_date DATE NOT NULL,
+    raw_keywords TEXT,
+    merged_keywords TEXT,
+    analysis_text TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_keyword_analysis_trade_date UNIQUE (trade_date)
+);
+COMMENT ON TABLE keyword_analysis IS '每日涨停关键词AI归并分析缓存';
+
+-- 每日自动筛选配置表（用户开关 + 参数）
+CREATE TABLE IF NOT EXISTS auto_screening_config (
+    user_id VARCHAR(36) PRIMARY KEY REFERENCES users(uid),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    strategy VARCHAR(20) NOT NULL DEFAULT 'bottom',
+    params TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE auto_screening_config IS '每日19:00自动筛选开关配置';
+
+-- 每日自动筛选执行日志表
+CREATE TABLE IF NOT EXISTS auto_screening_logs (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
+    run_date DATE NOT NULL,
+    added_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_auto_screening_user_date
+    ON auto_screening_logs (user_id, run_date);
+COMMENT ON TABLE auto_screening_logs IS '每日自动筛选执行日志';

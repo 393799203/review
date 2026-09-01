@@ -22,25 +22,29 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://stock_user:${DB_PASSWORD}@db:5432/stock_review
+      # 密码默认值与下方 db 服务 POSTGRES_PASSWORD 保持一致；
+      # .env 中若配置 DB_PASSWORD 则优先使用（两台服务器当前均为 stock2024）
+      - DATABASE_URL=postgresql://stock_user:${DB_PASSWORD:-stock2024}@db:5432/stock_review
       - DB_HOST=db
       - DB_PORT=5432
       - DB_NAME=stock_review
       - DB_USER=stock_user
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PASSWORD=${DB_PASSWORD:-stock2024}
       - FLASK_ENV=production
       - TZ=Asia/Shanghai
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - WEIXIN_APP_ID=${WEIXIN_APP_ID}
       - WEIXIN_APP_SECRET=${WEIXIN_APP_SECRET}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DEEPSEEK_API_URL=${DEEPSEEK_API_URL}
-      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL}
-      - DEEPSEEK_MODELS=${DEEPSEEK_MODELS}
+      - DEEPSEEK_API_URL=${DEEPSEEK_API_URL:-https://api.deepseek.com/v1/chat/completions}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - DEEPSEEK_MODELS=${DEEPSEEK_MODELS:-deepseek-chat}
       - DEEPSEEK_TEMPERATURE=0.7
       - DEEPSEEK_MAX_TOKENS_SHORT=500
       - DEEPSEEK_MAX_TOKENS_MEDIUM=1000
       - DEEPSEEK_MAX_TOKENS_LONG=4000
+      # 量化筛选行情库（tdx_daily 同步的 quantdb），未配置时筛选返回 503 提示
+      - TDX_DATABASE_URL=${TDX_DATABASE_URL}
       - FASTEMBED_CACHE_PATH=/root/.cache/fastembed
     depends_on:
       db:
