@@ -249,37 +249,44 @@ const ScreeningPage = () => {
     let failCount = 0;
     const strategyName = strategy === 'bottom' ? '抄底放量' : '突破放量';
     const selectedRows = results.filter((r) => selectedRowKeys.includes(r.symbol));
-    for (const row of selectedRows) {
-      try {
-        // 默认预警价 = 放量日最低价 × 1.02（bottom 放量日=放量首日 signal_date，breakout 放量日=D）
-        const volDayLow = strategy === 'bottom'
-          ? (row.signal_low != null ? row.signal_low : row.low)
-          : row.low;
-        const alertPrice = volDayLow != null ? Number((volDayLow * 1.02).toFixed(2)) : undefined;
-        // 入选原因：当日所走概念板块（前 3 个拼接，如"传媒/AI应用/人工智能"）
-        const conceptBlocks = row.concept_blocks
-          || (row.concept_block ? [row.concept_block_info].filter(Boolean) : []);
-        const category = conceptBlocks.slice(0, 3).map((b) => b.block_name).filter(Boolean).join('/');
-        const response = await stockApi.addWatchlist({
-          stock_code: row.code,
-          stock_name: row.name || row.code,
-          add_date: (row.date || '').replace(/-/g, ''),
-          add_price: row.close,
-          add_reason: strategyName,
-          source: 'screening',
-          add_type: 'strategy',
-          alert_price: alertPrice,
-          signal_date: (row.signal_date || '').replace(/-/g, '') || undefined,
-          limit_up_reason_category: category,
-        });
-        if (response.data.success) {
-          successCount += 1;
-        } else {
-          failCount += 1;
+
+    const buildParams = (row) => {
+      // 默认预警价 = 放量日最低价 × 1.02（bottom 放量日=放量首日 signal_date，breakout 放量日=D）
+      const volDayLow = strategy === 'bottom'
+        ? (row.signal_low != null ? row.signal_low : row.low)
+        : row.low;
+      const alertPrice = volDayLow != null ? Number((volDayLow * 1.02).toFixed(2)) : undefined;
+      // 入选原因：当日所走概念板块（前 3 个拼接）
+      const conceptBlocks = row.concept_blocks
+        || (row.concept_block ? [row.concept_block_info].filter(Boolean) : []);
+      const category = conceptBlocks.slice(0, 3).map((b) => b.block_name).filter(Boolean).join('/');
+      return {
+        stock_code: row.code,
+        stock_name: row.name || row.code,
+        add_date: (row.date || '').replace(/-/g, ''),
+        add_price: row.close,
+        add_reason: strategyName,
+        source: 'screening',
+        add_type: 'strategy',
+        alert_price: alertPrice,
+        signal_date: (row.signal_date || '').replace(/-/g, '') || undefined,
+        limit_up_reason_category: category,
+      };
+    };
+
+    // 分批并发（每批 10 只），避免 300+ 只串行等待
+    const BATCH = 10;
+    for (let i = 0; i < selectedRows.length; i += BATCH) {
+      const batch = selectedRows.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(async (row) => {
+        try {
+          const response = await stockApi.addWatchlist(buildParams(row));
+          return response.data.success;
+        } catch (error) {
+          return false;
         }
-      } catch (error) {
-        failCount += 1;
-      }
+      }));
+      results.forEach((ok) => { if (ok) successCount += 1; else failCount += 1; });
     }
     setAdding(false);
     if (failCount === 0) {

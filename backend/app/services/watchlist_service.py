@@ -7,6 +7,16 @@ from app.services.base_service import BaseService
 from app.repositories.watchlist_repository import WatchlistRepository
 from models import WatchlistStock, TradeRecord
 
+# mootdx 客户端复用（沪/深各一个，避免每次请求新建连接）
+_mootdx_clients = {}
+
+
+def _get_mootdx_client(market: int):
+    from mootdx.quotes import Quotes
+    if market not in _mootdx_clients:
+        _mootdx_clients[market] = Quotes.factory(market=market)
+    return _mootdx_clients[market]
+
 
 class WatchlistService(BaseService):
     """自选股服务类"""
@@ -32,9 +42,15 @@ class WatchlistService(BaseService):
             
             quotes_dict = self._fetch_realtime_quotes(stock_codes)
             
+            # 批量查询盈亏与持仓（避免每只股票单独开 session）
+            profits_map = self.watchlist_repository.get_total_profits_map(user_id, stock_codes)
+            buy_map = self.watchlist_repository.get_buy_records_map(user_id, stock_codes)
+            
             result = []
             for stock in watchlist:
-                stock_data = self._build_stock_data(stock, user_id, quotes_dict)
+                stock_data = self._build_stock_data(
+                    stock, user_id, quotes_dict, profits_map, buy_map
+                )
                 result.append(stock_data)
             
             return True, '获取成功', result
@@ -43,21 +59,23 @@ class WatchlistService(BaseService):
             return False, str(e), None
     
     def _fetch_realtime_quotes(self, stock_codes: List[str]) -> Dict:
-        """获取实时行情"""
+        """获取实时行情（mootdx 客户端复用）"""
         from mootdx.quotes import Quotes
-        
+
         quotes_dict = {}
         
         if not stock_codes:
             return quotes_dict
         
         sh_codes = [code for code in stock_codes if code.startswith('6')]
-        sz_codes = [code for code in stock_codes if code.startswith(('0', '3'))]
+        sz_codes = [code for code in stock_codes if not code.startswith('6')]
         
-        if sh_codes:
+        for market, codes in ((1, sh_codes), (0, sz_codes)):
+            if not codes:
+                continue
             try:
-                client = Quotes.factory(market=1)
-                quotes = client.quotes(symbol=sh_codes)
+                client = _get_mootdx_client(market)
+                quotes = client.quotes(symbol=codes)
                 
                 if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
                     for idx, row in quotes.iterrows():
@@ -69,32 +87,23 @@ class WatchlistService(BaseService):
                             'prev_close': float(row.get('last_close', 0) or 0),
                         }
             except Exception as e:
-                print(f"批量获取沪市实时行情失败: {e}")
-        
-        if sz_codes:
-            try:
-                client = Quotes.factory(market=0)
-                quotes = client.quotes(symbol=sz_codes)
-                
-                if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
-                    for idx, row in quotes.iterrows():
-                        code = row['code']
-                        quotes_dict[code] = {
-                            'price': float(row.get('price', 0) or 0),
-                            'high': float(row.get('high', 0) or 0),
-                            'low': float(row.get('low', 0) or 0),
-                            'prev_close': float(row.get('last_close', 0) or 0),
-                        }
-            except Exception as e:
-                print(f"批量获取深市实时行情失败: {e}")
+                print(f"批量获取{'沪' if market == 1 else '深'}市实时行情失败: {e}")
         
         return quotes_dict
     
-    def _build_stock_data(self, stock: WatchlistStock, user_id: str, quotes_dict: Dict) -> Dict:
-        """构建股票数据"""
-        stock_total_profit = self.watchlist_repository.get_total_profit(user_id, stock.stock_code)
-        
-        buy_records = self.watchlist_repository.get_buy_records(user_id, stock.stock_code)
+    def _build_stock_data(self, stock: WatchlistStock, user_id: str, quotes_dict: Dict,
+                          profits_map: Dict = None, buy_map: Dict = None) -> Dict:
+        """构建股票数据（批量 map 优先，缺失时回退单查）"""
+        code = stock.stock_code.split('.')[0]
+        if profits_map is not None:
+            stock_total_profit = profits_map.get(stock.stock_code, 0.0)
+        else:
+            stock_total_profit = self.watchlist_repository.get_total_profit(user_id, stock.stock_code)
+
+        if buy_map is not None:
+            buy_records = buy_map.get(stock.stock_code, [])
+        else:
+            buy_records = self.watchlist_repository.get_buy_records(user_id, stock.stock_code)
         
         current_quantity = sum(r.remaining_quantity for r in buy_records)
         
@@ -226,7 +235,7 @@ class WatchlistService(BaseService):
 
     def remove_many(self, user_id: str, stock_codes: list) -> Tuple[bool, str, int, list]:
         """
-        批量删除自选股（持仓中的股票跳过不删）
+        批量删除自选股（持仓中的股票跳过不删，单 session 批量处理）
         
         Args:
             user_id: 用户ID
@@ -238,20 +247,43 @@ class WatchlistService(BaseService):
         if not stock_codes:
             return False, '请选择要删除的股票', 0, []
 
-        deleted = 0
-        skipped = []
-        for stock_code in stock_codes:
-            stock = self.watchlist_repository.get_by_user_and_code(user_id, stock_code)
-            if not stock:
-                continue
-            if self.watchlist_repository.has_position(user_id, stock_code):
-                skipped.append(stock_code)
-                continue
-            try:
-                self.watchlist_repository.delete_by_user_and_code(user_id, stock_code)
+        session = self.watchlist_repository.create_session()
+        try:
+            # 一次查询所有目标自选股
+            stocks = session.query(WatchlistStock).filter(
+                WatchlistStock.user_id == user_id,
+                WatchlistStock.stock_code.in_(stock_codes)
+            ).all()
+            targets = {s.stock_code: s for s in stocks}
+
+            # 一次查询持仓中的股票（批量）
+            held = set()
+            if targets:
+                held_rows = session.query(TradeRecord.stock_code).filter(
+                    TradeRecord.user_id == user_id,
+                    TradeRecord.stock_code.in_(list(targets.keys())),
+                    TradeRecord.operation_type == '买入',
+                    TradeRecord.remaining_quantity > 0
+                ).distinct().all()
+                held = {r[0] for r in held_rows}
+
+            deleted = 0
+            skipped = []
+            for code in stock_codes:
+                stock = targets.get(code)
+                if not stock:
+                    continue
+                if code in held:
+                    skipped.append(code)
+                    continue
+                session.delete(stock)
                 deleted += 1
-            except Exception:
-                skipped.append(stock_code)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
 
         if deleted == 0 and skipped:
             return False, '所选股票均在持仓中，请先卖出后再删除', deleted, skipped

@@ -120,7 +120,26 @@ class WatchlistRepository(BaseRepository):
             return float(profit) if profit else 0.0
         finally:
             session.close()
-    
+
+    def get_total_profits_map(self, user_id: str, stock_codes: list) -> dict:
+        """批量获取多只股票总盈亏（一次查询）"""
+        if not stock_codes:
+            return {}
+        session = self.create_session()
+        try:
+            rows = session.query(
+                TradeRecord.stock_code,
+                func.sum(TradeRecord.profit)
+            ).filter(
+                TradeRecord.user_id == user_id,
+                TradeRecord.stock_code.in_(stock_codes),
+                TradeRecord.operation_type == '卖出',
+                TradeRecord.profit.isnot(None)
+            ).group_by(TradeRecord.stock_code).all()
+            return {code: float(profit or 0) for code, profit in rows}
+        finally:
+            session.close()
+
     def get_buy_records(self, user_id: str, stock_code: str) -> List[TradeRecord]:
         """获取买入记录"""
         session = self.create_session()
@@ -131,6 +150,25 @@ class WatchlistRepository(BaseRepository):
                 TradeRecord.operation_type == '买入',
                 TradeRecord.remaining_quantity > 0
             ).all()
+        finally:
+            session.close()
+
+    def get_buy_records_map(self, user_id: str, stock_codes: list) -> dict:
+        """批量获取多只股票的买入记录（一次查询，返回 {code: [records]}）"""
+        if not stock_codes:
+            return {}
+        session = self.create_session()
+        try:
+            rows = session.query(TradeRecord).filter(
+                TradeRecord.user_id == user_id,
+                TradeRecord.stock_code.in_(stock_codes),
+                TradeRecord.operation_type == '买入',
+                TradeRecord.remaining_quantity > 0
+            ).all()
+            result = {}
+            for r in rows:
+                result.setdefault(r.stock_code, []).append(r)
+            return result
         finally:
             session.close()
     

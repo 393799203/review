@@ -34,6 +34,8 @@ const WatchlistPage = () => {
   const [alertForm] = Form.useForm();
   const [mobileSelectMode, setMobileSelectMode] = useState(false);
   const [mobileSelected, setMobileSelected] = useState(new Set());
+  const [mobilePage, setMobilePage] = useState(1);
+  const MOBILE_PAGE_SIZE = 20;
 
   // 告警判定：当日最低价低于预警价
   const isAlert = (record) => {
@@ -68,6 +70,7 @@ const WatchlistPage = () => {
       
       if (response.data.success) {
         setWatchlist(response.data.data || []);
+        setMobilePage(1);
       } else {
         message.error('加载自选股失败');
       }
@@ -87,7 +90,8 @@ const WatchlistPage = () => {
       
       if (response.data.success) {
         message.success('删除成功');
-        loadWatchlist();
+        // 增量更新：本地移除，不整页刷新
+        setWatchlist(prev => prev.filter(r => r.stock_code !== stockCode));
       } else {
         message.error(response.data.error || '删除失败');
       }
@@ -146,7 +150,12 @@ const WatchlistPage = () => {
         message.success(response.data.message || '预警价格已更新');
         setAlertModalVisible(false);
         alertForm.resetFields();
-        loadWatchlist();
+        // 本地更新预警价，不整页刷新
+        setWatchlist(prev => prev.map(r =>
+          r.stock_code === alertStock.stock_code
+            ? { ...r, alert_price: values.alert_price ?? null }
+            : r
+        ));
       } else {
         message.error(response.data.error || '更新失败');
       }
@@ -167,7 +176,9 @@ const WatchlistPage = () => {
         setSelectedRowKeys([]);
         setMobileSelected(new Set());
         setMobileSelectMode(false);
-        loadWatchlist();
+        // 增量更新：本地移除，不整页刷新
+        const removed = new Set(stockCodes);
+        setWatchlist(prev => prev.filter(r => !removed.has(r.stock_code)));
       } else {
         message.error(response.data.error || '删除失败');
       }
@@ -410,7 +421,7 @@ const WatchlistPage = () => {
     
     return (
       <div>
-        {sortedWatchlist.map((record) => {
+        {sortedWatchlist.slice(0, mobilePage * MOBILE_PAGE_SIZE).map((record) => {
           const isHolding = record.position_status === '持仓';
           const alertActive = isAlert(record);
           const positionProfit = record.position_profit !== null && record.position_profit !== undefined ? parseFloat(record.position_profit) : null;
@@ -649,6 +660,17 @@ const WatchlistPage = () => {
             </Card>
           );
         })}
+        {sortedWatchlist.length > mobilePage * MOBILE_PAGE_SIZE && (
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <Button
+              size="small"
+              block
+              onClick={() => setMobilePage(p => p + 1)}
+            >
+              加载更多（已显示 {Math.min(mobilePage * MOBILE_PAGE_SIZE, sortedWatchlist.length)} / {sortedWatchlist.length}）
+            </Button>
+          </div>
+        )}
       </div>
     );
   };

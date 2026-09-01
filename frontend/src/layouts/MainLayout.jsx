@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio, Space } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, FilterOutlined, CodeOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, FilterOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,7 +70,6 @@ const MainLayout = ({ children }) => {
       '/reports': 'reports',
       '/hot-stocks': 'hot-stocks',
       '/screening': 'screening',
-      '/strategy-gen': 'strategy-gen',
     };
 
     const page = pageMap[location.pathname] || 'ladder';
@@ -134,12 +133,7 @@ const MainLayout = ({ children }) => {
     {
       key: '/screening',
       icon: <FilterOutlined />,
-      label: '量化筛选',
-    },
-    {
-      key: '/strategy-gen',
-      icon: <CodeOutlined />,
-      label: '策略生成',
+      label: '量化选股',
     },
     {
       key: '/watchlist',

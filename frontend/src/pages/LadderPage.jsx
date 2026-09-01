@@ -1227,7 +1227,7 @@ const LadderPage = () => {
             >
               {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行 AI 分析'}
             </Button>
-            {isMobile && aiKeywordResult?.merged_keywords?.length > 0 && (
+            {aiKeywordResult?.merged_keywords?.length > (isMobile ? 12 : 20) && (
               <Tag
                 style={{
                   cursor: 'pointer',
@@ -1238,7 +1238,7 @@ const LadderPage = () => {
                 }}
                 onClick={() => setAiKeywordExpanded(!aiKeywordExpanded)}
               >
-                {aiKeywordExpanded ? '收起' : '展开'}
+                {aiKeywordExpanded ? '收起' : `展开(${aiKeywordResult.merged_keywords.length})`}
               </Tag>
             )}
           </div>
@@ -1255,11 +1255,12 @@ const LadderPage = () => {
                   flex: 1,
                   minWidth: isMobile ? '100%' : 200,
                   order: isMobile ? 3 : 2,
-                  maxHeight: isMobile && !aiKeywordExpanded ? '88px' : 'none',
-                  overflow: 'hidden',
                 }}
               >
-                {aiKeywordResult.merged_keywords.map((item, idx) => {
+                {(aiKeywordExpanded
+                  ? aiKeywordResult.merged_keywords
+                  : aiKeywordResult.merged_keywords.slice(0, isMobile ? 12 : 20)
+                ).map((item, idx) => {
                   const isSelected = selectedKeyword === item.keyword;
                   return (
                     <Tooltip

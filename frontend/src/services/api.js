@@ -78,8 +78,6 @@ export const stockApi = {
 
   runScreening: (params) => api.post('/screening/run', params, { timeout: 60000 }),
 
-  generateStrategy: (data) => api.post('/strategy-gen/generate', data, { timeout: 120000 }),
-
   getAutoScreeningConfig: () => api.get('/auto-screening/config'),
 
   saveAutoScreeningConfig: (data) => api.put('/auto-screening/config', data),
