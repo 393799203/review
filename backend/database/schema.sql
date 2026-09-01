@@ -1,10 +1,10 @@
 -- 个人复盘网站数据库设计
-
--- 创建数据库
-CREATE DATABASE stock_review;
-
--- 连接到数据库
-\c stock_review;
+-- 注意：在 docker 部署中，postgres 镜像会用 POSTGRES_DB 环境变量自动创建数据库，
+-- 并自动在 <POSTGRES_DB> 库中执行本脚本。因此这里不能重复 CREATE DATABASE，
+-- 否则初始化会因 "database already exists" 冲突而被整体跳过。
+-- 如需在本地手动初始化，可自行执行：
+--   psql -U postgres -c 'CREATE DATABASE stock_review;'
+--   psql -U postgres -d stock_review -f schema.sql
 
 -- 1. 板块表
 CREATE TABLE blocks (
