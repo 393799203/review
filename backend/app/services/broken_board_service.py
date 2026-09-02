@@ -230,8 +230,48 @@ class BrokenBoardService(BaseService):
                         'close': float(close) if close else None,
                         'low': float(low) if low else None,
                     }
-                if price_map:
-                    return price_map, 'tdx'
+                if not price_map:
+                    raise ValueError('quantdb 无数据')
+
+                # 关键：盘中 quantdb 通常缺"当天"（收盘后才同步）。检查断板校验
+                # 所需的 check_dates 是否齐全；有缺的则用 mootdx 实时 K 线补充，
+                # 避免因缺当日价格把当天断板/昨断板的股票整批剔除。
+                missing_codes = set()
+                for c in candidates:
+                    symbol = symbols[c['code']]
+                    for d in c['check_dates']:
+                        p = price_map.get((symbol, d))
+                        if not p or not p.get('close'):
+                            missing_codes.add(c['code'])
+                            break
+
+                if missing_codes and self.data_fetcher is not None:
+                    filled = 0
+                    for code in missing_codes:
+                        try:
+                            kline = self.data_fetcher.get_stock_kline(code, days=40)
+                        except Exception as e:
+                            print(f"mootdx 补充 {code} 价格失败: {e}")
+                            continue
+                        if not kline:
+                            continue
+                        symbol = symbols[code]
+                        for bar in kline:
+                            d = str(bar.get('date', ''))[:10]
+                            try:
+                                dt = datetime.strptime(d, '%Y-%m-%d').date()
+                            except ValueError:
+                                continue
+                            if dt in need_dates:
+                                price_map[(symbol, dt)] = {
+                                    'close': float(bar.get('close')) if bar.get('close') else None,
+                                    'low': float(bar.get('low')) if bar.get('low') else None,
+                                }
+                                filled += 1
+                    if filled:
+                        print(f"✓ mootdx 补充盘中价格 {filled} 条（quantdb 缺当日数据）")
+
+                return price_map, 'tdx'
             except Exception as e:
                 print(f"TDX 行情库查询失败，回退 mootdx: {e}")
 
