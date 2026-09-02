@@ -141,6 +141,8 @@ export const stockApi = {
 
   getKeywordAnalysis: (dateStr) => api.get(`/keyword-analysis/${dateStr}`),
 
+  getBrokenBoardStrong: (dateStr) => api.get(`/broken-board/strong/${dateStr}`),
+
   analyzeKeywords: (data) => api.post('/keyword-analysis', data, { timeout: 120000 }),
 };
 

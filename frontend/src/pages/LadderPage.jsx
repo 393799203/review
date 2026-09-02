@@ -10,6 +10,7 @@ import StockKlineModal from '../components/StockKlineModal';
 import StockAnalysisModal from '../components/StockAnalysisModal';
 import PremiumTrendModal from '../components/PremiumTrendModal';
 import MarketAlertBar from '../components/MarketAlertBar';
+import BrokenBoardTicker from '../components/BrokenBoardTicker';
 import ComparableStockModal from '../components/ComparableStockModal';
 
 // AI 归并关键词趋势颜色：增强=红，新发=蓝，衰退=绿，平稳=灰
@@ -2044,6 +2045,13 @@ const LadderPage = () => {
           ) : (
             <>
               {renderStatistics()}
+              <BrokenBoardTicker
+                currentDate={currentDate}
+                onStockClick={(code, name) => {
+                  setSelectedStock({ code, name });
+                  setKlineVisible(true);
+                }}
+              />
               <div style={{ marginTop: isMobile ? 12 : 24 }}>
                 {renderLadderTitle()}
                 {renderLadder()}

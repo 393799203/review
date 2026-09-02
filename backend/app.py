@@ -35,6 +35,7 @@ from database import get_db_session, init_mail
 
 from app.controllers.auth_controller import auth_controller
 from app.controllers.ladder_controller import init_ladder_controller
+from app.controllers.broken_board_controller import init_broken_board_controller
 from app.controllers.watchlist_controller import init_watchlist_controller
 from app.controllers.trade_controller import trade_controller
 from app.controllers.wencai_controller import wencai_controller
@@ -68,6 +69,7 @@ data_fetcher = DataFetcher()
 
 ladder_controller = init_ladder_controller(data_fetcher)
 watchlist_controller = init_watchlist_controller(data_fetcher)
+broken_board_controller = init_broken_board_controller(data_fetcher)
 
 
 @app.before_request
@@ -185,6 +187,12 @@ def refresh_data():
     data = request.json
     date_str = data.get('date')
     return ladder_controller.refresh_data(date_str)
+
+
+@app.route('/api/broken-board/strong/<date_str>', methods=['GET'])
+def get_broken_board_strong(date_str):
+    """获取断板后走势强势的3连板及以上股票（滚动栏数据）"""
+    return broken_board_controller.get_strong_stocks(date_str)
 
 
 @app.route('/api/block-strength/<date_str>', methods=['GET'])
