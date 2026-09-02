@@ -12,9 +12,37 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
   const [items, setItems] = useState([]);
   const [pages, setPages] = useState([]);   // 按可视宽度分好页的 item 组
   const [page, setPage] = useState(0);
+  const [paused, setPaused] = useState(false); // 悬停暂停轮播
   const viewportRef = useRef(null);
   const measureRef = useRef(null);
-  const pausedRef = useRef(false);
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+
+  // 触摸滑动切页：横向滑动手势切上一页/下一页
+  const handleTouchStart = (e) => {
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    touchStartX.current = t.clientX;
+    touchStartY.current = t.clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current == null) return;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    const deltaX = t.clientX - touchStartX.current;
+    const deltaY = t.clientY - (touchStartY.current || t.clientY);
+    touchStartX.current = null;
+    touchStartY.current = null;
+    if (pages.length <= 1) return;
+    // 仅识别横向滑动（|dx| > 40 且明显大于纵向），避免与页面纵向滚动冲突
+    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    if (deltaX < 0) {
+      setPage(p => (p + 1) % pages.length);                  // 左滑 → 下一页
+    } else {
+      setPage(p => (p - 1 + pages.length) % pages.length);   // 右滑 → 上一页
+    }
+  };
 
   useEffect(() => {
     if (!currentDate) return;
@@ -66,16 +94,16 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
     setPage(0);
   }, [items]);
 
-  // 超过一页时定时整行切换（悬停暂停）
+  // 整行轮播：超过一页时 3.5s 自动切下一页。
+  // 页面切换(page)、悬停暂停/恢复(paused)、数据重分页(pages)任一变化都会
+  // 清除旧计时并重新开始，保证：点击切换后重新计时、悬停停止计时、离开后重新计时。
   useEffect(() => {
-    if (pages.length <= 1) return undefined;
-    const t = setInterval(() => {
-      if (!pausedRef.current) {
-        setPage(p => (p + 1) % pages.length);
-      }
+    if (pages.length <= 1 || paused) return undefined;
+    const t = setTimeout(() => {
+      setPage(p => (p + 1) % pages.length);
     }, 3500);
-    return () => clearInterval(t);
-  }, [pages]);
+    return () => clearTimeout(t);
+  }, [pages, page, paused]);
 
   if (items.length === 0) return null;
 
@@ -128,13 +156,15 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
         alignSelf: 'stretch',
       }}>
         <FireOutlined />
-        <span>断板强势</span>
+        <span>断板</span>
       </div>
       <div
         ref={viewportRef}
         className="broken-board-ticker-viewport"
-        onMouseEnter={() => { pausedRef.current = true; }}
-        onMouseLeave={() => { pausedRef.current = false; }}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         <div className="broken-board-ticker-row">
           {current.map(item => renderItem(item, 'v'))}
