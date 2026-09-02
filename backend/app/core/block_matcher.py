@@ -256,13 +256,19 @@ def pick_trend_blocks_em(stock_code: str, blocks: List[Dict], em_boards: Optiona
 
 
 def pick_trend_block(stock_code: str, reason_text: str, blocks: List[Dict]) -> Optional[Dict]:
-    """统一入口：向量优先，官方归属兜底"""
+    """统一入口：向量优先，官方归属兜底。
+
+    涨停原因为空/占位(未分类)时直接返回 None，不做官方归属兜底——
+    未分类股票不应展示任何"所走板块"，避免误导。
+    """
+    reason_text = (reason_text or '').strip()
+    if not reason_text or reason_text in ('未分类', '无', '-'):
+        return None
     trend = None
-    if reason_text:
-        try:
-            trend = pick_trend_block_vec(stock_code, reason_text, blocks)
-        except Exception:
-            trend = None
+    try:
+        trend = pick_trend_block_vec(stock_code, reason_text, blocks)
+    except Exception:
+        trend = None
     if trend is None:
         trend = pick_official_block(stock_code, blocks)
     return trend
