@@ -503,6 +503,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
           coord: [idx, klineData[idx].high],
           value: '策略日',
           symbolSize: 44,
+          symbolOffset: [0, -26],  // 上移，避免与同日"放量首日"标记重叠
           itemStyle: {
             color: '#1677ff'
           },

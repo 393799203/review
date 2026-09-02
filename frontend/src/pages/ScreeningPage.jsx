@@ -45,6 +45,7 @@ const ScreeningPage = () => {
   const [datesLoaded, setDatesLoaded] = useState(false);
   const [strategy, setStrategy] = useState('bottom');
   const [results, setResults] = useState([]);
+  const [searchDate, setSearchDate] = useState('');
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -232,6 +233,7 @@ const ScreeningPage = () => {
       const response = await stockApi.runScreening(params);
       if (response.data.success) {
         setResults(response.data.data || []);
+        setSearchDate(params.date);
         setSearched(true);
       } else {
         message.error(response.data.error || '筛选失败');
@@ -308,7 +310,7 @@ const ScreeningPage = () => {
       render: (_, record) => (
         <a
           onClick={() => {
-            setSelectedStock({ code: record.code, name: record.name, signalDate: record.signal_date });
+            setSelectedStock({ code: record.code, name: record.name, signalDate: record.signal_date, strategyDate: searchDate || undefined });
             setKlineVisible(true);
           }}
         >
@@ -428,7 +430,7 @@ const ScreeningPage = () => {
       render: (_, record) => (
         <a
           onClick={() => {
-            setSelectedStock({ code: record.code, name: record.name, signalDate: record.signal_date });
+            setSelectedStock({ code: record.code, name: record.name, signalDate: record.signal_date, strategyDate: searchDate || undefined });
             setKlineVisible(true);
           }}
         >
@@ -648,6 +650,7 @@ const ScreeningPage = () => {
         stockCode={selectedStock?.code}
         stockName={selectedStock?.name}
         signalDate={selectedStock?.signalDate}
+        strategyDate={selectedStock?.strategyDate}
         onClose={() => setKlineVisible(false)}
       />
     </div>
