@@ -216,10 +216,11 @@ class LadderService(BaseService):
             # 有原因时向量匹配（语义）优先，同花顺官方归属兜底
             from app.core.block_matcher import pick_trend_block
             trend = None
-            if stock.limit_up_reason:
+            reason_text = (stock.limit_up_reason or '').strip()
+            if reason_text and reason_text not in ('未分类', '无', '-'):
                 trend = pick_trend_block(
                     stock.stock_code,
-                    stock.limit_up_reason,
+                    reason_text,
                     blocks or []
                 )
             stock_data['trend_block'] = trend['block_name'] if trend else ''

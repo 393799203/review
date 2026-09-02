@@ -176,7 +176,9 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
         b = topic_blocks[int(i)]
         sim = float(sims[i])
         strength = block_strength(b, max_limit, max_change, max_cont)
-        score = sim * strength
+        # 语义相似度为主，强度仅作小幅加权：sim×(0.5+0.5×strength)。
+        # 避免"当日无表现的语义匹配板块(如零售)"因 strength=0 被 score 归零淘汰。
+        score = sim * (0.5 + 0.5 * strength)
         if best is None or score > best['score']:
             result = _to_result(
                 b, sim, strength, score,
