@@ -422,11 +422,11 @@ const ScreeningPage = () => {
   ];
 
   // 移动端精简列：代码/简称合并，只保留关键字段
+  // 移动端表格：两行式紧凑列，避免横向挤压
   const mobileColumns = [
     {
-      title: '代码/简称',
-      key: 'code',
-      width: 95,
+      title: '股票',
+      key: 'stock',
       render: (_, record) => (
         <a
           onClick={() => {
@@ -434,41 +434,39 @@ const ScreeningPage = () => {
             setKlineVisible(true);
           }}
         >
-          <div>{record.code}</div>
-          <div style={{ fontSize: 11, color: '#666' }}>{record.name || '-'}</div>
+          <div style={{ fontWeight: 600, color: '#262626' }}>{record.name || '-'}</div>
+          <div style={{ fontSize: 11, color: '#999' }}>{record.code}</div>
         </a>
       ),
     },
     {
-      title: '收盘',
-      dataIndex: 'close',
-      key: 'close',
-      width: 65,
+      title: '收盘/涨跌',
+      key: 'price',
       align: 'right',
-      render: (v) => (v === null || v === undefined ? '-' : v.toFixed(2)),
+      width: 92,
+      render: (_, record) => {
+        const close = record.close == null ? '-' : record.close.toFixed(2);
+        return (
+          <div>
+            <div style={{ fontWeight: 600, color: '#262626' }}>{close}</div>
+            <div style={{ fontSize: 12 }}>{renderChangePct(record.change_pct)}</div>
+          </div>
+        );
+      },
     },
     {
-      title: '涨跌幅%',
-      dataIndex: 'change_pct',
-      key: 'change_pct',
-      width: 70,
+      title: '换手/行业',
+      key: 'misc',
       align: 'right',
-      render: renderChangePct,
-    },
-    {
-      title: '换手%',
-      dataIndex: 'turnover',
-      key: 'turnover',
-      width: 60,
-      align: 'right',
-      render: (v) => (v === null || v === undefined ? '-' : v.toFixed(1)),
-    },
-    {
-      title: '行业',
-      dataIndex: 'sw1_name',
-      key: 'sw1_name',
-      width: 70,
-      render: (v) => v || '-',
+      width: 96,
+      render: (_, record) => (
+        <div>
+          <div style={{ color: '#262626' }}>换手 {record.turnover == null ? '-' : record.turnover.toFixed(1)}%</div>
+          <div style={{ fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}>
+            {record.sw1_name || '-'}
+          </div>
+        </div>
+      ),
     },
   ];
 
@@ -479,11 +477,14 @@ const ScreeningPage = () => {
           <Form
             form={form}
             layout="vertical"
+            className="screening-form"
+            size={isMobile ? 'small' : undefined}
             initialValues={DEFAULT_PARAMS}
             onFinish={handleRun}
           >
             <Form.Item label="策略" style={{ marginBottom: 12 }}>
               <Radio.Group
+                className="screening-strategy-radio"
                 value={strategy}
                 onChange={handleStrategyChange}
                 optionType="button"
@@ -540,7 +541,6 @@ const ScreeningPage = () => {
                         min={0}
                         step={5}
                         placeholder="下限"
-                        addonBefore="下限"
                       />
                     </Form.Item>
                     <Form.Item name="vol_pct_max" noStyle>
@@ -549,7 +549,6 @@ const ScreeningPage = () => {
                         min={0}
                         step={5}
                         placeholder="上限"
-                        addonBefore="上限"
                       />
                     </Form.Item>
                   </Space.Compact>
@@ -575,17 +574,19 @@ const ScreeningPage = () => {
               </>
             )}
             <div style={{ marginBottom: 12, padding: '8px 10px', background: '#fafafa', borderRadius: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', flexWrap: isMobile ? 'wrap' : 'nowrap', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <div style={{ flexBasis: isMobile ? '100%' : 'auto', minWidth: 0 }}>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 500 }}>每日 19:00 自动筛选</div>
                   <div style={{ fontSize: 11, color: '#999' }}>
                     独立开关，仅针对「{strategy === 'bottom' ? '抄底放量' : '突破放量'}」策略，按当前参数执行
                   </div>
                 </div>
-                <Button size="small" onClick={handleRunNow} loading={autoRunning} style={{ flexShrink: 0 }}>
-                  立即执行
-                </Button>
-                <Switch checked={autoEnabled} onChange={handleAutoToggle} loading={autoSaving} size="small" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                  <Button size="small" onClick={handleRunNow} loading={autoRunning} style={{ flexShrink: 0 }}>
+                    立即执行
+                  </Button>
+                  <Switch checked={autoEnabled} onChange={handleAutoToggle} loading={autoSaving} size="small" />
+                </div>
               </div>
               {autoLogs.length > 0 && (
                 <div style={{ fontSize: 11, color: '#999', marginTop: 6, lineHeight: 1.5 }}>
@@ -630,7 +631,9 @@ const ScreeningPage = () => {
               loading={loading}
               size="small"
               scroll={isMobile ? undefined : { x: 940 }}
-              pagination={{ pageSize: 20, showSizeChanger: !isMobile, showTotal: (t) => `共 ${t} 只` }}
+              pagination={isMobile
+                ? { pageSize: 20, simple: true, showTotal: (t) => `共 ${t} 只` }
+                : { pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 只` }}
               rowSelection={{
                 selectedRowKeys,
                 onChange: setSelectedRowKeys,
@@ -644,6 +647,22 @@ const ScreeningPage = () => {
 
   return (
     <div>
+      <style>{`
+        .screening-strategy-radio .ant-radio-button-wrapper {
+          flex: 1;
+          text-align: center;
+          padding-inline: 4px;
+          white-space: nowrap;
+        }
+        @media (max-width: 767px) {
+          .screening-form .ant-form-item {
+            margin-bottom: 8px;
+          }
+          .screening-form .ant-form-item-label {
+            padding-bottom: 2px;
+          }
+        }
+      `}</style>
       {filterTab}
       <StockKlineModal
         visible={klineVisible}
