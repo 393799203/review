@@ -94,14 +94,14 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
     setPage(0);
   }, [items]);
 
-  // 整行轮播：超过一页时 3.5s 自动切下一页。
+  // 整行轮播：超过一页时 8s 自动切下一页。
   // 页面切换(page)、悬停暂停/恢复(paused)、数据重分页(pages)任一变化都会
   // 清除旧计时并重新开始，保证：点击切换后重新计时、悬停停止计时、离开后重新计时。
   useEffect(() => {
     if (pages.length <= 1 || paused) return undefined;
     const t = setTimeout(() => {
       setPage(p => (p + 1) % pages.length);
-    }, 3500);
+    }, 8000);
     return () => clearTimeout(t);
   }, [pages, page, paused]);
 
