@@ -289,7 +289,7 @@ class DataFetcher:
             
             if df is None or df.empty:
                 print(f"✗ mootdx未返回K线数据")
-                return None
+                return self._get_kline_from_tdx(stock_code, days)
             
             df = df.tail(days)
             
@@ -398,10 +398,76 @@ class DataFetcher:
                 print(f"✓ 成功获取K线数据，共 {len(kline_data)} 条记录")
                 return kline_data
             
-            return None
+            return self._get_kline_from_tdx(stock_code, days)
             
         except Exception as e:
             print(f"✗ 获取股票 {stock_code} K线数据失败: {e}")
+            return self._get_kline_from_tdx(stock_code, days)
+
+    def _get_kline_from_tdx(self, stock_code: str, days: int = 60) -> Optional[List[Dict]]:
+        """
+        TDX 行情库兜底：mootdx 不可用时从 quantdb（tdx.raw_stocks_daily）读日线拼 K 线。
+
+        返回结构与 mootdx 路径一致（时间正序、含涨跌幅/前收），换手率与除权信息为空。
+        """
+        try:
+            from app.core.tdx_db import get_tdx_engine
+            from sqlalchemy import text
+
+            engine = get_tdx_engine()
+            if engine is None:
+                return None
+
+            code = str(stock_code).split('.')[0]
+            if code.startswith('6'):
+                symbol = f"sh{code}"
+            elif code.startswith(('4', '8')):
+                symbol = f"bj{code}"
+            else:
+                symbol = f"sz{code}"
+
+            sql = text(
+                "SELECT date, open, high, low, close, volume, amount "
+                "FROM tdx.raw_stocks_daily WHERE symbol = :symbol "
+                "ORDER BY date DESC LIMIT :days"
+            )
+            with engine.connect() as conn:
+                rows = conn.execute(sql, {'symbol': symbol, 'days': int(days)}).fetchall()
+            if not rows:
+                return None
+
+            kline = []
+            prev_close = None
+            for d, o, h, lo, c, vol, amount in reversed(rows):
+                close = float(c) if c else 0
+                if prev_close is None:
+                    pre_close = close
+                else:
+                    pre_close = prev_close
+                change_percent = ((close - pre_close) / pre_close * 100) if pre_close > 0 else 0
+                date_str = d.strftime('%Y-%m-%d') if hasattr(d, 'strftime') else str(d)[:10]
+                kline.append({
+                    'date': date_str,
+                    'open': float(o or 0),
+                    'close': close,
+                    'high': float(h or 0),
+                    'low': float(lo or 0),
+                    'volume': float(vol or 0),
+                    'amount': float(amount or 0),
+                    'change_percent': round(change_percent, 2),
+                    'change_amount': round(close - pre_close, 2),
+                    'turnover': 0,
+                    'pre_close': pre_close,
+                    'is_ex_dividend': False,
+                    'ex_dividend_ratio': None,
+                    'ex_dividend_desc': None,
+                })
+                prev_close = close
+
+            print(f"✓ TDX行情库兜底获取 {stock_code} K线，共 {len(kline)} 条")
+            return kline
+        except Exception as e:
+            print(f"✗ TDX行情库 K线兜底失败: {e}")
             return None
     
     def get_stock_intraday(self, stock_code: str) -> Optional[Dict]:
