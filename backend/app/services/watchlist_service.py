@@ -10,6 +10,9 @@ from models import WatchlistStock, TradeRecord
 # mootdx 客户端复用（沪/深各一个，避免每次请求新建连接）
 _mootdx_clients = {}
 
+# 向量搜索相似度阈值：入选原因与查询词的余弦相似度低于此值不算匹配
+WATCHLIST_VEC_SIM_THRESHOLD = 0.45
+
 
 def _get_mootdx_client(market: int):
     from mootdx.quotes import Quotes
@@ -162,6 +165,91 @@ class WatchlistService(BaseService):
             'total_profit': float(stock_total_profit),
             'created_at': stock.created_at.strftime('%Y-%m-%d %H:%M:%S') if stock.created_at else ''
         }
+
+    @staticmethod
+    def _ensure_batch_reason_vecs(reasons: List[str]) -> bool:
+        """批量补齐入选原因向量（复用 block_matcher 的跨请求 reason 缓存）"""
+        from app.core.block_matcher import _reason_vec_cache
+        from app.core.embedding import embed_texts
+
+        missing = [r for r in reasons if r and r not in _reason_vec_cache]
+        if not missing:
+            return True
+        vecs = embed_texts(missing)
+        if vecs is None:
+            return False
+        for r, v in zip(missing, vecs):
+            _reason_vec_cache[r] = v
+        return True
+
+    def vector_search(self, user_id: str, query: str) -> Tuple[bool, str, Optional[List[Dict]]]:
+        """
+        向量语义搜索自选股：查询词向量化后与每只自选股"入选原因"做余弦相似度，
+        返回相似度 ≥ 阈值的股票（按相似度降序，含行情与持仓数据）。
+        """
+        try:
+            query = (query or '').strip()
+            if not query:
+                return False, '请输入搜索关键词', None
+
+            watchlist = self.watchlist_repository.get_by_user_id(user_id)
+            if not watchlist:
+                return True, '暂无自选股', []
+
+            # 1. 查询词向量化
+            from app.core.embedding import embed_texts
+            q_vecs = embed_texts([query])
+            if not q_vecs:
+                return False, '向量服务不可用（embedding 模型未加载）', None
+            q_vec = q_vecs[0]
+
+            # 2. 入选原因批量向量化（仅保留有原因的股票）
+            reason_items = [(s, (s.add_reason or '').strip()) for s in watchlist]
+            reason_items = [(s, r) for s, r in reason_items if r]
+            if not reason_items:
+                return True, '自选股暂无入选原因，无法向量匹配', []
+
+            if not self._ensure_batch_reason_vecs([r for _, r in reason_items]):
+                return False, '向量服务不可用（embedding 模型未加载）', None
+
+            import numpy as np
+            from app.core.block_matcher import _reason_vec_cache
+
+            mat = np.array(
+                [_reason_vec_cache[r] for _, r in reason_items], dtype=np.float32
+            )
+            sims = mat @ np.array(q_vec, dtype=np.float32)  # (N,) 余弦
+
+            # 3. 阈值过滤 + 相似度降序
+            hits = [
+                (stock, float(sim))
+                for (stock, _), sim in zip(reason_items, sims)
+                if sim >= WATCHLIST_VEC_SIM_THRESHOLD
+            ]
+            hits.sort(key=lambda x: x[1], reverse=True)
+
+            if not hits:
+                return True, '未匹配到相关自选股', []
+
+            # 4. 行情与持仓数据组装（复用批量逻辑）
+            hit_codes = [stock.stock_code.split('.')[0] for stock, _ in hits]
+            quotes_dict = self._fetch_realtime_quotes(hit_codes)
+            profits_map = self.watchlist_repository.get_total_profits_map(user_id, hit_codes)
+            buy_map = self.watchlist_repository.get_buy_records_map(user_id, hit_codes)
+
+            sim_map = {stock.stock_code: sim for stock, sim in hits}
+            result = []
+            for stock, _ in hits:
+                data = self._build_stock_data(
+                    stock, user_id, quotes_dict, profits_map, buy_map
+                )
+                data['vec_sim'] = round(sim_map.get(stock.stock_code, 0.0), 3)
+                result.append(data)
+
+            return True, f'匹配到 {len(result)} 只', result
+
+        except Exception as e:
+            return False, str(e), None
     
     def add_to_watchlist(self, user_id: str, stock_code: str, stock_name: str, 
                         add_date: date, add_price: float = None, add_reason: str = '',

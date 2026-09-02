@@ -27,6 +27,22 @@ class WatchlistController(BaseController):
             return self.success(data)
         else:
             return self.error(message, 500)
+
+    def search_watchlist(self):
+        """向量语义搜索自选股（按入选原因匹配）"""
+        user_id = self.get_current_user_uid()
+
+        if not user_id:
+            return self.error('未提供用户ID', 401)
+
+        query = request.args.get('q', '')
+
+        success, message, data = self.watchlist_service.vector_search(user_id, query)
+
+        if success:
+            return self.success(data, message)
+        else:
+            return self.error(message, 500)
     
     def add_to_watchlist(self):
         """添加股票到自选"""

@@ -232,6 +232,11 @@ def get_watchlist():
     """获取自选股列表"""
     return watchlist_controller.get_watchlist()
 
+@app.route('/api/watchlist/search', methods=['GET'])
+def search_watchlist():
+    """向量语义搜索自选股（按入选原因匹配）"""
+    return watchlist_controller.search_watchlist()
+
 
 @app.route('/api/watchlist', methods=['POST'])
 def add_to_watchlist():

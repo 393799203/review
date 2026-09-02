@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, Table, Button, message, Spin, Popconfirm, Tag, Modal, InputNumber, Form, AutoComplete, Input, Checkbox } from 'antd';
 import { DeleteOutlined, ShoppingCartOutlined, DollarOutlined, LoadingOutlined, RobotOutlined, ThunderboltOutlined, PlusOutlined, SearchOutlined, HeartOutlined, AlertOutlined } from '@ant-design/icons';
 import api, { stockApi } from '../services/api';
@@ -36,6 +36,33 @@ const WatchlistPage = () => {
   const [mobileSelected, setMobileSelected] = useState(new Set());
   const [mobilePage, setMobilePage] = useState(1);
   const MOBILE_PAGE_SIZE = 20;
+  // 向量语义搜索（按入选原因匹配）
+  const [vecQuery, setVecQuery] = useState('');
+  const [vecResults, setVecResults] = useState(null); // null=未搜索
+  const [vecSearching, setVecSearching] = useState(false);
+  const vecTimerRef = useRef(null);
+
+  const handleVecSearch = async (q) => {
+    q = (q || '').trim();
+    if (!q) {
+      setVecResults(null);
+      return;
+    }
+    setVecSearching(true);
+    try {
+      const response = await api.get(`/watchlist/search?q=${encodeURIComponent(q)}`);
+      if (response.data.success) {
+        setVecResults(response.data.data || []);
+      } else {
+        setVecResults([]);
+      }
+    } catch (error) {
+      message.error('向量搜索失败：' + (error.response?.data?.error || error.message));
+      setVecResults([]);
+    } finally {
+      setVecSearching(false);
+    }
+  };
 
   // 告警判定：当日最低价低于预警价
   const isAlert = (record) => {
@@ -49,6 +76,9 @@ const WatchlistPage = () => {
     const others = watchlist.filter((r) => !isAlert(r));
     return [...alerts, ...others];
   }, [watchlist]);
+
+  // 向量搜索时只显示匹配结果，未搜索时显示全量
+  const displayList = vecQuery ? (vecResults || []) : sortedWatchlist;
 
   useEffect(() => {
     const checkMobile = () => {
@@ -406,6 +436,18 @@ const WatchlistPage = () => {
   };
 
   const renderMobileContent = () => {
+    if (vecQuery && vecResults && vecResults.length === 0 && !vecSearching) {
+      return (
+        <div style={{
+          textAlign: 'center',
+          padding: '40px 20px',
+          color: '#999',
+          fontSize: 14
+        }}>
+          没有匹配「{vecQuery}」的自选股，清空输入框可查看全部
+        </div>
+      );
+    }
     if (watchlist.length === 0 && !loading) {
       return (
         <div style={{ 
@@ -421,7 +463,7 @@ const WatchlistPage = () => {
     
     return (
       <div>
-        {sortedWatchlist.slice(0, mobilePage * MOBILE_PAGE_SIZE).map((record) => {
+        {displayList.slice(0, mobilePage * MOBILE_PAGE_SIZE).map((record) => {
           const isHolding = record.position_status === '持仓';
           const alertActive = isAlert(record);
           const positionProfit = record.position_profit !== null && record.position_profit !== undefined ? parseFloat(record.position_profit) : null;
@@ -597,11 +639,18 @@ const WatchlistPage = () => {
                       {mobileSelected.has(record.stock_code) ? '已选中' : '未选中'}
                     </span>
                   ) : (
-                    record.limit_up_reason_category && (
-                      <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
-                        {record.limit_up_reason_category}
-                      </Tag>
-                    )
+                    <>
+                      {record.limit_up_reason_category && (
+                        <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
+                          {record.limit_up_reason_category}
+                        </Tag>
+                      )}
+                      {record.vec_sim != null && (
+                        <Tag color="#1890ff" style={{ fontSize: 10, margin: '0 0 0 4px' }}>
+                          匹配 {Math.round(record.vec_sim * 100)}%
+                        </Tag>
+                      )}
+                    </>
                   )}
                 </div>
                 {!mobileSelectMode && (
@@ -660,14 +709,14 @@ const WatchlistPage = () => {
             </Card>
           );
         })}
-        {sortedWatchlist.length > mobilePage * MOBILE_PAGE_SIZE && (
+        {displayList.length > mobilePage * MOBILE_PAGE_SIZE && (
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
             <Button
               size="small"
               block
               onClick={() => setMobilePage(p => p + 1)}
             >
-              加载更多（已显示 {Math.min(mobilePage * MOBILE_PAGE_SIZE, sortedWatchlist.length)} / {sortedWatchlist.length}）
+              加载更多（已显示 {Math.min(mobilePage * MOBILE_PAGE_SIZE, displayList.length)} / {displayList.length}）
             </Button>
           </div>
         )}
@@ -842,6 +891,17 @@ const WatchlistPage = () => {
         },
       },
       {
+        title: '匹配度',
+        key: 'vec_sim',
+        width: 90,
+        render: (_, record) => {
+          if (record.vec_sim == null) return '-';
+          const pct = Math.round(record.vec_sim * 100);
+          const color = pct >= 60 ? '#52c41a' : pct >= 45 ? '#1890ff' : '#faad14';
+          return <Tag color={color} style={{ fontSize: 11, margin: 0 }}>{pct}%</Tag>;
+        },
+      },
+      {
         title: '操作',
         key: 'action',
         width: 200,
@@ -901,8 +961,13 @@ const WatchlistPage = () => {
     return (
       <Table
         columns={columns}
-        dataSource={sortedWatchlist}
+        dataSource={displayList}
         rowKey="id"
+        locale={{
+          emptyText: vecQuery
+            ? `没有匹配「${vecQuery}」的自选股，清空输入框可查看全部`
+            : '暂无数据',
+        }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
@@ -939,7 +1004,14 @@ const WatchlistPage = () => {
         >
           <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span>共 {watchlist.length} 只自选股，{watchlist.filter(isAlert).length} 只触发预警</span>
+              {vecQuery ? (
+                <span>
+                  匹配到 {vecResults ? vecResults.length : 0} 只自选股
+                  {vecResults && vecResults.length > 0 && `（共 ${watchlist.length} 只）`}
+                </span>
+              ) : (
+                <span>共 {watchlist.length} 只自选股，{watchlist.filter(isAlert).length} 只触发预警</span>
+              )}
               {loading && !isFirstLoad && (
                 <div style={{
                   display: 'flex',
@@ -1013,6 +1085,29 @@ const WatchlistPage = () => {
                     批量删除{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
                   </Button>
                 </Popconfirm>
+              )}
+            </div>
+
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Input
+                allowClear
+                value={vecQuery}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setVecQuery(v);
+                  setMobilePage(1);
+                  setSelectedRowKeys([]);
+                  clearTimeout(vecTimerRef.current);
+                  vecTimerRef.current = setTimeout(() => handleVecSearch(v), 400);
+                }}
+                prefix={vecSearching ? <LoadingOutlined spin /> : <RobotOutlined style={{ color: '#1890ff' }} />}
+                placeholder="向量搜索自选股：按入选原因语义匹配"
+                style={{ width: isMobile ? '100%' : 320 }}
+              />
+              {vecQuery && (
+                <span style={{ fontSize: 12, color: '#8c8c8c', whiteSpace: 'nowrap' }}>
+                  {vecSearching ? '匹配中...' : `匹配 ${(vecResults || []).length} 只`}
+                </span>
               )}
             </div>
             
