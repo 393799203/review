@@ -212,13 +212,16 @@ class LadderService(BaseService):
                 'current_status': stock.current_status or 'close'
             }
 
-            # 当日所走板块：向量匹配（语义）优先，同花顺官方归属兜底
+            # 当日所走板块：涨停原因未分类时不出板块，避免误导；
+            # 有原因时向量匹配（语义）优先，同花顺官方归属兜底
             from app.core.block_matcher import pick_trend_block
-            trend = pick_trend_block(
-                stock.stock_code,
-                stock.limit_up_reason,
-                blocks or []
-            )
+            trend = None
+            if stock.limit_up_reason:
+                trend = pick_trend_block(
+                    stock.stock_code,
+                    stock.limit_up_reason,
+                    blocks or []
+                )
             stock_data['trend_block'] = trend['block_name'] if trend else ''
             stock_data['trend_block_info'] = trend
 
