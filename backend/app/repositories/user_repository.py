@@ -147,3 +147,46 @@ class UserRepository(BaseRepository):
             return user_list
         finally:
             session.close()
+
+    def count_admins(self) -> int:
+        """统计管理员数量"""
+        session = self.create_session()
+        try:
+            return session.query(func.count(User.uid)).filter(
+                User.role == 'admin'
+            ).scalar() or 0
+        finally:
+            session.close()
+
+    def delete_with_related(self, uid: str) -> bool:
+        """事务删除用户及其关联数据（自选股/交易记录/策略/自动筛选配置/日志）"""
+        from models import (WatchlistStock, TradeRecord, UserStrategy,
+                            AutoScreeningConfig, AutoScreeningLog)
+        session = self.create_session()
+        try:
+            user = session.query(User).filter(User.uid == uid).first()
+            if not user:
+                return False
+            session.query(WatchlistStock).filter(
+                WatchlistStock.user_id == uid
+            ).delete(synchronize_session=False)
+            session.query(TradeRecord).filter(
+                TradeRecord.user_id == uid
+            ).delete(synchronize_session=False)
+            session.query(UserStrategy).filter(
+                UserStrategy.user_id == uid
+            ).delete(synchronize_session=False)
+            session.query(AutoScreeningConfig).filter(
+                AutoScreeningConfig.user_id == uid
+            ).delete(synchronize_session=False)
+            session.query(AutoScreeningLog).filter(
+                AutoScreeningLog.user_id == uid
+            ).delete(synchronize_session=False)
+            session.delete(user)
+            session.commit()
+            return True
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()

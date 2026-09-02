@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Spin, message, Statistic, Row, Col, Badge, Button, Tooltip, Modal, Input } from 'antd';
-import { UserOutlined, TeamOutlined, LoginOutlined, ClockCircleOutlined, EyeOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Spin, message, Statistic, Row, Col, Badge, Button, Tooltip, Modal, Input, Popconfirm } from 'antd';
+import { UserOutlined, TeamOutlined, LoginOutlined, ClockCircleOutlined, EyeOutlined, MailOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Search } = Input;
@@ -26,6 +26,15 @@ const UserDashboardPage = () => {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [displayCount, setDisplayCount] = useState(20);
+
+  const getCurrentUserUid = () => {
+    try {
+      const user = localStorage.getItem('user');
+      if (user) return JSON.parse(user).uid || '';
+    } catch (e) { /* ignore */ }
+    return '';
+  };
+  const currentUserUid = getCurrentUserUid();
 
   useEffect(() => {
     const handleResize = () => {
@@ -125,6 +134,20 @@ const UserDashboardPage = () => {
     setEmailSubject('感谢您注册使用云雀AI涨停复盘智能体');
     setEmailContent(getDefaultEmailContent(username));
     setEmailModalVisible(true);
+  };
+
+  const handleDeleteUser = async (record) => {
+    try {
+      const response = await api.delete(`/admin/users/${record.uid}`);
+      if (response.data.success) {
+        message.success(response.data.message || '删除成功');
+        loadUsers();
+      } else {
+        message.error(response.data.error || '删除失败');
+      }
+    } catch (error) {
+      message.error('删除用户失败：' + (error.response?.data?.error || error.message));
+    }
   };
 
   const handleSendEmail = async () => {
@@ -266,6 +289,34 @@ const UserDashboardPage = () => {
       width: isMobile ? 150 : 180,
       responsive: ['md'],
     },
+    {
+      title: '操作',
+      key: 'action',
+      width: 90,
+      fixed: isMobile ? 'right' : false,
+      render: (_, record) => (
+        record.uid !== currentUserUid && (
+          <Popconfirm
+            title={`确定删除用户「${record.username}」？`}
+            description="将同时删除其自选股、交易记录、策略及自动筛选配置，且不可恢复"
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => handleDeleteUser(record)}
+          >
+            <Button
+              type="link"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              style={{ padding: '0 4px' }}
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        )
+      ),
+    },
   ];
 
   const getTotalUsers = () => users.length;
@@ -397,9 +448,29 @@ const UserDashboardPage = () => {
                     <Badge status={user.is_online ? 'success' : 'default'} />
                     <span style={{ fontWeight: 'bold', fontSize: 15 }}>{user.username}</span>
                   </div>
-                  <Tag color={getRoleColor(user.role)} style={{ margin: 0 }}>
-                    {getRoleText(user.role)}
-                  </Tag>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Tag color={getRoleColor(user.role)} style={{ margin: 0 }}>
+                      {getRoleText(user.role)}
+                    </Tag>
+                    {user.uid !== currentUserUid && (
+                      <Popconfirm
+                        title={`确定删除用户「${user.username}」？`}
+                        description="将同时删除其自选股、交易记录、策略及自动筛选配置，且不可恢复"
+                        okText="删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => handleDeleteUser(user)}
+                      >
+                        <Button
+                          type="link"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          style={{ padding: '0 4px', fontSize: 13 }}
+                        />
+                      </Popconfirm>
+                    )}
+                  </div>
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '6fr 4fr', gap: '8px 16px', fontSize: 13 }}>

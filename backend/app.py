@@ -526,6 +526,11 @@ def send_custom_email():
     """发送自定义邮件"""
     return admin_controller.send_custom_email()
 
+@app.route('/api/admin/users/<uid>', methods=['DELETE'])
+def admin_delete_user(uid):
+    """删除用户（管理员权限）"""
+    return admin_controller.delete_user(uid)
+
 
 # ==================== 微信接口路由 ====================
 

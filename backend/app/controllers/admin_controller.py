@@ -87,5 +87,33 @@ class AdminController(BaseController):
         except Exception as e:
             return self.error(f'发送邮件失败:{str(e)}', 500)
 
+    def delete_user(self, uid: str):
+        """删除用户（管理员权限）"""
+        try:
+            admin_uid = self.get_current_user_uid()
+            admin = self.user_repository.get_by_uid(admin_uid)
+
+            if not admin or admin.role != 'admin':
+                return self.error('权限不足', 403)
+
+            target = self.user_repository.get_by_uid(uid)
+            if not target:
+                return self.error('用户不存在', 404)
+
+            if target.uid == admin_uid:
+                return self.error('不能删除当前登录的管理员账号', 400)
+
+            if target.role == 'admin' and self.user_repository.count_admins() <= 1:
+                return self.error('不能删除最后一个管理员账号', 400)
+
+            username = target.username
+            if not self.user_repository.delete_with_related(uid):
+                return self.error('用户不存在', 404)
+
+            return self.success(message=f'已删除用户 {username}')
+
+        except Exception as e:
+            return self.error(f'删除用户失败:{str(e)}', 500)
+
 
 admin_controller = AdminController()
