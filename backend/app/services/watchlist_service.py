@@ -11,7 +11,7 @@ from models import WatchlistStock, TradeRecord
 _mootdx_clients = {}
 
 # 向量搜索相似度阈值：入选原因与查询词的余弦相似度低于此值不算匹配
-WATCHLIST_VEC_SIM_THRESHOLD = 0.45
+WATCHLIST_VEC_SIM_THRESHOLD = 0.5
 
 
 def _get_mootdx_client(market: int):
