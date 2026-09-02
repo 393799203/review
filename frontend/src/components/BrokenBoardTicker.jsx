@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useLayoutEffect, useRef } from 'react';
 import { Tooltip } from 'antd';
 import { FireOutlined } from '@ant-design/icons';
 import { stockApi } from '../services/api';
 
 /**
- * 断板强势股滚动栏
+ * 断板强势股展示栏（整行分页切换，不做内容内滚动）
  * 展示以当前选择日期为准、前7天内出现3连板及以上、断板后2天内回撤不超过10%的股票名称
+ * 内容一行放得下时静止展示；超过一行宽度时按行分页，定时整行切换。
  */
 const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
   const [items, setItems] = useState([]);
+  const [pages, setPages] = useState([]);   // 按可视宽度分好页的 item 组
+  const [page, setPage] = useState(0);
+  const viewportRef = useRef(null);
+  const measureRef = useRef(null);
+  const pausedRef = useRef(false);
 
   useEffect(() => {
     if (!currentDate) return;
@@ -22,6 +28,54 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
       .catch(() => { /* 静默失败，不干扰主页面 */ });
     return () => { cancelled = true; };
   }, [currentDate]);
+
+  // items 变化时测量可视宽度并分页（一行放得下的归为一页）
+  useLayoutEffect(() => {
+    if (!items.length) {
+      setPages([]);
+      return;
+    }
+    const measure = measureRef.current;
+    const viewport = viewportRef.current;
+    if (!measure || !viewport || viewport.clientWidth <= 0) {
+      setPages([items]);
+      setPage(0);
+      return;
+    }
+    const avail = viewport.clientWidth;
+    const children = Array.from(measure.children);
+    const groups = [];
+    let cur = [];
+    let curW = 0;
+    children.forEach((el, idx) => {
+      const w = el.offsetWidth + 28; // item 左右 margin 14px 各一
+      if (cur.length > 0 && curW + w > avail) {
+        groups.push(cur);
+        cur = [];
+        curW = 0;
+      }
+      cur.push(idx);
+      curW += w;
+    });
+    if (cur.length > 0) groups.push(cur);
+
+    const g = groups.length
+      ? groups.map(grp => grp.map(i => items[i]))
+      : [items];
+    setPages(g);
+    setPage(0);
+  }, [items]);
+
+  // 超过一页时定时整行切换（悬停暂停）
+  useEffect(() => {
+    if (pages.length <= 1) return undefined;
+    const t = setInterval(() => {
+      if (!pausedRef.current) {
+        setPage(p => (p + 1) % pages.length);
+      }
+    }, 3500);
+    return () => clearInterval(t);
+  }, [pages]);
 
   if (items.length === 0) return null;
 
@@ -47,7 +101,7 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
     </Tooltip>
   );
 
-  const duration = Math.max(18, items.length * 5);
+  const current = pages[page] || items;
 
   return (
     <div style={{
@@ -59,6 +113,7 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
       background: 'linear-gradient(90deg, #fff1f0 0%, #fff7e6 100%)',
       border: '1px solid #ffa39e',
       boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+      position: 'relative',
     }}>
       <div style={{
         flexShrink: 0,
@@ -75,37 +130,77 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
         <FireOutlined />
         <span>断板强势</span>
       </div>
-      <div className="broken-board-ticker-viewport">
-        <div
-          className="broken-board-ticker-track"
-          style={{ animationDuration: `${duration}s` }}
-        >
-          {items.map(item => renderItem(item, 'a'))}
-          {items.map(item => renderItem(item, 'b'))}
+      <div
+        ref={viewportRef}
+        className="broken-board-ticker-viewport"
+        onMouseEnter={() => { pausedRef.current = true; }}
+        onMouseLeave={() => { pausedRef.current = false; }}
+      >
+        <div className="broken-board-ticker-row">
+          {current.map(item => renderItem(item, 'v'))}
         </div>
+      </div>
+      {pages.length > 1 && (
+        <div className="broken-board-ticker-dots">
+          {pages.map((_, i) => (
+            <span
+              key={i}
+              className={`broken-board-ticker-dot${i === page ? ' active' : ''}`}
+              onClick={() => setPage(i)}
+            />
+          ))}
+        </div>
+      )}
+      {/* 测量行：不可见，仅用于计算一行容量 */}
+      <div
+        ref={measureRef}
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          visibility: 'hidden',
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
+        {items.map((item, i) => renderItem(item, 'm' + i))}
       </div>
       <style>{`
         .broken-board-ticker-viewport {
           flex: 1;
           overflow: hidden;
           min-width: 0;
+          height: 32px;
+          display: flex;
+          align-items: center;
         }
-        .broken-board-ticker-track {
+        .broken-board-ticker-row {
           display: inline-flex;
           align-items: center;
           white-space: nowrap;
           padding: 6px 0;
-          animation-name: brokenBoardTickerScroll;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-          will-change: transform;
         }
-        .broken-board-ticker-viewport:hover .broken-board-ticker-track {
-          animation-play-state: paused;
+        .broken-board-ticker-dots {
+          flexShrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 0 10px;
         }
-        @keyframes brokenBoardTickerScroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
+        .broken-board-ticker-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: #ffccc7;
+          cursor: pointer;
+          transition: background 0.2s, width 0.2s;
+        }
+        .broken-board-ticker-dot.active {
+          background: #fa8c16;
+          width: 14px;
+          border-radius: 3px;
         }
         .broken-board-ticker-item {
           display: inline-flex;
