@@ -169,17 +169,11 @@ class WatchlistService(BaseService):
     @staticmethod
     def _match_reason(stock) -> str:
         """
-        向量匹配文本：add_reason（如"抄底放量"）+ 涨停原因分类（如"通用设备/人工智能"）。
-        分类是用户可见的"入选原因"，必须参与匹配；两者都空时返回空串。
+        向量匹配文本：仅取"入选原因"（limit_up_reason_category，如"通用设备/人工智能"）。
+        策略名/添加原因（add_reason，如"抄底放量"）不参与匹配。
         """
-        parts = []
-        add_reason = (getattr(stock, 'add_reason', '') or '').strip()
         category = (getattr(stock, 'limit_up_reason_category', '') or '').strip()
-        if add_reason:
-            parts.append(add_reason)
-        if category:
-            parts.append(category.replace('/', ' '))
-        return ' '.join(parts)
+        return category.replace('/', ' ') if category else ''
 
     def vector_search(self, user_id: str, query: str) -> Tuple[bool, str, Optional[List[Dict]]]:
         """
@@ -310,11 +304,8 @@ class WatchlistService(BaseService):
                 add_type=add_type,
                 limit_up_reason_category=limit_up_reason_category
             )
-            # 同步写入入选原因向量（向量库失败不影响添加）
-            match_text = ' '.join(filter(None, [
-                (add_reason or '').strip(),
-                (limit_up_reason_category or '').strip().replace('/', ' '),
-            ]))
+            # 同步写入入选原因向量（仅涨停原因分类；向量库失败不影响添加）
+            match_text = (limit_up_reason_category or '').strip().replace('/', ' ')
             self._upsert_stock_vector(user_id, stock_code, match_text)
             return True, '添加成功'
         except Exception as e:
