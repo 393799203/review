@@ -220,6 +220,18 @@ CREATE INDEX idx_watchlist_created ON watchlist_stocks(created_at);
 
 COMMENT ON TABLE watchlist_stocks IS '自选股表';
 
+-- 自选股入选原因向量库（持久化，bge-small-zh 512 维；自选股向量搜索用）
+CREATE TABLE IF NOT EXISTS watchlist_reason_vectors (
+    user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
+    stock_code VARCHAR(10) NOT NULL,
+    reason_text TEXT NOT NULL,
+    embedding DOUBLE PRECISION[] NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, stock_code)
+);
+CREATE INDEX IF NOT EXISTS idx_wrvec_user ON watchlist_reason_vectors(user_id);
+COMMENT ON TABLE watchlist_reason_vectors IS '自选股入选原因向量库';
+
 -- 交易记录表
 CREATE TABLE trade_records (
     id SERIAL PRIMARY KEY,

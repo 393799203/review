@@ -166,26 +166,11 @@ class WatchlistService(BaseService):
             'created_at': stock.created_at.strftime('%Y-%m-%d %H:%M:%S') if stock.created_at else ''
         }
 
-    @staticmethod
-    def _ensure_batch_reason_vecs(reasons: List[str]) -> bool:
-        """批量补齐入选原因向量（复用 block_matcher 的跨请求 reason 缓存）"""
-        from app.core.block_matcher import _reason_vec_cache
-        from app.core.embedding import embed_texts
-
-        missing = [r for r in reasons if r and r not in _reason_vec_cache]
-        if not missing:
-            return True
-        vecs = embed_texts(missing)
-        if vecs is None:
-            return False
-        for r, v in zip(missing, vecs):
-            _reason_vec_cache[r] = v
-        return True
-
     def vector_search(self, user_id: str, query: str) -> Tuple[bool, str, Optional[List[Dict]]]:
         """
-        向量语义搜索自选股：查询词向量化后与每只自选股"入选原因"做余弦相似度，
+        向量语义搜索自选股：查询词向量化后与向量库中每只自选股"入选原因"做余弦相似度，
         返回相似度 ≥ 阈值的股票（按相似度降序，含行情与持仓数据）。
+        向量库缺失的入选原因会自动补齐并持久化。
         """
         try:
             query = (query or '').strip()
@@ -203,27 +188,45 @@ class WatchlistService(BaseService):
                 return False, '向量服务不可用（embedding 模型未加载）', None
             q_vec = q_vecs[0]
 
-            # 2. 入选原因批量向量化（仅保留有原因的股票）
-            reason_items = [(s, (s.add_reason or '').strip()) for s in watchlist]
-            reason_items = [(s, r) for s, r in reason_items if r]
+            # 2. 从向量库取该用户全部原因向量（缺失的自动补齐并持久化）
+            vec_rows = self.watchlist_repository.get_reason_vectors(user_id)
+            vec_map = {v.stock_code: v for v in vec_rows}  # code -> row(reason_text, embedding)
+
+            reason_items = []   # (stock, reason_text, vec)
+            missing = []        # (stock, reason_text)
+            for stock in watchlist:
+                code = stock.stock_code
+                reason = (stock.add_reason or '').strip()
+                if not reason:
+                    continue
+                v = vec_map.get(code)
+                if v and v.embedding and len(v.embedding) >= 512:
+                    reason_items.append((stock, v.reason_text or reason, v.embedding))
+                else:
+                    missing.append((stock, reason))
+
+            if missing:
+                reasons = [r for _, r in missing]
+                vecs = embed_texts(reasons)
+                if vecs is None:
+                    return False, '向量服务不可用（embedding 模型未加载）', None
+                for (stock, reason), vec in zip(missing, vecs):
+                    reason_items.append((stock, reason, vec))
+                    self.watchlist_repository.upsert_reason_vector(
+                        user_id, stock.stock_code, reason, vec
+                    )
+
             if not reason_items:
                 return True, '自选股暂无入选原因，无法向量匹配', []
 
-            if not self._ensure_batch_reason_vecs([r for _, r in reason_items]):
-                return False, '向量服务不可用（embedding 模型未加载）', None
-
+            # 3. 批量余弦相似度 + 阈值过滤 + 降序
             import numpy as np
-            from app.core.block_matcher import _reason_vec_cache
-
-            mat = np.array(
-                [_reason_vec_cache[r] for _, r in reason_items], dtype=np.float32
-            )
+            mat = np.array([vec for _, _, vec in reason_items], dtype=np.float32)
             sims = mat @ np.array(q_vec, dtype=np.float32)  # (N,) 余弦
 
-            # 3. 阈值过滤 + 相似度降序
             hits = [
                 (stock, float(sim))
-                for (stock, _), sim in zip(reason_items, sims)
+                for (stock, _, _), sim in zip(reason_items, sims)
                 if sim >= WATCHLIST_VEC_SIM_THRESHOLD
             ]
             hits.sort(key=lambda x: x[1], reverse=True)
@@ -292,9 +295,27 @@ class WatchlistService(BaseService):
                 add_type=add_type,
                 limit_up_reason_category=limit_up_reason_category
             )
+            # 同步写入入选原因向量（向量库失败不影响添加）
+            self._upsert_stock_vector(user_id, stock_code, add_reason or '')
             return True, '添加成功'
         except Exception as e:
             return False, str(e)
+
+    def _upsert_stock_vector(self, user_id: str, stock_code: str, reason_text: str) -> None:
+        """计算并持久化某自选股的原因向量（静默失败）"""
+        try:
+            reason_text = (reason_text or '').strip()
+            if not reason_text:
+                self.watchlist_repository.delete_reason_vectors(user_id, [stock_code])
+                return
+            from app.core.embedding import embed_texts
+            vecs = embed_texts([reason_text])
+            if vecs:
+                self.watchlist_repository.upsert_reason_vector(
+                    user_id, stock_code, reason_text, vecs[0]
+                )
+        except Exception as e:
+            print(f"写入原因向量失败 {stock_code}: {e}")
     
     def remove_from_watchlist(self, user_id: str, stock_code: str) -> Tuple[bool, str]:
         """
@@ -317,6 +338,7 @@ class WatchlistService(BaseService):
         
         try:
             self.watchlist_repository.delete_by_user_and_code(user_id, stock_code)
+            self.watchlist_repository.delete_reason_vectors(user_id, [stock_code])
             return True, '删除成功'
         except Exception as e:
             return False, str(e)
@@ -372,6 +394,10 @@ class WatchlistService(BaseService):
             raise e
         finally:
             session.close()
+
+        if deleted > 0:
+            deleted_codes = [c for c in stock_codes if c not in skipped]
+            self.watchlist_repository.delete_reason_vectors(user_id, deleted_codes)
 
         if deleted == 0 and skipped:
             return False, '所选股票均在持仓中，请先卖出后再删除', deleted, skipped

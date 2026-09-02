@@ -4,7 +4,7 @@
 数据库模型
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, Numeric, Text, Time, UniqueConstraint, ForeignKey, Index
+from sqlalchemy import create_engine, Column, Integer, String, Date, DateTime, Numeric, Text, Time, UniqueConstraint, ForeignKey, Index, ARRAY, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -150,6 +150,20 @@ class WatchlistStock(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     user = relationship("User", backref="watchlist_stocks")
+
+
+class WatchlistReasonVector(Base):
+    """自选股入选原因向量库（持久化，bge-small-zh 512 维）"""
+    __tablename__ = 'watchlist_reason_vectors'
+    __table_args__ = (
+        Index('idx_wrvec_user', 'user_id'),
+    )
+
+    user_id = Column(String(36), ForeignKey('users.uid'), primary_key=True)
+    stock_code = Column(String(10), primary_key=True)
+    reason_text = Column(Text, nullable=False)
+    embedding = Column(ARRAY(Float), nullable=False)  # 512 维归一化向量
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
 class TradeRecord(Base):

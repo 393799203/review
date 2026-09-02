@@ -185,3 +185,62 @@ class WatchlistRepository(BaseRepository):
             return count > 0
         finally:
             session.close()
+
+    # ---------------- 入选原因向量库（持久化） ----------------
+
+    def get_reason_vectors(self, user_id: str) -> List[WatchlistReasonVector]:
+        """获取用户全部入选原因向量"""
+        from models import WatchlistReasonVector
+        session = self.create_session()
+        try:
+            return session.query(WatchlistReasonVector).filter(
+                WatchlistReasonVector.user_id == user_id
+            ).all()
+        finally:
+            session.close()
+
+    def upsert_reason_vector(self, user_id: str, stock_code: str,
+                             reason_text: str, embedding: list) -> bool:
+        """写入/更新某自选股的原因向量"""
+        from models import WatchlistReasonVector
+        session = self.create_session()
+        try:
+            vec = session.query(WatchlistReasonVector).filter(
+                WatchlistReasonVector.user_id == user_id,
+                WatchlistReasonVector.stock_code == stock_code,
+            ).first()
+            if vec:
+                vec.reason_text = reason_text
+                vec.embedding = embedding
+            else:
+                vec = WatchlistReasonVector(
+                    user_id=user_id, stock_code=stock_code,
+                    reason_text=reason_text, embedding=embedding,
+                )
+                session.add(vec)
+            session.commit()
+            return True
+        except Exception:
+            session.rollback()
+            return False
+        finally:
+            session.close()
+
+    def delete_reason_vectors(self, user_id: str, stock_codes: list = None) -> int:
+        """删除用户向量（stock_codes 为空则删全部）"""
+        from models import WatchlistReasonVector
+        session = self.create_session()
+        try:
+            q = session.query(WatchlistReasonVector).filter(
+                WatchlistReasonVector.user_id == user_id
+            )
+            if stock_codes:
+                q = q.filter(WatchlistReasonVector.stock_code.in_(stock_codes))
+            deleted = q.delete(synchronize_session=False)
+            session.commit()
+            return deleted
+        except Exception:
+            session.rollback()
+            return 0
+        finally:
+            session.close()
