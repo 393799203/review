@@ -3,7 +3,7 @@
 from typing import Optional, List
 from datetime import date
 from sqlalchemy import desc, func
-from models import WatchlistStock, TradeRecord
+from models import WatchlistStock, TradeRecord, WatchlistReasonVector
 from app.repositories.base_repository import BaseRepository
 
 
@@ -190,7 +190,6 @@ class WatchlistRepository(BaseRepository):
 
     def get_reason_vectors(self, user_id: str) -> List[WatchlistReasonVector]:
         """获取用户全部入选原因向量"""
-        from models import WatchlistReasonVector
         session = self.create_session()
         try:
             return session.query(WatchlistReasonVector).filter(
@@ -202,7 +201,6 @@ class WatchlistRepository(BaseRepository):
     def upsert_reason_vector(self, user_id: str, stock_code: str,
                              reason_text: str, embedding: list) -> bool:
         """写入/更新某自选股的原因向量"""
-        from models import WatchlistReasonVector
         session = self.create_session()
         try:
             vec = session.query(WatchlistReasonVector).filter(
@@ -228,7 +226,6 @@ class WatchlistRepository(BaseRepository):
 
     def delete_reason_vectors(self, user_id: str, stock_codes: list = None) -> int:
         """删除用户向量（stock_codes 为空则删全部）"""
-        from models import WatchlistReasonVector
         session = self.create_session()
         try:
             q = session.query(WatchlistReasonVector).filter(
