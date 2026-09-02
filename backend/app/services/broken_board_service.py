@@ -156,7 +156,8 @@ class BrokenBoardService(BaseService):
                     'details': details,
                 })
 
-            items.sort(key=lambda x: (x['break_date'], -x['peak_days']), reverse=True)
+            # 按连板数从高到低降序；同板数时新断板的在前
+            items.sort(key=lambda x: (x['peak_days'], x['break_date']), reverse=True)
             return True, '获取成功', {'date': date_str, 'items': items, 'source': source}
 
         except Exception as e:
