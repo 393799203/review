@@ -224,8 +224,8 @@ class ScreeningService:
                 'prev_high_days': int(payload.get('prev_high_days', DEFAULT_PARAMS['prev_high_days'])),
                 'prev_high_coef': float(payload.get('prev_high_coef', DEFAULT_PARAMS['prev_high_coef'])),
                 'vol_window': int(payload.get('vol_window', DEFAULT_PARAMS['vol_window'])),
-                'vol_pct': min(vol_pct, vol_pct_max),       # 下限
-                'vol_pct_max': max(vol_pct, vol_pct_max),   # 上限
+                'vol_pct': float(vol_pct),          # 下限
+                'vol_pct_max': float(vol_pct_max),  # 上限
                 'close_window': int(payload.get('close_window', DEFAULT_PARAMS['close_window'])),
                 'close_ratio': float(payload.get('close_ratio', DEFAULT_PARAMS['close_ratio'])),
             }
@@ -236,8 +236,8 @@ class ScreeningService:
             raise ValueError('窗口天数必须为正整数')
         if params['prev_high_coef'] <= 0 or params['close_ratio'] <= 0:
             raise ValueError('前高系数与收盘价比例必须为正数')
-        if params['vol_pct'] < 0 or params['vol_pct_max'] <= params['vol_pct']:
-            raise ValueError('放量区间无效：下限≥0 且上限必须大于下限')
+        if params['vol_pct'] < 0 or params['vol_pct_max'] < params['vol_pct']:
+            raise ValueError('放量区间无效：下限必须 ≥0 且不能大于上限')
         return params
 
     def _normalize_bottom_params(self, payload: Dict, trade_date) -> Dict:
