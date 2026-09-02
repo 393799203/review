@@ -1002,8 +1002,8 @@ const WatchlistPage = () => {
           style={{ marginBottom: 8 }}
           styles={{ body: { padding: isMobile ? '8px' : '12px' } }}
         >
-          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ marginBottom: 8, fontSize: isMobile ? 11 : 12, color: '#8c8c8c', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexBasis: isMobile ? '100%' : 'auto' }}>
               {vecQuery ? (
                 <span>
                   匹配到 {vecResults ? vecResults.length : 0} 只自选股
@@ -1101,48 +1101,47 @@ const WatchlistPage = () => {
                   vecTimerRef.current = setTimeout(() => handleVecSearch(v), 400);
                 }}
                 prefix={vecSearching ? <LoadingOutlined spin /> : <RobotOutlined style={{ color: '#1890ff' }} />}
-                placeholder="向量搜索自选股：按入选原因语义匹配"
-                style={{ width: isMobile ? '100%' : 320 }}
+                placeholder={isMobile ? '向量搜索' : '向量搜索自选股（按入选原因）'}
+                style={{ flex: 1, maxWidth: isMobile ? 'none' : 340 }}
               />
               {vecQuery && (
                 <span style={{ fontSize: 12, color: '#8c8c8c', whiteSpace: 'nowrap' }}>
                   {vecSearching ? '匹配中...' : `匹配 ${(vecResults || []).length} 只`}
                 </span>
               )}
+              <AutoComplete
+                style={{ flex: isMobile ? 1 : 'none', width: isMobile ? undefined : 240 }}
+                value={searchKeyword}
+                options={searchResults.map(stock => ({
+                  value: stock.code,
+                  label: (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{stock.display}</span>
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddToWatchlist(stock);
+                        }}
+                        style={{ padding: 0, height: 'auto' }}
+                      >
+                        添加
+                      </Button>
+                    </div>
+                  )
+                }))}
+                onSearch={handleSearchStock}
+                onChange={setSearchKeyword}
+                placeholder="搜索股票代码或名称"
+              >
+                <Input 
+                  suffix={searching ? <LoadingOutlined spin /> : <SearchOutlined />}
+                  allowClear
+                />
+              </AutoComplete>
             </div>
-            
-            <AutoComplete
-              style={{ width: isMobile ? 180 : 250 }}
-              value={searchKeyword}
-              options={searchResults.map(stock => ({
-                value: stock.code,
-                label: (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{stock.display}</span>
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<PlusOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddToWatchlist(stock);
-                      }}
-                      style={{ padding: 0, height: 'auto' }}
-                    >
-                      添加
-                    </Button>
-                  </div>
-                )
-              }))}
-              onSearch={handleSearchStock}
-              onChange={setSearchKeyword}
-              placeholder="搜索股票代码或名称"
-            >
-              <Input 
-                suffix={searching ? <LoadingOutlined spin /> : <SearchOutlined />}
-                allowClear
-              />
-            </AutoComplete>
           </div>
           
           {isMobile ? renderMobileContent() : renderDesktopContent()}
