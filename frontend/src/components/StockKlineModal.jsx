@@ -5,7 +5,7 @@ import ReactECharts from 'echarts-for-react';
 import { stockApi } from '../services/api';
 import api from '../services/api';
 
-const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate, onClose }) => {
+const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate, strategyDate, onClose }) => {
   const [klineLoading, setKlineLoading] = useState(false);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -490,6 +490,34 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
       }
     }
 
+    // 策略日（策略筛选加入自选的日期）在 K 线对应日打标记
+    const strategyMarks = [];
+    if (strategyDate) {
+      const normalized = strategyDate.replace(/-/g, '').substring(0, 8);
+      const idx = klineData.findIndex(
+        (item) => (item.date || '').replace(/-/g, '').substring(0, 8) === normalized
+      );
+      if (idx >= 0) {
+        strategyMarks.push({
+          name: '策略日',
+          coord: [idx, klineData[idx].high],
+          value: '策略日',
+          symbolSize: 44,
+          itemStyle: {
+            color: '#1677ff'
+          },
+          label: {
+            show: true,
+            position: 'top',
+            color: '#1677ff',
+            fontSize: 11,
+            fontWeight: 'bold',
+            formatter: '策略日'
+          }
+        });
+      }
+    }
+
     return {
       tooltip: {
         trigger: 'axis',
@@ -630,7 +658,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
           markPoint: {
             symbol: 'pin',
             symbolSize: 30,
-            data: [...exDividendMarks, ...signalMarks],
+            data: [...exDividendMarks, ...signalMarks, ...strategyMarks],
             label: {
               show: true,
               fontSize: 10
@@ -677,7 +705,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
         }
       ]
     };
-  }, [klineData, isMobile, signalDate]);
+  }, [klineData, isMobile, signalDate, strategyDate]);
 
   const renderQuotePanel = () => {
     if (!quoteData) return null;
@@ -754,7 +782,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
     const volatility = quoteData.volatility;
     const turnover = quoteData.turnover;
     const totalMv = quoteData.total_mv;
-    const totalMvText = totalMv ? `${(totalMv / 100000000).toFixed(2)}亿` : '--';
+    const totalMvText = totalMv ? `${(totalMv / 100000000).toFixed(2)}` : '--';
     
     const getPriceColor = (currentPrice) => {
       if (!currentPrice || !prevClose) return '#333';
@@ -817,7 +845,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
           </div>
           
           {/* 第三行：行情数据 */}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: '10px', color: '#666' }}>昨收</div>
               <div style={{ fontSize: '11px', color: '#333' }}>{prevClose.toFixed(2)}</div>
@@ -843,7 +871,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
               <div style={{ fontSize: '11px', color: '#333' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '10px', color: '#666' }}>总市值</div>
+              <div style={{ fontSize: '10px', color: '#666' }}>市值(亿)</div>
               <div style={{ fontSize: '11px', color: '#333' }}>{totalMvText}</div>
             </div>
           </div>
@@ -940,7 +968,7 @@ const StockKlineModal = ({ visible, stockCode, stockName, targetDate, signalDate
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{volatility ? `${volatility.toFixed(1)}%` : '--'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#666' }}>总市值</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>市值(亿)</div>
               <div style={{ fontSize: '14px', color: '#333', fontWeight: '500' }}>{totalMvText}</div>
             </div>
           </div>

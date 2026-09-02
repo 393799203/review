@@ -13,7 +13,8 @@ const BREAKOUT_DEFAULT_PARAMS = {
   prev_high_days: 60,
   prev_high_coef: 0.9,
   vol_window: 10,
-  vol_pct: 30,
+  vol_pct: 30,      // 放量下限%（相对均量）
+  vol_pct_max: 50,  // 放量上限%（相对均量），默认上限 50
   close_window: 20,
   close_ratio: 1.3,
 };
@@ -56,11 +57,11 @@ const ScreeningPage = () => {
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoLogs, setAutoLogs] = useState([]);
 
-  // 加载每日自动筛选配置
+  // 加载每日自动筛选配置（按当前策略分别读取/显示各自开关）
   useEffect(() => {
     const loadAutoConfig = async () => {
       try {
-        const response = await stockApi.getAutoScreeningConfig();
+        const response = await stockApi.getAutoScreeningConfig(strategy);
         if (response.data.success) {
           setAutoEnabled(response.data.data?.enabled || false);
         }
@@ -74,7 +75,8 @@ const ScreeningPage = () => {
       }
     };
     loadAutoConfig();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategy]);
 
   // 开关：保存配置（带当前表单参数）
   const handleAutoToggle = async (checked) => {
@@ -96,6 +98,7 @@ const ScreeningPage = () => {
         params.prev_high_days = values.prev_high_days;
         params.prev_high_coef = values.prev_high_coef;
         params.vol_pct = values.vol_pct;
+        params.vol_pct_max = values.vol_pct_max;
         params.close_window = values.close_window;
         params.close_ratio = values.close_ratio;
       }
@@ -181,11 +184,11 @@ const ScreeningPage = () => {
     });
   };
 
-  // 手动立即执行一次
+  // 手动立即执行一次（当前策略）
   const handleRunNow = async () => {
     setAutoRunning(true);
     try {
-      const response = await stockApi.runAutoScreeningNow();
+      const response = await stockApi.runAutoScreeningNow(strategy);
       if (response.data.success) {
         message.success('执行完成，已加入自选');
         const logsResponse = await stockApi.getAutoScreeningLogs();
@@ -222,6 +225,7 @@ const ScreeningPage = () => {
         params.prev_high_days = values.prev_high_days;
         params.prev_high_coef = values.prev_high_coef;
         params.vol_pct = values.vol_pct;
+        params.vol_pct_max = values.vol_pct_max;
         params.close_window = values.close_window;
         params.close_ratio = values.close_ratio;
       }
@@ -522,6 +526,32 @@ const ScreeningPage = () => {
             )}
             {strategy === 'breakout' && (
               <>
+                <Form.Item
+                  label="放量区间%（相对均量）"
+                  style={{ marginBottom: 4 }}
+                  tooltip="当日成交量较前 vol_window 日均量的放大幅度下限~上限（如 30%~50% 表示 1.3~1.5 倍均量）"
+                >
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Form.Item name="vol_pct" noStyle>
+                      <InputNumber
+                        style={{ width: '50%' }}
+                        min={0}
+                        step={5}
+                        placeholder="下限"
+                        addonBefore="下限"
+                      />
+                    </Form.Item>
+                    <Form.Item name="vol_pct_max" noStyle>
+                      <InputNumber
+                        style={{ width: '50%' }}
+                        min={0}
+                        step={5}
+                        placeholder="上限"
+                        addonBefore="上限"
+                      />
+                    </Form.Item>
+                  </Space.Compact>
+                </Form.Item>
                 <Form.Item name="turnover_min" label="换手率阈值%（≥）">
                   <InputNumber style={{ width: '100%' }} min={0} step={1} />
                 </Form.Item>
@@ -533,9 +563,6 @@ const ScreeningPage = () => {
                 </Form.Item>
                 <Form.Item name="prev_high_coef" label="前高系数（收盘≥前高×系数）">
                   <InputNumber style={{ width: '100%' }} min={0.5} max={1.5} step={0.05} />
-                </Form.Item>
-                <Form.Item name="vol_pct" label="放量阈值%（相对均量）">
-                  <InputNumber style={{ width: '100%' }} min={0} step={5} />
                 </Form.Item>
                 <Form.Item name="close_window" label="收盘价参考窗口日（均价）">
                   <InputNumber style={{ width: '100%' }} min={1} precision={0} />
@@ -549,7 +576,9 @@ const ScreeningPage = () => {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 500 }}>每日 19:00 自动筛选</div>
-                  <div style={{ fontSize: 11, color: '#999' }}>按当前参数自动执行并加入自选</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>
+                    独立开关，仅针对「{strategy === 'bottom' ? '抄底放量' : '突破放量'}」策略，按当前参数执行
+                  </div>
                 </div>
                 <Button size="small" onClick={handleRunNow} loading={autoRunning} style={{ flexShrink: 0 }}>
                   立即执行

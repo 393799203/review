@@ -56,7 +56,8 @@ DEFAULT_PARAMS = {
     'prev_high_days': 60,
     'prev_high_coef': 0.9,
     'vol_window': 10,
-    'vol_pct': 30,
+    'vol_pct': 30,        # 放量下限%（相对均量）
+    'vol_pct_max': 50,    # 放量上限%（相对均量），默认上限 50
     'close_window': 20,
     'close_ratio': 1.3,
 }
@@ -214,6 +215,8 @@ class ScreeningService:
     def _normalize_breakout_params(self, payload: Dict, trade_date) -> Dict:
         """归一化"突破放量"策略参数"""
         try:
+            vol_pct = float(payload.get('vol_pct', DEFAULT_PARAMS['vol_pct']))
+            vol_pct_max = float(payload.get('vol_pct_max', DEFAULT_PARAMS['vol_pct_max']))
             params = {
                 'date': trade_date,
                 'turnover_min': float(payload.get('turnover_min', DEFAULT_PARAMS['turnover_min'])),
@@ -221,7 +224,8 @@ class ScreeningService:
                 'prev_high_days': int(payload.get('prev_high_days', DEFAULT_PARAMS['prev_high_days'])),
                 'prev_high_coef': float(payload.get('prev_high_coef', DEFAULT_PARAMS['prev_high_coef'])),
                 'vol_window': int(payload.get('vol_window', DEFAULT_PARAMS['vol_window'])),
-                'vol_pct': float(payload.get('vol_pct', DEFAULT_PARAMS['vol_pct'])),
+                'vol_pct': min(vol_pct, vol_pct_max),       # 下限
+                'vol_pct_max': max(vol_pct, vol_pct_max),   # 上限
                 'close_window': int(payload.get('close_window', DEFAULT_PARAMS['close_window'])),
                 'close_ratio': float(payload.get('close_ratio', DEFAULT_PARAMS['close_ratio'])),
             }
@@ -230,8 +234,10 @@ class ScreeningService:
 
         if params['prev_high_days'] < 1 or params['vol_window'] < 1 or params['close_window'] < 1:
             raise ValueError('窗口天数必须为正整数')
-        if params['prev_high_coef'] <=  0 or params['close_ratio'] <= 0:
+        if params['prev_high_coef'] <= 0 or params['close_ratio'] <= 0:
             raise ValueError('前高系数与收盘价比例必须为正数')
+        if params['vol_pct'] < 0 or params['vol_pct_max'] <= params['vol_pct']:
+            raise ValueError('放量区间无效：下限≥0 且上限必须大于下限')
         return params
 
     def _normalize_bottom_params(self, payload: Dict, trade_date) -> Dict:

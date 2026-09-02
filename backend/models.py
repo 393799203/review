@@ -370,12 +370,12 @@ class DimBlock(Base):
 
 
 class AutoScreeningConfig(Base):
-    """每日自动筛选配置（用户级开关）"""
+    """每日自动筛选配置（每策略一个开关：user_id + strategy）"""
     __tablename__ = 'auto_screening_config'
 
     user_id = Column(String(36), ForeignKey('users.uid'), primary_key=True)
+    strategy = Column(String(20), primary_key=True, default='bottom')
     enabled = Column(Integer, default=0)  # 0 关 / 1 开
-    strategy = Column(String(20), default='bottom')
     params = Column(Text)  # JSON 筛选参数
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

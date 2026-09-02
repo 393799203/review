@@ -147,6 +147,7 @@ class ScreeningRepository:
               AND h.close >= h.prev_high * :prev_high_coef
               AND h.avg_vol IS NOT NULL AND h.avg_vol > 0
               AND h.volume >= (1 + :vol_pct / 100.0) * h.avg_vol
+              AND h.volume <= (1 + :vol_pct_max / 100.0) * h.avg_vol
               AND h.ma_close IS NOT NULL AND h.ma_close > 0
               AND h.close <= :close_ratio * h.ma_close
             ORDER BY h.change_pct DESC
@@ -160,6 +161,7 @@ class ScreeningRepository:
                 'upper_shadow_max': params['upper_shadow_max'],
                 'prev_high_coef': params['prev_high_coef'],
                 'vol_pct': params['vol_pct'],
+                'vol_pct_max': params['vol_pct_max'],
                 'close_ratio': params['close_ratio'],
             }).mappings().fetchall()
 

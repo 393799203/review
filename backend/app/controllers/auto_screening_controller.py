@@ -14,11 +14,12 @@ class AutoScreeningController(BaseController):
         self.auto_service = self.service
 
     def get_config(self):
-        """获取当前用户自动筛选配置"""
+        """获取当前用户某策略的自动筛选配置"""
         user_id = self.get_current_user_uid()
         if not user_id:
             return self.error('未提供用户ID', 401)
-        success, message, data = self.auto_service.get_config(user_id)
+        strategy = str(self.get_query_param('strategy', 'bottom'))
+        success, message, data = self.auto_service.get_config(user_id, strategy)
         if success:
             return self.success(data)
         return self.error(message, 500)
@@ -49,22 +50,25 @@ class AutoScreeningController(BaseController):
         return self.error(message, 500)
 
     def run_now(self):
-        """手动立即执行一次自动筛选（当前用户）"""
+        """手动立即执行一次自动筛选（当前用户 + 指定策略）"""
         user_id = self.get_current_user_uid()
         if not user_id:
             return self.error('未提供用户ID', 401)
+        data = self.get_json_data()
+        strategy = str(data.get('strategy', 'bottom'))
         try:
             from database import get_db_session
             from models import AutoScreeningConfig
             session = get_db_session()
             try:
                 cfg = session.query(AutoScreeningConfig).filter(
-                    AutoScreeningConfig.user_id == user_id
+                    AutoScreeningConfig.user_id == user_id,
+                    AutoScreeningConfig.strategy == strategy,
                 ).first()
                 if cfg is None:
                     cfg = AutoScreeningConfig(
-                        user_id=user_id, enabled=1,
-                        strategy='bottom', params=None,
+                        user_id=user_id, strategy=strategy,
+                        enabled=1, params=None,
                     )
                     session.add(cfg)
                     session.commit()

@@ -17,11 +17,12 @@ class AutoScreeningRepository(BaseRepository):
     def __init__(self):
         super().__init__(AutoScreeningConfig)
 
-    def get_config(self, user_id: str) -> Optional[AutoScreeningConfig]:
+    def get_config(self, user_id: str, strategy: str = 'bottom') -> Optional[AutoScreeningConfig]:
         session = self.create_session()
         try:
             return session.query(AutoScreeningConfig).filter(
-                AutoScreeningConfig.user_id == user_id
+                AutoScreeningConfig.user_id == user_id,
+                AutoScreeningConfig.strategy == (strategy or 'bottom'),
             ).first()
         finally:
             session.close()
@@ -44,11 +45,12 @@ class AutoScreeningService(BaseService):
         super().__init__(AutoScreeningRepository())
         self.auto_repo = self.repository
 
-    def get_config(self, user_id: str) -> Tuple[bool, str, Optional[Dict]]:
+    def get_config(self, user_id: str, strategy: str = 'bottom') -> Tuple[bool, str, Optional[Dict]]:
         try:
-            cfg = self.auto_repo.get_config(user_id)
+            strategy = strategy or 'bottom'
+            cfg = self.auto_repo.get_config(user_id, strategy)
             if cfg is None:
-                return True, '获取成功', {'enabled': False, 'strategy': 'bottom', 'params': None}
+                return True, '获取成功', {'enabled': False, 'strategy': strategy, 'params': None}
             params = {}
             try:
                 params = json.loads(cfg.params) if cfg.params else {}
@@ -56,7 +58,7 @@ class AutoScreeningService(BaseService):
                 params = {}
             return True, '获取成功', {
                 'enabled': bool(cfg.enabled),
-                'strategy': cfg.strategy or 'bottom',
+                'strategy': cfg.strategy or strategy,
                 'params': params,
             }
         except Exception as e:
@@ -65,16 +67,18 @@ class AutoScreeningService(BaseService):
     def save_config(self, user_id: str, enabled: bool, strategy: str = 'bottom',
                     params: Optional[Dict] = None) -> Tuple[bool, str]:
         try:
+            strategy = strategy or 'bottom'
             session = self.auto_repo.create_session()
             try:
                 cfg = session.query(AutoScreeningConfig).filter(
-                    AutoScreeningConfig.user_id == user_id
+                    AutoScreeningConfig.user_id == user_id,
+                    AutoScreeningConfig.strategy == strategy,
                 ).first()
                 if cfg is None:
-                    cfg = AutoScreeningConfig(user_id=user_id)
+                    cfg = AutoScreeningConfig(user_id=user_id, strategy=strategy)
                     session.add(cfg)
                 cfg.enabled = 1 if enabled else 0
-                cfg.strategy = strategy or 'bottom'
+                cfg.strategy = strategy
                 cfg.params = json.dumps(params or {}, ensure_ascii=False)
                 session.commit()
             finally:

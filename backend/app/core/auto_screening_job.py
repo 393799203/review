@@ -85,6 +85,9 @@ def _run_for_user(cfg, session):
             except Exception:
                 signal_date = None
 
+        strategy = cfg.strategy or 'bottom'
+        add_reason = '突破放量' if strategy == 'breakout' else '抄底放量'
+
         try:
             success, message = wsvc.add_to_watchlist(
                 user_id=user_id,
@@ -92,7 +95,7 @@ def _run_for_user(cfg, session):
                 stock_name=row.get('name') or code,
                 add_date=run_date,
                 add_price=row.get('close'),
-                add_reason='抄底放量',
+                add_reason=add_reason,
                 source='screening',
                 add_type='strategy',
                 limit_up_reason_category=category,

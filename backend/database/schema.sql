@@ -405,15 +405,16 @@ CREATE TABLE IF NOT EXISTS keyword_analysis (
 );
 COMMENT ON TABLE keyword_analysis IS '每日涨停关键词AI归并分析缓存';
 
--- 每日自动筛选配置表（用户开关 + 参数）
+-- 每日自动筛选配置表（每策略一个开关：user_id + strategy）
 CREATE TABLE IF NOT EXISTS auto_screening_config (
-    user_id VARCHAR(36) PRIMARY KEY REFERENCES users(uid),
-    enabled INTEGER NOT NULL DEFAULT 0,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
     strategy VARCHAR(20) NOT NULL DEFAULT 'bottom',
+    enabled INTEGER NOT NULL DEFAULT 0,
     params TEXT,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, strategy)
 );
-COMMENT ON TABLE auto_screening_config IS '每日19:00自动筛选开关配置';
+COMMENT ON TABLE auto_screening_config IS '每日19:00自动筛选开关配置（按策略）';
 
 -- 每日自动筛选执行日志表
 CREATE TABLE IF NOT EXISTS auto_screening_logs (

@@ -525,7 +525,7 @@ const WatchlistPage = () => {
                     <span 
                       style={{ fontWeight: 'bold', fontSize: 14, color: '#1890ff', cursor: 'pointer' }}
                       onClick={() => {
-                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
+                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined, strategyDate: record.add_type === 'strategy' ? (record.add_date || undefined) : undefined });
                         setKlineVisible(true);
                       }}
                     >
@@ -534,7 +534,7 @@ const WatchlistPage = () => {
                     <span 
                       style={{ fontWeight: 'bold', fontSize: 14, color: '#262626', cursor: 'pointer' }}
                       onClick={() => {
-                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
+                        setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined, strategyDate: record.add_type === 'strategy' ? (record.add_date || undefined) : undefined });
                         setKlineVisible(true);
                       }}
                     >
@@ -737,7 +737,7 @@ const WatchlistPage = () => {
                 <span 
                   style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
                   onClick={() => {
-                    setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
+                    setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined, strategyDate: record.add_type === 'strategy' ? (record.add_date || undefined) : undefined });
                     setKlineVisible(true);
                   }}
                 >
@@ -762,7 +762,7 @@ const WatchlistPage = () => {
               <span 
                 style={{ color: '#1890ff', cursor: 'pointer', fontSize: 12 }}
                 onClick={() => {
-                  setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined });
+                  setKlineStock({ code: record.stock_code.split('.')[0], name: record.stock_name, signalDate: record.signal_date || undefined, strategyDate: record.add_type === 'strategy' ? (record.add_date || undefined) : undefined });
                   setKlineVisible(true);
                 }}
               >
@@ -1299,6 +1299,7 @@ const WatchlistPage = () => {
         stockCode={klineStock?.code}
         stockName={klineStock?.name}
         signalDate={klineStock?.signalDate}
+        strategyDate={klineStock?.strategyDate}
         onClose={() => {
           setKlineVisible(false);
           setKlineStock(null);
