@@ -456,39 +456,60 @@ class AIService(BaseService):
 
 语气要温暖专业,避免过度乐观或悲观。只返回JSON,不要其他内容。"""
             
+            import requests
             import os
-            from app.core.llm_fallback import chat_completions
-
-            if not (os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('LLM_FALLBACK_API_KEY')):
-                return False, '未配置DEEPSEEK_API_KEY/LLM_FALLBACK_API_KEY环境变量', None
-
+            
+            api_key = os.environ.get('DEEPSEEK_API_KEY')
+            if not api_key:
+                return False, '未配置DEEPSEEK_API_KEY环境变量', None
+            
+            api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
+            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
             temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
             max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_SHORT', '500'))
-
-            content, _source = chat_completions(
-                [{"role": "user", "content": prompt}],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=180,
-            )
-
-            if content:
-                try:
-                    analysis_data = json.loads(content)
-                    return True, '分析成功', {'analysis': analysis_data}
-                except json.JSONDecodeError:
-                    return True, '分析成功', {
-                        'analysis': {
-                            'emotion_comfort': content,
-                            'rational_analysis': '',
-                            'operation_advice': '',
-                            'risk_warning': '',
-                            'future_outlook': '',
-                            'overall_suggestion': ''
-                        }
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
                     }
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+                
+                if content:
+                    try:
+                        analysis_data = json.loads(content)
+                        return True, '分析成功', {'analysis': analysis_data}
+                    except json.JSONDecodeError:
+                        return True, '分析成功', {
+                            'analysis': {
+                                'emotion_comfort': content,
+                                'rational_analysis': '',
+                                'operation_advice': '',
+                                'risk_warning': '',
+                                'future_outlook': '',
+                                'overall_suggestion': ''
+                            }
+                        }
+                else:
+                    return False, 'AI返回内容为空', None
             else:
-                return False, 'AI请求失败（主通道与后备通道均不可用）', None
+                return False, f'AI请求失败: {response.status_code}', None
                 
         except Exception as e:
             return False, str(e), None
@@ -504,26 +525,47 @@ class AIService(BaseService):
             tuple: (success, message, result)
         """
         try:
+            import requests
             import os
-            from app.core.llm_fallback import chat_completions
-
-            if not (os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('LLM_FALLBACK_API_KEY')):
-                return False, '未配置DEEPSEEK_API_KEY/LLM_FALLBACK_API_KEY环境变量', ''
-
+            
+            api_key = os.environ.get('DEEPSEEK_API_KEY')
+            if not api_key:
+                return False, '未配置DEEPSEEK_API_KEY环境变量', ''
+            
+            api_url = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1/chat/completions')
+            model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
             temperature = float(os.environ.get('DEEPSEEK_TEMPERATURE', '0.7'))
             max_tokens = int(os.environ.get('DEEPSEEK_MAX_TOKENS_LONG', '4000'))
-
-            content, _source = chat_completions(
-                [{"role": "user", "content": prompt}],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=180,
-            )
-
-            if content:
-                return True, '分析成功', content
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+                
+                if content:
+                    return True, '分析成功', content
+                else:
+                    return False, 'AI返回内容为空', ''
             else:
-                return False, 'AI请求失败（主通道与后备通道均不可用）', ''
+                return False, f'AI请求失败: {response.status_code}', ''
                 
         except Exception as e:
             return False, str(e), ''
