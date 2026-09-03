@@ -1986,7 +1986,7 @@ const LadderPage = () => {
   return (
     <>
       <MarketAlertBar />
-      <IndexVolumeBar />
+      <IndexVolumeBar refreshKey={refreshKey} />
       {showAnnouncement && (
         <div
           style={{

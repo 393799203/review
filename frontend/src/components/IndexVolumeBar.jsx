@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { stockApi } from '../services/api';
 
 /**
  * 沪深创三大指数成交量 + 全天预测
- * 显示: 指数名 | 当前成交额 | 较昨日预测全天增减%
+ * 显示: 指数名 | 当前成交额 | 预测较昨日增减(+XX亿/-XX亿) | 右侧合计统计
  * 数据来源: GET /api/market/index-volume（mootdx）
- * 盘中每 60s 刷新
+ * 刷新: 跟随天梯页 refreshKey（天梯自动/手动刷新时同步更新）
  */
-const IndexVolumeBar = () => {
+const IndexVolumeBar = ({ refreshKey = 0 }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const timerRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,10 +28,10 @@ const IndexVolumeBar = () => {
       }
     };
     load();
-    // 盘中每 60s 刷新一次（成交额随交易变化）
-    timerRef.current = setInterval(load, 60000);
-    return () => { cancelled = true; clearInterval(timerRef.current); };
-  }, []);
+    // 盘中每 60s 兜底刷新一次（天梯刷新周期可能较长）
+    const timer = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [refreshKey]);
 
   if (loading) return null;
   if (!data || !data.items || data.items.length === 0) {
@@ -109,16 +108,16 @@ const IndexVolumeBar = () => {
         const yest = sum('yesterday_amount');
         if (!cur) return null;
         const dif = pred - yest;
-        const target = 20000e8; // 2万亿
-        const gap = target - pred; // 还差多少（亿）
+        const target = 25000e8; // 2.5万亿 谨慎阈值
+        const gap = target - pred; // 还差多少（元）
         const gapYi = gap / 1e8;
         const difYi = dif / 1e8;
-        const close = gapYi > 0 && gapYi <= 2000; // 距2万亿不足2000亿提示谨慎
+        const close = gapYi > 0 && gapYi <= 2500; // 距2.5万亿不足2500亿提示谨慎
         const over = gapYi <= 0;
         const diffText = `${difYi > 0 ? '+' : ''}${difYi.toFixed(0)}亿`;
         const gapText = over
-          ? `超2万亿 ${(-gapYi).toFixed(0)}亿`
-          : `距2万亿 ${gapYi.toFixed(0)}亿`;
+          ? `超2.5万亿 ${(-gapYi).toFixed(0)}亿`
+          : `距2.5万亿 ${gapYi.toFixed(0)}亿`;
         return (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginLeft: 'auto', whiteSpace: 'nowrap', fontSize: 12 }}>
             <span style={{ color: '#333', fontWeight: 600 }}>
