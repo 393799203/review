@@ -100,6 +100,45 @@ const IndexVolumeBar = () => {
           )}
         </div>
       ))}
+
+      {(() => {
+        // 右侧合计统计：三大指数合计 + 预测全天较昨日 + 距2万亿
+        const sum = (key) => data.items.reduce((s, it) => s + (it[key] || 0), 0);
+        const cur = sum('amount');
+        const pred = sum('predicted_amount');
+        const yest = sum('yesterday_amount');
+        if (!cur) return null;
+        const dif = pred - yest;
+        const target = 20000e8; // 2万亿
+        const gap = target - pred; // 还差多少（亿）
+        const gapYi = gap / 1e8;
+        const difYi = dif / 1e8;
+        const close = gapYi > 0 && gapYi <= 2000; // 距2万亿不足2000亿提示谨慎
+        const over = gapYi <= 0;
+        const diffText = `${difYi > 0 ? '+' : ''}${difYi.toFixed(0)}亿`;
+        const gapText = over
+          ? `超2万亿 ${(-gapYi).toFixed(0)}亿`
+          : `距2万亿 ${gapYi.toFixed(0)}亿`;
+        return (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginLeft: 'auto', whiteSpace: 'nowrap', fontSize: 12 }}>
+            <span style={{ color: '#333', fontWeight: 600 }}>
+              合计 {fmtAmount(cur)}
+            </span>
+            <span style={{ color: dif >= 0 ? '#f5222d' : '#52c41a', fontWeight: 600 }}>
+              较昨日 {diffText}
+            </span>
+            <span style={{ color: over ? '#f5222d' : '#595959', fontWeight: over ? 700 : 400 }}>
+              {gapText}
+            </span>
+            {(close || over) && (
+              <span style={{ color: '#f5222d', fontWeight: 700, background: '#fff1f0', padding: '1px 6px', borderRadius: 4 }}>
+                ⚠️ 谨慎
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
       {!data.trading && data.items[0]?.progress === 1 && (
         <span style={{ color: '#999', marginLeft: 'auto' }}>已收盘</span>
       )}
