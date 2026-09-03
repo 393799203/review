@@ -46,14 +46,28 @@ const IndexVolumeBar = () => {
     return yi.toFixed(0) + '亿';
   };
 
-  const fmtPct = (v) => {
-    if (v == null) return '';
-    return `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+  // 增减金额：预测全天 - 昨日全天，显示 +XX亿 / -XX亿
+  const fmtAmountChange = (it) => {
+    const pred = it.predicted_amount;
+    const yest = it.yesterday_amount;
+    if (pred == null || yest == null) return '';
+    const dif = pred - yest;
+    const yi = dif / 1e8;
+    const sign = yi > 0 ? '+' : (yi < 0 ? '-' : '');
+    const abs = Math.abs(yi);
+    const text = abs >= 10000 ? (abs / 10000).toFixed(2) + '万亿' : abs.toFixed(0) + '亿';
+    return `${sign}${text}`;
   };
 
   const pctColor = (v) => {
     if (v == null) return '#999';
     return v >= 0 ? '#f5222d' : '#52c41a';
+  };
+
+  const changeColor = (it) => {
+    const dif = (it.predicted_amount ?? 0) - (it.yesterday_amount ?? 0);
+    if (it.predicted_amount == null || it.yesterday_amount == null) return '#999';
+    return dif >= 0 ? '#f5222d' : '#52c41a';
   };
 
   return (
@@ -77,9 +91,9 @@ const IndexVolumeBar = () => {
         <div key={it.code} style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}>
           <span style={{ color: '#333', fontWeight: 600 }}>{it.short}</span>
           <span style={{ color: '#595959' }}>{fmtAmount(it.amount)}</span>
-          {it.predicted_change_pct != null ? (
-            <span style={{ color: pctColor(it.predicted_change_pct), fontWeight: 600 }}>
-              {data.trading ? '预测' : ''}{fmtPct(it.predicted_change_pct)}
+          {it.predicted_amount != null && it.yesterday_amount != null ? (
+            <span style={{ color: changeColor(it), fontWeight: 600 }}>
+              {data.trading ? '预测' : ''}{fmtAmountChange(it)}
             </span>
           ) : (
             <span style={{ color: '#bfbfbf' }}>待开盘</span>
