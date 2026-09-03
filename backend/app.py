@@ -509,6 +509,12 @@ def get_market_alerts_history():
     return misc_controller.get_market_alerts_history()
 
 
+@app.route('/api/market/index-volume', methods=['GET'])
+def get_index_volume():
+    """沪深创三大指数成交量与全天预测"""
+    return misc_controller.get_index_volume()
+
+
 # ==================== 基础路由 ====================
 
 @app.route('/')
