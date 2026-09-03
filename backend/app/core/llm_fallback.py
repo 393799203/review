@@ -33,7 +33,7 @@ def chat_completions(messages, temperature=0.7, max_tokens=1000, timeout=120):
     依次尝试主通道与后备通道，返回 (content, source)。
     全部失败返回 (None, None)。
     """
-    model = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
+    model = os.environ.get('LLM_FALLBACK_MODEL') or os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
     for source, url, key in _provider_list():
         if not key:
             continue
