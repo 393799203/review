@@ -66,6 +66,50 @@ def _trading_progress(now: datetime) -> Optional[float]:
     return None  # 盘前
 
 
+def _traded_minutes(now: datetime) -> int:
+    """今日已交易分钟数（9:30 起）"""
+    t = now.time()
+    if t < OPEN_MORNING:
+        return 0
+    if t <= CLOSE_MORNING:
+        return (t.hour - 9) * 60 + t.minute - 30
+    if t <= OPEN_AFTERNOON:
+        return 120
+    return min(120 + (t.hour - 13) * 60 + t.minute, 240)
+
+
+def _yesterday_same_time_ratio(client, code: str, today: str) -> Optional[float]:
+    """
+    昨日同时刻成交量占比 = 昨日截至当前分钟累计 vol / 昨日全天 vol。
+    用于替代线性时间进度折算——成交量的日内分布并非均匀（通常前重后轻），
+    直接用昨日同时刻的成交进度更准确。
+    返回 None 表示拿不到昨日分时（非交易日/数据缺失），由调用方回退线性进度。
+    """
+    from datetime import timedelta
+    try:
+        # 往回找最近一个交易日（最多 8 天）
+        for back in range(1, 9):
+            d = _cn_now() - timedelta(days=back)
+            date_str = d.strftime('%Y%m%d')
+            if date_str >= today.replace('-', ''):
+                continue
+            mins = client.minutes(symbol=code, date=date_str)
+            if mins is None or (hasattr(mins, 'empty') and mins.empty):
+                continue
+            vol = mins['vol'].astype(float)
+            total = float(vol.sum())
+            if total <= 0:
+                continue
+            tm = _traded_minutes(_cn_now())
+            if tm <= 0:
+                return None
+            same = float(vol.head(tm).sum())
+            return same / total
+    except Exception as e:
+        print(f"昨日同时刻比例获取失败 {code}: {e}")
+    return None
+
+
 def get_index_volume_data() -> Dict:
     """
     返回三指数成交量数据：
@@ -123,9 +167,14 @@ def get_index_volume_data() -> Dict:
                     row = past.iloc[-1]
                     item['yesterday_amount'] = float(row.get('amount') or 0)
 
-            # 3. 预测
-            if progress is not None and progress > 0 and item['amount']:
-                item['predicted_amount'] = item['amount'] / progress
+            # 3. 预测全天：优先用"昨日同时刻成交量占比"折算（更贴近日内分布），
+            #    拿不到昨日分时则回退线性时间进度
+            if item['amount']:
+                same_ratio = _yesterday_same_time_ratio(client, idx['code'], today)
+                if same_ratio and same_ratio > 0:
+                    item['predicted_amount'] = item['amount'] / same_ratio
+                elif progress and progress > 0:
+                    item['predicted_amount'] = item['amount'] / progress
             if (item['predicted_amount'] and item['yesterday_amount']
                     and item['yesterday_amount'] > 0):
                 item['predicted_change_pct'] = (
