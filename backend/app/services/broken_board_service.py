@@ -93,11 +93,18 @@ class BrokenBoardService(BaseService):
                     continue
 
                 check_dates = [n1_date]
-                n2 = trade_calendar.get_next_trading_day(n1)
-                if n2:
-                    n2_date = n2.date() if hasattr(n2, 'date') else n2
-                    if n2_date <= trade_date:
-                        check_dates.append(n2_date)
+                # 观察断板日之后到所选日期 D 的每一个交易日（不只 n1/n2 两天），
+                # 这样 D 日内后续交易日（如跌停）也会计入回撤统计
+                n_iter = n1
+                while True:
+                    nxt = trade_calendar.get_next_trading_day(n_iter)
+                    if not nxt:
+                        break
+                    nxt_date = nxt.date() if hasattr(nxt, 'date') else nxt
+                    if nxt_date > trade_date:
+                        break
+                    check_dates.append(nxt_date)
+                    n_iter = nxt
 
                 c['break_date'] = n1_date
                 c['check_dates'] = check_dates
