@@ -86,11 +86,14 @@ class BrokenBoardService(BaseService):
                 # T = 窗口内最后一次涨停日
                 last_date = max(days_map.keys())
                 last_record = days_map[last_date]
+                # 板数口径：窗口内出现过的最大连板数（反映本周最强表现；
+                # 若断板后重新连板再断，仍显示最强时的板数）
+                peak_days = max((r.continuous_days or 0) for r in days_map.values())
                 candidates.append({
                     'code': code,
                     'name': info['name'],
                     'last_date': last_date,                 # T
-                    'peak_days': last_record.continuous_days or 0,
+                    'peak_days': peak_days,
                     'limit_up_price': float(last_record.limit_up_price) if last_record.limit_up_price else None,
                 })
 
