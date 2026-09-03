@@ -358,7 +358,7 @@ class LimitUpReasonAnalyzer:
                     [{"role": "user", "content": prompt}],
                     temperature=self.temperature,
                     max_tokens=self.max_tokens_medium,
-                    timeout=120,
+                    timeout=180,
                 )
                 if fb_content:
                     fb_json = _extract_json_object(fb_content)
@@ -523,7 +523,7 @@ class LimitUpReasonAnalyzer:
                         [{"role": "user", "content": prompt}],
                         temperature=self.temperature,
                         max_tokens=self.max_tokens_short,
-                        timeout=90,
+                        timeout=180,
                     )
                     if fb_content:
                         fb_json = _extract_json_object(fb_content)

@@ -35,7 +35,7 @@ class LLMClient:
             raise ValueError("未配置 DEEPSEEK_API_KEY / LLM_FALLBACK_API_KEY，请在环境变量中设置")
 
         content, source = chat_completions(
-            messages, temperature=temperature, max_tokens=max_tokens, timeout=60
+            messages, temperature=temperature, max_tokens=max_tokens, timeout=180
         )
         if content:
             return content

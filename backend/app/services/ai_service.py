@@ -469,7 +469,7 @@ class AIService(BaseService):
                 [{"role": "user", "content": prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=60,
+                timeout=180,
             )
 
             if content:
@@ -517,7 +517,7 @@ class AIService(BaseService):
                 [{"role": "user", "content": prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=60,
+                timeout=180,
             )
 
             if content:
