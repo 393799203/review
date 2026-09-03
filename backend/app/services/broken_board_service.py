@@ -28,6 +28,10 @@ class BrokenBoardService(BaseService):
     MIN_CONTINUOUS_DAYS = 3   # 至少 3 连板
     WINDOW_DAYS = 7           # 回看窗口（自然日）
     MAX_DROP_PCT = 10.0       # 断板后允许最大回撤（%）
+    CACHE_TTL = 120           # 结果缓存秒数（同日期重复请求直接秒回）
+
+    # 结果缓存：{date_str: (timestamp, result)}
+    _result_cache: Dict[str, Tuple[float, Tuple[bool, str, Optional[Dict]]]] = {}
 
     def __init__(self, data_fetcher=None):
         super().__init__(StockRepository())
@@ -37,6 +41,20 @@ class BrokenBoardService(BaseService):
     # ---------- 对外入口 ----------
 
     def get_strong_stocks(self, date_str: str) -> Tuple[bool, str, Optional[Dict]]:
+        import time
+        now = time.time()
+        hit = self._result_cache.get(date_str)
+        if hit and now - hit[0] < self.CACHE_TTL:
+            return hit[1]
+
+        result = self._compute_strong_stocks(date_str)
+        # 成功且非空的结果才缓存（失败的/空的可由下次重算快速补上，
+        # 但 18:03 同步后同一天会重算拿到新数据）
+        if result[0] and result[2] and result[2].get('items'):
+            self._result_cache[date_str] = (time.time(), result)
+        return result
+
+    def _compute_strong_stocks(self, date_str: str) -> Tuple[bool, str, Optional[Dict]]:
         try:
             trade_date = datetime.strptime(date_str, '%Y%m%d').date()
         except ValueError:
@@ -244,24 +262,37 @@ class BrokenBoardService(BaseService):
                 # 所需的 check_dates 是否齐全；有缺的则用 mootdx 实时 K 线补充，
                 # 避免因缺当日价格把当天断板/昨断板的股票整批剔除。
                 missing_codes = set()
+                tdx_has_check_date = False  # quantdb 是否已覆盖部分断板观察日
                 for c in candidates:
                     symbol = symbols[c['code']]
                     for d in c['check_dates']:
                         p = price_map.get((symbol, d))
-                        if not p or not p.get('close'):
+                        if p and p.get('close'):
+                            tdx_has_check_date = True
+                        else:
                             missing_codes.add(c['code'])
-                            break
 
-                if missing_codes and self.data_fetcher is not None:
+                # 仅当 quantdb 已覆盖部分观察日（即数据基本同步、只缺个别天，
+                # 如盘中缺当天）时才做 mootdx 补充；quantdb 整体缺当日（如
+                # 行情未同步）时盲补无意义且可能在通达信异常环境下拖慢接口。
+                if missing_codes and self.data_fetcher is not None and tdx_has_check_date:
                     filled = 0
+                    fail_streak = 0
                     for code in missing_codes:
                         try:
                             kline = self.data_fetcher.get_stock_kline(code, days=40)
                         except Exception as e:
                             print(f"mootdx 补充 {code} 价格失败: {e}")
+                            fail_streak += 1
+                            if fail_streak >= 3:
+                                break  # 连续失败：环境不健康，整体放弃
                             continue
                         if not kline:
+                            fail_streak += 1
+                            if fail_streak >= 3:
+                                break
                             continue
+                        fail_streak = 0
                         symbol = symbols[code]
                         for bar in kline:
                             d = str(bar.get('date', ''))[:10]
