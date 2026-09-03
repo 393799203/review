@@ -28,34 +28,18 @@ class LLMClient:
         return self._chat(messages, temperature=temperature, max_tokens=max_tokens)
 
     def _chat(self, messages: list, temperature: float = 0.3, max_tokens: int = 2048) -> Optional[str]:
-        if not self.api_key:
-            raise ValueError("DeepSeek API Key 未配置，请在环境变量中设置 DEEPSEEK_API_KEY")
+        # 主通道(DeepSeek)失败时自动切后备(SenseNova)，模型名沿用 DEEPSEEK_MODEL
+        from app.core.llm_fallback import chat_completions
 
-        try:
-            url = self._chat_url
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
+        if not (self.api_key or os.environ.get("LLM_FALLBACK_API_KEY")):
+            raise ValueError("未配置 DEEPSEEK_API_KEY / LLM_FALLBACK_API_KEY，请在环境变量中设置")
 
-            resp = requests.post(url, headers=headers, json=payload, timeout=60)
-            resp.raise_for_status()
-
-            result = resp.json()
-            return result["choices"][0]["message"]["content"]
-
-        except requests.exceptions.Timeout:
-            raise RuntimeError("DeepSeek API 请求超时")
-        except requests.exceptions.HTTPError as e:
-            raise RuntimeError(f"DeepSeek API HTTP 错误: {e.response.status_code}")
-        except Exception as e:
-            raise RuntimeError(f"DeepSeek API 调用失败: {str(e)}")
+        content, source = chat_completions(
+            messages, temperature=temperature, max_tokens=max_tokens, timeout=60
+        )
+        if content:
+            return content
+        raise RuntimeError("LLM API 调用失败（主通道与后备通道均不可用）")
 
     def find_comparable_stocks(self, user_query: str, hot_data: dict, context: dict, window_dates: list) -> dict:
         system_prompt = """你是一个A股对标股票分析助手。用户想要找与某只股票对标的其他股票。

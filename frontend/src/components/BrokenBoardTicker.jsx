@@ -114,7 +114,7 @@ const BrokenBoardTicker = ({ currentDate, onStockClick }) => {
         <div>
           <div>{item.name}（{item.code}）</div>
           <div>{item.peak_days}连板 · 断板日 {item.break_date}</div>
-          <div>基准价 ¥{item.base_price} · 断板后最大回撤 {item.max_drawdown_pct}%（已观察{item.days_checked}天）</div>
+          <div>基准价 ¥{item.base_price} · 断板后最大波动 {item.max_drawdown_pct}%（已观察{item.days_checked}天）</div>
         </div>
       }
       placement="top"

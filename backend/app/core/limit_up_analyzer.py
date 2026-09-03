@@ -351,6 +351,32 @@ class LimitUpReasonAnalyzer:
                     last_error = f"模型 {current_model} API调用失败: {response.status_code}"
                     continue
             
+            # 主通道(DeepSeek)全部失败，尝试后备通道（SenseNova，模型名沿用 DEEPSEEK_MODEL）
+            try:
+                from app.core.llm_fallback import chat_completions
+                fb_content, _src = chat_completions(
+                    [{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens_medium,
+                    timeout=120,
+                )
+                if fb_content:
+                    fb_json = _extract_json_object(fb_content)
+                    if fb_json:
+                        analysis = json.loads(fb_json)
+                        # 补齐必需字段（与主通道一致）
+                        analysis.setdefault('recommendation_score', 3)
+                        analysis.setdefault('recommendation_reason', '综合分析推荐')
+                        analysis.setdefault('analysis_summary', '涨停原因分析完成')
+                        analysis.setdefault('trading_advice', None)
+                        analysis.setdefault('stock_attribute', None)
+                        analysis.setdefault('holding_advice', None)
+                        analysis['keywords'] = limit_up_reason.split('+')
+                        logger.info(f"========== 分析完成(后备通道) {stock_name}({stock_code}) ==========")
+                        return analysis
+            except Exception as fb_e:
+                logger.error(f"后备通道分析失败: {fb_e}")
+
             # 所有模型都失败了
             logger.error(f"所有模型都失败: {last_error}")
             return {
@@ -490,6 +516,22 @@ class LimitUpReasonAnalyzer:
                     }
             else:
                 logger.error(f"API调用失败: {response.status_code}")
+                # 主通道失败，尝试后备通道（SenseNova）
+                try:
+                    from app.core.llm_fallback import chat_completions
+                    fb_content, _src = chat_completions(
+                        [{"role": "user", "content": prompt}],
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens_short,
+                        timeout=90,
+                    )
+                    if fb_content:
+                        fb_json = _extract_json_object(fb_content)
+                        if fb_json:
+                            logger.info("========== 新闻分析完成(后备通道) ==========")
+                            return json.loads(fb_json)
+                except Exception as fb_e:
+                    logger.error(f"后备通道新闻分析失败: {fb_e}")
                 return {
                     'analysis': 'API调用失败',
                     'related_sectors': [],

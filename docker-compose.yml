@@ -43,6 +43,9 @@ services:
       - DEEPSEEK_MAX_TOKENS_SHORT=500
       - DEEPSEEK_MAX_TOKENS_MEDIUM=1000
       - DEEPSEEK_MAX_TOKENS_LONG=4000
+      # AI 后备通道（SenseNova）：主通道 DeepSeek 失败/欠费时自动切换，模型名沿用 DEEPSEEK_MODEL
+      - LLM_FALLBACK_API_URL=${LLM_FALLBACK_API_URL:-https://token.sensenova.cn/v1/chat/completions}
+      - LLM_FALLBACK_API_KEY=${LLM_FALLBACK_API_KEY}
       # 量化筛选行情库（tdx_daily 同步的 quantdb），未配置时筛选返回 503 提示
       - TDX_DATABASE_URL=${TDX_DATABASE_URL}
       - FASTEMBED_CACHE_PATH=/root/.cache/fastembed
