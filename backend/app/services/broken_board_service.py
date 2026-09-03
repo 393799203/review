@@ -48,9 +48,9 @@ class BrokenBoardService(BaseService):
             return hit[1]
 
         result = self._compute_strong_stocks(date_str)
-        # 成功且非空的结果才缓存（失败的/空的可由下次重算快速补上，
-        # 但 18:03 同步后同一天会重算拿到新数据）
-        if result[0] and result[2] and result[2].get('items'):
+        # 成功就缓存（空结果也缓存：行情未同步时避免每次重复慢查询，
+        # 18:03 同步后 TTL 过期自动重算拿到新数据）
+        if result[0]:
             self._result_cache[date_str] = (time.time(), result)
         return result
 
@@ -277,22 +277,16 @@ class BrokenBoardService(BaseService):
                 # 行情未同步）时盲补无意义且可能在通达信异常环境下拖慢接口。
                 if missing_codes and self.data_fetcher is not None and tdx_has_check_date:
                     filled = 0
-                    fail_streak = 0
+                    # 探测式补充：第一只就失败/拿不到则视为行情环境不可用，
+                    # 整体放弃，避免在通达信异常环境(如旧服务器)下逐只等待超时
                     for code in missing_codes:
                         try:
                             kline = self.data_fetcher.get_stock_kline(code, days=40)
                         except Exception as e:
                             print(f"mootdx 补充 {code} 价格失败: {e}")
-                            fail_streak += 1
-                            if fail_streak >= 3:
-                                break  # 连续失败：环境不健康，整体放弃
-                            continue
+                            break
                         if not kline:
-                            fail_streak += 1
-                            if fail_streak >= 3:
-                                break
-                            continue
-                        fail_streak = 0
+                            break
                         symbol = symbols[code]
                         for bar in kline:
                             d = str(bar.get('date', ''))[:10]
