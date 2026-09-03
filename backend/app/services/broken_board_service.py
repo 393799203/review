@@ -213,6 +213,46 @@ class BrokenBoardService(BaseService):
             return 'sz' + code
         return 'bj' + code
 
+    def _fill_missing_prices_batch(self, missing_days, symbols, price_map) -> int:
+        """
+        批量补齐缺失检查日价格：mootdx quotes 一次请求所有股票的最新价，
+        填入 missing_days[code] 列出的各缺失日期（与自选股同款批量接口，
+        内存中使用，不写库）。返回补齐条数。
+        """
+        from mootdx.quotes import Quotes
+
+        total = 0
+        codes = list(missing_days.keys())
+        sh_codes = [c for c in codes if c.startswith('6')]
+        sz_codes = [c for c in codes if not c.startswith('6')]
+
+        for market, group in ((1, sh_codes), (0, sz_codes)):
+            if not group:
+                continue
+            try:
+                client = Quotes.factory(market=market)
+                quotes = client.quotes(symbol=group)
+                if quotes is None or (hasattr(quotes, 'empty') and quotes.empty):
+                    continue
+                for _, row in quotes.iterrows():
+                    code = str(row.get('code', ''))
+                    if code not in missing_days:
+                        continue
+                    price = float(row.get('price') or 0)
+                    low = float(row.get('low') or 0) or price
+                    if price <= 0:
+                        continue
+                    symbol = symbols.get(code)
+                    if not symbol:
+                        continue
+                    for d in missing_days[code]:
+                        price_map[(symbol, d)] = {'close': price, 'low': low}
+                        total += 1
+            except Exception as e:
+                print(f"批量获取{'沪' if market == 1 else '深'}市实时行情失败: {e}")
+
+        return total
+
     def _load_prices(self, candidates: List[Dict], end_date) -> Tuple[Dict, str]:
         """
         加载价格：{(symbol, date): {'close': x, 'low': y}}
@@ -261,47 +301,25 @@ class BrokenBoardService(BaseService):
                 # 关键：盘中 quantdb 通常缺"当天"（收盘后才同步）。检查断板校验
                 # 所需的 check_dates 是否齐全；有缺的则用 mootdx 实时 K 线补充，
                 # 避免因缺当日价格把当天断板/昨断板的股票整批剔除。
-                missing_codes = set()
-                tdx_has_check_date = False  # quantdb 是否已覆盖部分断板观察日
+                #
+                # 只补充"quantdb 最新日期的下一交易日"（盘中即今日）的价格：
+                # - 盘中：quantdb 到昨日，缺今日 → 只补今日（量少、快）
+                # - 若 quantdb 已缺连续多天（行情长期未同步）→ check_dates 中
+                #   没有紧邻下一交易日 → 不补，等 18:03 同步即可
+                # 若 DB 缺某些检查日价格（通常是当天，quantdb 18:03 盘后才同步），
+                # 直接用 mootdx 批量实时价补齐（内存用，不写库）。
+                missing_days = {}
                 for c in candidates:
                     symbol = symbols[c['code']]
-                    for d in c['check_dates']:
-                        p = price_map.get((symbol, d))
-                        if p and p.get('close'):
-                            tdx_has_check_date = True
-                        else:
-                            missing_codes.add(c['code'])
+                    m = [d for d in c['check_dates']
+                         if not price_map.get((symbol, d), {}).get('close')]
+                    if m:
+                        missing_days[c['code']] = m
 
-                # 仅当 quantdb 已覆盖部分观察日（即数据基本同步、只缺个别天，
-                # 如盘中缺当天）时才做 mootdx 补充；quantdb 整体缺当日（如
-                # 行情未同步）时盲补无意义且可能在通达信异常环境下拖慢接口。
-                if missing_codes and self.data_fetcher is not None and tdx_has_check_date:
-                    filled = 0
-                    # 探测式补充：第一只就失败/拿不到则视为行情环境不可用，
-                    # 整体放弃，避免在通达信异常环境(如旧服务器)下逐只等待超时
-                    for code in missing_codes:
-                        try:
-                            kline = self.data_fetcher.get_stock_kline(code, days=40)
-                        except Exception as e:
-                            print(f"mootdx 补充 {code} 价格失败: {e}")
-                            break
-                        if not kline:
-                            break
-                        symbol = symbols[code]
-                        for bar in kline:
-                            d = str(bar.get('date', ''))[:10]
-                            try:
-                                dt = datetime.strptime(d, '%Y-%m-%d').date()
-                            except ValueError:
-                                continue
-                            if dt in need_dates:
-                                price_map[(symbol, dt)] = {
-                                    'close': float(bar.get('close')) if bar.get('close') else None,
-                                    'low': float(bar.get('low')) if bar.get('low') else None,
-                                }
-                                filled += 1
+                if missing_days and self.data_fetcher is not None:
+                    filled = self._fill_missing_prices_batch(missing_days, symbols, price_map)
                     if filled:
-                        print(f"✓ mootdx 补充盘中价格 {filled} 条（quantdb 缺当日数据）")
+                        print(f"✓ mootdx 批量补齐缺价 {filled} 条")
 
                 return price_map, 'tdx'
             except Exception as e:
