@@ -8,6 +8,7 @@ import requests
 import json
 import logging
 import time
+import os
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 
@@ -354,10 +355,12 @@ class LimitUpReasonAnalyzer:
             # 主通道(DeepSeek)全部失败，尝试后备通道（SenseNova，模型名沿用 DEEPSEEK_MODEL）
             try:
                 from app.core.llm_fallback import chat_completions
+                # SenseNova 推理模型会先消耗 reasoning_content，max_tokens 需给足
+                fb_max_tokens = int(os.environ.get('LLM_FALLBACK_MAX_TOKENS', '4096'))
                 fb_content, _src = chat_completions(
                     [{"role": "user", "content": prompt}],
                     temperature=self.temperature,
-                    max_tokens=self.max_tokens_medium,
+                    max_tokens=fb_max_tokens,
                     timeout=180,
                 )
                 if fb_content:
@@ -516,13 +519,14 @@ class LimitUpReasonAnalyzer:
                     }
             else:
                 logger.error(f"API调用失败: {response.status_code}")
-                # 主通道失败，尝试后备通道（SenseNova）
+                # 主通道失败，尝试后备通道（SenseNova，推理模型需给足 max_tokens）
                 try:
                     from app.core.llm_fallback import chat_completions
+                    fb_max_tokens = int(os.environ.get('LLM_FALLBACK_MAX_TOKENS', '4096'))
                     fb_content, _src = chat_completions(
                         [{"role": "user", "content": prompt}],
                         temperature=self.temperature,
-                        max_tokens=self.max_tokens_short,
+                        max_tokens=fb_max_tokens,
                         timeout=180,
                     )
                     if fb_content:
