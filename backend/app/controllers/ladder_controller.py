@@ -370,10 +370,17 @@ class LadderController(BaseController):
             def format_keywords(items):
                 if not items:
                     return '（无数据）'
-                return "\n".join([
-                    f"- {item['keyword']}（出现{item['count']}次）"
-                    for item in items
-                ])
+                # 兼容两种输入：前端传入的字符串数组 ["人工智能","机器人"]
+                # 或库内聚合的字典列表 [{"keyword":"人工智能","count":5}]
+                lines = []
+                for item in items:
+                    if isinstance(item, dict):
+                        kw = item.get('keyword') or ''
+                        cnt = item.get('count', 1)
+                        lines.append(f"- {kw}（出现{cnt}次）")
+                    else:
+                        lines.append(f"- {item}（出现1次）")
+                return "\n".join(lines)
 
             # 近三个交易日（含当日，倒序：[当日, 前1日, 前2日]）
             recent_days = trade_calendar.get_recent_trading_days(3, end_date=trade_date)
@@ -507,6 +514,8 @@ class LadderController(BaseController):
             })
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return self.error(f'AI 分析失败: {str(e)}', 500)
 
     def get_keyword_analysis(self, date_str: str):
