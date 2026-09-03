@@ -198,10 +198,18 @@ class DataFetcher:
                 price = float(q.get('price', 0) or 0)
                 prev_close = float(q.get('last_close', 0) or 0)
 
-                # 竞价/未成交时段 mootdx 返回 price=0：用昨收价占位显示，
-                # 避免前端出现 "0.00 / -100%" 这类不合理数值（涨跌幅随之归 0）
-                if price <= 0 and prev_close > 0:
-                    price = prev_close
+                # 竞价时段（9:15-9:25）mootdx 的 price 字段为 0，但五档盘口有
+                # 竞价挂单参考价。此时用买一价（无则卖一价）作为最新价显示；
+                # 无盘口价再退昨收，避免出现 "0.00 / -100%"。
+                if price <= 0:
+                    bid1 = float(q.get('bid1', 0) or 0)
+                    ask1 = float(q.get('ask1', 0) or 0)
+                    if bid1 > 0:
+                        price = bid1
+                    elif ask1 > 0:
+                        price = ask1
+                    elif prev_close > 0:
+                        price = prev_close
                 
                 volatility = None
                 turnover = None
