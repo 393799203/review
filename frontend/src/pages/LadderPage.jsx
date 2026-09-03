@@ -11,6 +11,7 @@ import StockAnalysisModal from '../components/StockAnalysisModal';
 import PremiumTrendModal from '../components/PremiumTrendModal';
 import MarketAlertBar from '../components/MarketAlertBar';
 import BrokenBoardTicker from '../components/BrokenBoardTicker';
+import IndexVolumeBar from '../components/IndexVolumeBar';
 import ComparableStockModal from '../components/ComparableStockModal';
 
 // AI 归并关键词趋势颜色：增强=红，新发=蓝，衰退=绿，平稳=灰
@@ -1985,6 +1986,7 @@ const LadderPage = () => {
   return (
     <>
       <MarketAlertBar />
+      <IndexVolumeBar />
       {showAnnouncement && (
         <div
           style={{
