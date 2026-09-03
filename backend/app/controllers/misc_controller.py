@@ -141,10 +141,11 @@ class MiscController(BaseController):
             return self.error(str(e), 500)
 
     def get_index_volume(self):
-        """沪深创三大指数成交量与全天预测"""
+        """沪深创三大指数成交量与全天预测（date 可选，历史日期返回实际值）"""
         try:
             from app.core.market_index import get_index_volume_data
-            data = get_index_volume_data()
+            date_str = self.get_query_param('date', '')
+            data = get_index_volume_data(date_str or None)
             return self.success(data=data)
         except Exception as e:
             return self.error(str(e), 500)

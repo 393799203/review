@@ -110,16 +110,18 @@ def _yesterday_same_time_ratio(client, code: str, today: str) -> Optional[float]
     return None
 
 
-def get_index_volume_data() -> Dict:
+def get_index_volume_data(date_str: str = None) -> Dict:
     """
     返回三指数成交量数据：
+    - date_str 为空或为今天：盘中实时累计 + 预测全天
+    - date_str 为历史交易日：返回该日实际成交额 + 前一交易日对比（不预测）
     {
       'items': [
         {'code','name','short','price','volume','amount',
          'yesterday_amount','predicted_amount','predicted_change_pct','progress','trading'},
         ...
       ],
-      'trading': bool, 'date': 'YYYY-MM-DD'
+      'trading': bool, 'date': 'YYYY-MM-DD', 'is_history': bool
     }
     """
     try:
@@ -131,6 +133,17 @@ def get_index_volume_data() -> Dict:
     progress = _trading_progress(now)
     today = now.strftime('%Y-%m-%d')
 
+    # 传入的历史日期：YYYYMMDD 或 YYYY-MM-DD 归一化
+    is_history = False
+    target_date = today
+    if date_str:
+        ds = str(date_str).replace('-', '')
+        if len(ds) == 8:
+            target_date = f"{ds[0:4]}-{ds[4:6]}-{ds[6:8]}"
+            if target_date != today:
+                is_history = True
+                progress = 1.0  # 历史日视为已收盘
+
     items: List[Dict] = []
     for idx in INDEXES:
         item = {
@@ -140,41 +153,57 @@ def get_index_volume_data() -> Dict:
             'price': None,
             'volume': None,           # 当日累计成交量(手)
             'amount': None,           # 当日累计成交额(元)
-            'yesterday_amount': None, # 昨日全天成交额(元)
-            'predicted_amount': None, # 预测全天成交额(元)
-            'predicted_change_pct': None,  # 预测全天较昨日增减%
+            'yesterday_amount': None, # 前一交易日全天成交额(元)
+            'predicted_amount': None, # 预测全天成交额(元)，历史日=当日实际
+            'predicted_change_pct': None,  # 较前一交易日增减%
             'progress': progress,
-            'trading': progress is not None and 0 < progress < 1,
+            'trading': not is_history and progress is not None and 0 < progress < 1,
+            'is_history': is_history,
         }
         try:
             client = Quotes.factory(market=idx['market'])
-
-            # 1. 当日累计量
-            q = client.quotes(symbol=[idx['code']])
-            if q is not None and not q.empty:
-                r = q.iloc[0]
-                item['price'] = float(r.get('price') or 0)
-                item['volume'] = float(r.get('vol') or 0)
-                item['amount'] = float(r.get('amount') or 0)
-
-            # 2. 昨日全天成交额（指数日线，取最近一个 < today 的交易日）
             daily = client.index(symbol=idx['code'])
-            if daily is not None and not daily.empty:
-                df = daily
-                # 计算昨日：取 date < today 的最后一行
-                past = df[df['datetime'].astype(str) < today]
-                if not past.empty:
-                    row = past.iloc[-1]
-                    item['yesterday_amount'] = float(row.get('amount') or 0)
 
-            # 3. 预测全天：优先用"昨日同时刻成交量占比"折算（更贴近日内分布），
-            #    拿不到昨日分时则回退线性时间进度
-            if item['amount']:
-                same_ratio = _yesterday_same_time_ratio(client, idx['code'], today)
-                if same_ratio and same_ratio > 0:
-                    item['predicted_amount'] = item['amount'] / same_ratio
-                elif progress and progress > 0:
-                    item['predicted_amount'] = item['amount'] / progress
+            if is_history:
+                # 历史日：从日线取 target_date 当天与前一交易日
+                if daily is not None and not daily.empty:
+                    df = daily
+                    day_rows = df[df['datetime'].astype(str) >= target_date]
+                    if not day_rows.empty:
+                        row = day_rows.iloc[0]
+                        item['price'] = float(row.get('close') or 0)
+                        item['volume'] = float(row.get('vol') or 0)
+                        item['amount'] = float(row.get('amount') or 0)
+                    prev = df[df['datetime'].astype(str) < target_date]
+                    if not prev.empty:
+                        item['yesterday_amount'] = float(prev.iloc[-1].get('amount') or 0)
+                    item['predicted_amount'] = item['amount']  # 历史已定
+            else:
+                # 1. 当日累计量
+                q = client.quotes(symbol=[idx['code']])
+                if q is not None and not q.empty:
+                    r = q.iloc[0]
+                    item['price'] = float(r.get('price') or 0)
+                    item['volume'] = float(r.get('vol') or 0)
+                    item['amount'] = float(r.get('amount') or 0)
+
+                # 2. 前一交易日全天成交额（指数日线，取最近一个 < today 的交易日）
+                if daily is not None and not daily.empty:
+                    df = daily
+                    past = df[df['datetime'].astype(str) < today]
+                    if not past.empty:
+                        row = past.iloc[-1]
+                        item['yesterday_amount'] = float(row.get('amount') or 0)
+
+                # 3. 预测全天：优先用"昨日同时刻成交量占比"折算（更贴近日内分布），
+                #    拿不到昨日分时则回退线性时间进度
+                if item['amount']:
+                    same_ratio = _yesterday_same_time_ratio(client, idx['code'], today)
+                    if same_ratio and same_ratio > 0:
+                        item['predicted_amount'] = item['amount'] / same_ratio
+                    elif progress and progress > 0:
+                        item['predicted_amount'] = item['amount'] / progress
+
             if (item['predicted_amount'] and item['yesterday_amount']
                     and item['yesterday_amount'] > 0):
                 item['predicted_change_pct'] = (
@@ -188,6 +217,7 @@ def get_index_volume_data() -> Dict:
 
     return {
         'items': items,
-        'trading': progress is not None and 0 < progress < 1,
-        'date': today,
+        'trading': not is_history and progress is not None and 0 < progress < 1,
+        'date': target_date,
+        'is_history': is_history,
     }

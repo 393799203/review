@@ -138,7 +138,7 @@ export const stockApi = {
   },
   
   getMarketAlertsHistory: (params) => api.get('/market-alerts/history', { params }),
-  getIndexVolume: () => api.get('/market/index-volume'),
+  getIndexVolume: (date) => api.get('/market/index-volume', { params: date ? { date } : {} }),
 
   getKeywordAnalysis: (dateStr) => api.get(`/keyword-analysis/${dateStr}`),
 

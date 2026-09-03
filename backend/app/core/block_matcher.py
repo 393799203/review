@@ -25,6 +25,14 @@ def is_pure_topic_block(block_name: str) -> bool:
     return True
 
 
+# 题材关键词补强：bge 对部分细分题材关联不足（如"液冷硅油"→"液冷服务器"），
+# 命中核心词时给对应板块相似度加成，避免被整句稀释/被近似词抢走。
+# 每项: (关键词列表, 目标板块名, 提升后的最低相似度)
+KEYWORD_BOOST = [
+    (['液冷', '液冷硅油', '液冷板', '液冷服务器'], '液冷服务器', 0.75),
+]
+
+
 def block_strength(block: Dict, max_limit: int, max_change: float, max_cont: int) -> float:
     """板块当日强度（0~1）：涨停数 60% + 涨跌幅 25% + 连板家数 15%"""
     limit = float(block.get('limit_up_num') or 0)
@@ -150,9 +158,19 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
     if not _ensure_block_vecs(names):
         return None  # embedding 不可用
 
-    # 2. 个股 reason 向量（缓存）
-    sv = _ensure_reason_vec(reason_text)
-    if sv is None:
+    # 2. 个股 reason 向量（缓存）。
+    #    多关键词原因(如"液冷硅油+新能源胶+PCB三防漆")整句向量会被稀释，
+    #    把核心词(液冷硅油)冲淡导致匹配不到液冷服务器。因此将原因按分隔符
+    #    拆成子关键词，整句与各子词分别向量化，逐板块取最高相似度。
+    import re as _re
+    parts = [p.strip() for p in _re.split(r'[+\s]+', reason_text) if p.strip()]
+    vec_texts = [reason_text] + [p for p in parts if p != reason_text]
+    vecs = []
+    for t in vec_texts:
+        sv = _ensure_reason_vec(t)
+        if sv is not None:
+            vecs.append(sv)
+    if not vecs:
         return None
 
     # 3. 全量板块余弦 × 强度（numpy 向量化：一次矩阵乘法替代逐板块 Python 循环）
@@ -170,7 +188,17 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
         [_block_vec_cache[b['block_name']] for b in topic_blocks],
         dtype=np.float32,
     )  # (K, 512)，已归一化
-    sims = mat @ np.array(sv, dtype=np.float32)  # (K,) 余弦
+    sims = None
+    for sv in vecs:
+        s = mat @ np.array(sv, dtype=np.float32)  # (K,) 余弦
+        sims = s if sims is None else np.maximum(sims, s)  # 逐板块取最高
+
+    # 题材关键词补强：命中核心关键词时对目标板块相似度加成
+    for kws, boost_block, min_sim in KEYWORD_BOOST:
+        if any(kw in reason_text for kw in kws):
+            for i, b in enumerate(topic_blocks):
+                if b.get('block_name') == boost_block:
+                    sims[i] = max(float(sims[i]), min_sim)
 
     hit_idx = np.where(sims >= VEC_SIM_THRESHOLD)[0]
     if len(hit_idx) == 0:
@@ -182,7 +210,7 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
     # 才用强度加权 score 决胜。避免"高 sim 但当日无表现的板块"被
     # 强度加权反超（如 零售0.673 vs 数字经济0.527，数字经济靠强度翻盘）。
     max_sim = float(sims[hit_idx].max())
-    tie_window = 0.03
+    tie_window = 0.01  # 仅当 sim 几乎并列(差≤0.01)时才用强度加权决胜
 
     best = None
     for i in hit_idx:

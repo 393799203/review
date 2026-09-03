@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { stockApi } from '../services/api';
 
 /**
- * 沪深创三大指数成交量 + 全天预测
- * 显示: 指数名 | 当前成交额 | 预测较昨日增减(+XX亿/-XX亿) | 右侧合计统计
- * 数据来源: GET /api/market/index-volume（mootdx）
- * 刷新: 跟随天梯页 refreshKey（天梯自动/手动刷新时同步更新）
+ * 沪深创三大指数成交量 + 全天预测（紧凑单行，自适应换行）
+ * 数据来源: GET /api/market/index-volume?date=YYYYMMDD（mootdx）
+ * 跟随所选日期: 传入 currentDate，历史日期返回该日实际成交额
+ * 刷新: 跟随天梯页 refreshKey，盘中每 60s 兜底刷新
  */
-const IndexVolumeBar = ({ refreshKey = 0 }) => {
+const RED = '#f5222d';
+const GREEN = '#52c41a';
+const GRAY = '#8c8c8c';
+
+const IndexVolumeBar = ({ refreshKey = 0, currentDate = '' }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -16,7 +20,7 @@ const IndexVolumeBar = ({ refreshKey = 0 }) => {
     let cancelled = false;
     const load = async () => {
       try {
-        const response = await stockApi.getIndexVolume();
+        const response = await stockApi.getIndexVolume(currentDate);
         if (!cancelled && response.data?.success) {
           setData(response.data.data || null);
           setError('');
@@ -28,15 +32,13 @@ const IndexVolumeBar = ({ refreshKey = 0 }) => {
       }
     };
     load();
-    // 盘中每 60s 兜底刷新一次（天梯刷新周期可能较长）
     const timer = setInterval(load, 60000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [refreshKey]);
+  }, [refreshKey, currentDate]);
 
-  if (loading) return null;
-  if (!data || !data.items || data.items.length === 0) {
-    return error ? null : null;
-  }
+  if (loading && !data) return null;
+  if (error && !data) return null;
+  if (!data || !data.items || data.items.length === 0) return null;
 
   const fmtAmount = (v) => {
     if (v == null) return '--';
@@ -45,102 +47,94 @@ const IndexVolumeBar = ({ refreshKey = 0 }) => {
     return yi.toFixed(0) + '亿';
   };
 
-  // 增减金额：预测全天 - 昨日全天，显示 +XX亿 / -XX亿
-  const fmtAmountChange = (it) => {
-    const pred = it.predicted_amount;
-    const yest = it.yesterday_amount;
-    if (pred == null || yest == null) return '';
-    const dif = pred - yest;
-    const yi = dif / 1e8;
+  const fmtChange = (v) => {
+    if (v == null) return '--';
+    const yi = v / 1e8;
     const sign = yi > 0 ? '+' : (yi < 0 ? '-' : '');
     const abs = Math.abs(yi);
     const text = abs >= 10000 ? (abs / 10000).toFixed(2) + '万亿' : abs.toFixed(0) + '亿';
     return `${sign}${text}`;
   };
 
-  const pctColor = (v) => {
-    if (v == null) return '#999';
-    return v >= 0 ? '#f5222d' : '#52c41a';
+  const trading = !!data.trading;
+  const isHistory = !!data.is_history;
+  const changeLabel = isHistory ? '较前日' : trading ? '预测' : '较昨日';
+
+  const sum = (k) => data.items.reduce((s, it) => s + (it[k] || 0), 0);
+  const cur = sum('amount');
+  const pred = sum('predicted_amount');
+  const yest = sum('yesterday_amount');
+  const dif = pred - yest;
+  const target = 25000e8; // 2.5万亿
+  const gap = target - pred;
+  const gapYi = gap / 1e8;
+  const over = gapYi <= 0;
+  const caution = pred < target;
+  const diffText = `${dif >= 0 ? '+' : ''}${(dif / 1e8).toFixed(0)}亿`;
+  const gapText = over ? `超2.5万亿 ${(-gapYi).toFixed(0)}亿` : `距2.5万亿 ${gapYi.toFixed(0)}亿`;
+
+  const statusBadge = () => {
+    if (isHistory) {
+      return <span style={badgeStyle(GRAY, '#f5f5f5')}>历史</span>;
+    }
+    if (trading) {
+      return (
+        <span style={{ ...badgeStyle(RED, '#fff1f0'), display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: RED }} />
+          盘中
+        </span>
+      );
+    }
+    return <span style={badgeStyle(GRAY, '#f5f5f5')}>已收盘</span>;
   };
 
-  const changeColor = (it) => {
-    const dif = (it.predicted_amount ?? 0) - (it.yesterday_amount ?? 0);
-    if (it.predicted_amount == null || it.yesterday_amount == null) return '#999';
-    return dif >= 0 ? '#f5222d' : '#52c41a';
+  const badgeStyle = (color, bg) => ({
+    fontSize: 11, color, background: bg, padding: '1px 8px', borderRadius: 12,
+    fontWeight: 600, whiteSpace: 'nowrap', lineHeight: '18px',
+  });
+
+  const renderItem = (it) => {
+    const hasChange = it.predicted_amount != null && it.yesterday_amount != null;
+    const diff = (it.predicted_amount ?? 0) - (it.yesterday_amount ?? 0);
+    const change = fmtChange(hasChange ? diff : null);
+    return (
+      <div key={it.code} style={{ display: 'flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap' }}>
+        <span style={{ fontWeight: 600, color: '#333' }}>{it.short}</span>
+        <span style={{ fontWeight: 700, color: '#262626' }}>{fmtAmount(it.amount)}</span>
+        <span style={{ fontWeight: 600, color: hasChange ? (diff >= 0 ? RED : GREEN) : GRAY }}>
+          {hasChange ? `${changeLabel} ${change}` : '待开盘'}
+        </span>
+      </div>
+    );
   };
 
   return (
     <div style={{
-      display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      gap: '6px 16px',
-      marginBottom: 12,
-      padding: '8px 12px',
-      background: '#fff',
-      borderRadius: 8,
-      border: '1px solid #f0f0f0',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-      fontSize: 12,
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+      gap: '4px 14px', padding: '6px 12px', marginBottom: 12,
+      background: '#fff', borderRadius: 8, border: '1px solid #f0f0f0',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)', fontSize: 12, lineHeight: '22px',
     }}>
-      <span style={{ color: '#595959', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#1f2329' }}>
+        <span style={{ width: 3, height: 14, borderRadius: 2, background: 'linear-gradient(180deg,#f5222d,#fa8c16)' }} />
         指数成交
       </span>
-      {data.items.map((it) => (
-        <div key={it.code} style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}>
-          <span style={{ color: '#333', fontWeight: 600 }}>{it.short}</span>
-          <span style={{ color: '#595959' }}>{fmtAmount(it.amount)}</span>
-          {it.predicted_amount != null && it.yesterday_amount != null ? (
-            <span style={{ color: changeColor(it), fontWeight: 600 }}>
-              {data.trading ? '预测' : ''}{fmtAmountChange(it)}
+      <span style={badgeStyle('#595959', '#f5f5f5')}>{data.date}</span>
+      {statusBadge()}
+
+      {data.items.map(renderItem)}
+
+      {!!cur && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px 12px', marginLeft: 'auto', whiteSpace: 'nowrap', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, color: '#262626' }}>合计 {fmtAmount(cur)}</span>
+          <span style={{ fontWeight: 600, color: dif >= 0 ? RED : GREEN }}>{isHistory ? '较前日' : '较昨日'} {diffText}</span>
+          <span style={{ color: over ? RED : '#595959', fontWeight: over ? 700 : 400 }}>{gapText}</span>
+          {caution && (
+            <span style={{ color: RED, fontWeight: 700, background: '#fff1f0', padding: '0 6px', borderRadius: 4 }}>
+              ⚠️ 谨慎
             </span>
-          ) : (
-            <span style={{ color: '#bfbfbf' }}>待开盘</span>
           )}
         </div>
-      ))}
-
-      {(() => {
-        // 右侧合计统计：三大指数合计 + 预测全天较昨日 + 距2万亿
-        const sum = (key) => data.items.reduce((s, it) => s + (it[key] || 0), 0);
-        const cur = sum('amount');
-        const pred = sum('predicted_amount');
-        const yest = sum('yesterday_amount');
-        if (!cur) return null;
-        const dif = pred - yest;
-        const target = 25000e8; // 2.5万亿
-        const gap = target - pred; // 还差多少（元）
-        const gapYi = gap / 1e8;
-        const difYi = dif / 1e8;
-        // 用户规则：预测全天合计低于2.5万亿时提示谨慎；达到/超过则不提示
-        const caution = pred < target;
-        const over = gapYi <= 0;
-        const diffText = `${difYi > 0 ? '+' : ''}${difYi.toFixed(0)}亿`;
-        const gapText = over
-          ? `超2.5万亿 ${(-gapYi).toFixed(0)}亿`
-          : `距2.5万亿 ${gapYi.toFixed(0)}亿`;
-        return (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginLeft: 'auto', whiteSpace: 'nowrap', fontSize: 12 }}>
-            <span style={{ color: '#333', fontWeight: 600 }}>
-              合计 {fmtAmount(cur)}
-            </span>
-            <span style={{ color: dif >= 0 ? '#f5222d' : '#52c41a', fontWeight: 600 }}>
-              较昨日 {diffText}
-            </span>
-            <span style={{ color: over ? '#f5222d' : '#595959', fontWeight: over ? 700 : 400 }}>
-              {gapText}
-            </span>
-            {caution && (
-              <span style={{ color: '#f5222d', fontWeight: 700, background: '#fff1f0', padding: '1px 6px', borderRadius: 4 }}>
-                ⚠️ 谨慎
-              </span>
-            )}
-          </div>
-        );
-      })()}
-
-      {!data.trading && data.items[0]?.progress === 1 && (
-        <span style={{ color: '#999', marginLeft: 'auto' }}>已收盘</span>
       )}
     </div>
   );
