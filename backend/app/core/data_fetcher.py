@@ -197,6 +197,11 @@ class DataFetcher:
                 q = quotes.iloc[0]
                 price = float(q.get('price', 0) or 0)
                 prev_close = float(q.get('last_close', 0) or 0)
+
+                # 竞价/未成交时段 mootdx 返回 price=0：用昨收价占位显示，
+                # 避免前端出现 "0.00 / -100%" 这类不合理数值（涨跌幅随之归 0）
+                if price <= 0 and prev_close > 0:
+                    price = prev_close
                 
                 volatility = None
                 turnover = None
@@ -239,8 +244,8 @@ class DataFetcher:
                     'low': float(q.get('low', 0) or 0),
                     'volume': float(q.get('vol', 0) or 0),
                     'amount': float(q.get('amount', 0) or 0),
-                    'change_amount': price - prev_close if price and prev_close else 0,
-                    'change_percent': ((price - prev_close) / prev_close * 100) if prev_close else 0,
+                    'change_amount': (price - prev_close) if price and prev_close else 0,
+                    'change_percent': ((price - prev_close) / prev_close * 100) if price and prev_close else 0,
                     'volatility': round(volatility, 2) if volatility else None,
                     'turnover': round(turnover, 2) if turnover else None,
                     'total_mv': round(total_mv, 2) if total_mv else None,
@@ -510,6 +515,7 @@ class DataFetcher:
                 return None
             
             intraday_data = []
+            last_valid_price = 0  # 竞价/无成交点的价格占位（沿用上一有效价）
             for idx, row in minutes.iterrows():
                 if idx < 120:
                     hour = 9 + (30 + idx) // 60
@@ -518,9 +524,15 @@ class DataFetcher:
                     hour = 13 + (idx - 120) // 60
                     minute = (idx - 120) % 60
                 
+                p = float(row.get('price', 0) or 0)
+                if p <= 0:
+                    p = last_valid_price if last_valid_price > 0 else 0
+                else:
+                    last_valid_price = p
+
                 intraday_data.append({
                     'time': f"{hour:02d}:{minute:02d}",
-                    'price': float(row.get('price', 0) or 0),
+                    'price': p,
                     'volume': float(row.get('vol', 0) or 0),
                 })
             
