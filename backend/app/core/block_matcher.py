@@ -139,6 +139,12 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
     if not blocks or not reason_text:
         return None
 
+    # "+" 是同花顺涨停原因的常规分隔符，向量化前规范化为空格，
+    # 避免把 "+" 当作字符参与语义匹配（如 连锁零售+新零售+半年报增长）
+    reason_text = reason_text.replace('+', ' ').strip()
+    if not reason_text:
+        return None
+
     # 1. 补齐缺失板块的向量
     names = [b.get('block_name') or '' for b in blocks]
     if not _ensure_block_vecs(names):
@@ -171,13 +177,20 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
         return None
 
     max_limit, max_change, max_cont = strength_basis(blocks)
+
+    # 语义主导：先取相似度最高分；仅当其他板块与最高分差距很小(≤0.03)时，
+    # 才用强度加权 score 决胜。避免"高 sim 但当日无表现的板块"被
+    # 强度加权反超（如 零售0.673 vs 数字经济0.527，数字经济靠强度翻盘）。
+    max_sim = float(sims[hit_idx].max())
+    tie_window = 0.03
+
     best = None
     for i in hit_idx:
         b = topic_blocks[int(i)]
         sim = float(sims[i])
+        if sim < max_sim - tie_window:
+            continue  # 语义差距明显，不参与强度竞争
         strength = block_strength(b, max_limit, max_change, max_cont)
-        # 语义相似度为主，强度仅作小幅加权：sim×(0.5+0.5×strength)。
-        # 避免"当日无表现的语义匹配板块(如零售)"因 strength=0 被 score 归零淘汰。
         score = sim * (0.5 + 0.5 * strength)
         if best is None or score > best['score']:
             result = _to_result(
