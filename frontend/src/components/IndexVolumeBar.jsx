@@ -108,11 +108,12 @@ const IndexVolumeBar = ({ refreshKey = 0 }) => {
         const yest = sum('yesterday_amount');
         if (!cur) return null;
         const dif = pred - yest;
-        const target = 25000e8; // 2.5万亿 谨慎阈值
+        const target = 25000e8; // 2.5万亿
         const gap = target - pred; // 还差多少（元）
         const gapYi = gap / 1e8;
         const difYi = dif / 1e8;
-        const close = gapYi > 0 && gapYi <= 2500; // 距2.5万亿不足2500亿提示谨慎
+        // 用户规则：预测全天合计低于2.5万亿时提示谨慎；达到/超过则不提示
+        const caution = pred < target;
         const over = gapYi <= 0;
         const diffText = `${difYi > 0 ? '+' : ''}${difYi.toFixed(0)}亿`;
         const gapText = over
@@ -129,7 +130,7 @@ const IndexVolumeBar = ({ refreshKey = 0 }) => {
             <span style={{ color: over ? '#f5222d' : '#595959', fontWeight: over ? 700 : 400 }}>
               {gapText}
             </span>
-            {(close || over) && (
+            {caution && (
               <span style={{ color: '#f5222d', fontWeight: 700, background: '#fff1f0', padding: '1px 6px', borderRadius: 4 }}>
                 ⚠️ 谨慎
               </span>
