@@ -183,6 +183,7 @@ const MainLayout = ({ children }) => {
   const isLatestDate = currentDate === latestDate;
   const isLadderPage = location.pathname === '/';
   const isHotStocksPage = location.pathname === '/hot-stocks';
+  const isScreeningPage = location.pathname === '/screening';
 
   const renderHeaderRight = () => {
     const isWatchlistPage = location.pathname === '/watchlist';
@@ -292,30 +293,34 @@ const MainLayout = ({ children }) => {
               />
             </>
           )}
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={getRefreshHandler()}
-            loading={loading}
-          />
-
-          <Popover
-            content={settingsContent}
-            title="设置"
-            trigger="click"
-            placement="bottomRight"
-            open={autoRefresh && popoverVisible}
-            onOpenChange={setPopoverVisible}
-          >
-            <Switch
-              checked={autoRefresh}
-              onChange={handleAutoRefreshChange}
+          {!isScreeningPage && (
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
               size="small"
-              checkedChildren="自"
-              unCheckedChildren="自"
+              onClick={getRefreshHandler()}
+              loading={loading}
             />
-          </Popover>
+          )}
+
+          {!isScreeningPage && (
+            <Popover
+              content={settingsContent}
+              title="设置"
+              trigger="click"
+              placement="bottomRight"
+              open={autoRefresh && popoverVisible}
+              onOpenChange={setPopoverVisible}
+            >
+              <Switch
+                checked={autoRefresh}
+                onChange={handleAutoRefreshChange}
+                size="small"
+                checkedChildren="自"
+                unCheckedChildren="自"
+              />
+            </Popover>
+          )}
         </div>
       );
     }
@@ -356,25 +361,29 @@ const MainLayout = ({ children }) => {
           </>
         )}
 
-        <Button type="primary" icon={<ReloadOutlined />} onClick={getRefreshHandler()}>
-          {isWatchlistPage ? '更新价格' : '刷新数据'}
-        </Button>
+        {!isScreeningPage && (
+          <>
+            <Button type="primary" icon={<ReloadOutlined />} onClick={getRefreshHandler()}>
+              {isWatchlistPage ? '更新价格' : '刷新数据'}
+            </Button>
 
-        <Popover
-          content={settingsContent}
-          title="设置"
-          trigger="click"
-          placement="bottomRight"
-          open={autoRefresh && popoverVisible}
-          onOpenChange={setPopoverVisible}
-        >
-          <Switch
-            checked={autoRefresh}
-            onChange={handleAutoRefreshChange}
-            checkedChildren="自动"
-            unCheckedChildren="手动"
-          />
-        </Popover>
+            <Popover
+              content={settingsContent}
+              title="设置"
+              trigger="click"
+              placement="bottomRight"
+              open={autoRefresh && popoverVisible}
+              onOpenChange={setPopoverVisible}
+            >
+              <Switch
+                checked={autoRefresh}
+                onChange={handleAutoRefreshChange}
+                checkedChildren="自动"
+                unCheckedChildren="手动"
+              />
+            </Popover>
+          </>
+        )}
       </div>
     );
   };
@@ -440,7 +449,9 @@ const MainLayout = ({ children }) => {
             overflowX: 'auto',
           }}
         >
-          {allMenuItems.filter(item => item.type !== 'divider').map(item => (
+          {allMenuItems
+            .filter(item => item.type !== 'divider' && item.key !== '/statistics')
+            .map(item => (
             <div
               key={item.key}
               onClick={() => navigate(item.key)}
