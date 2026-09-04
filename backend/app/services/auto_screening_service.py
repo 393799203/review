@@ -27,13 +27,19 @@ class AutoScreeningRepository(BaseRepository):
         finally:
             session.close()
 
-    def get_recent_logs(self, user_id: str, limit: int = 10) -> list:
+    def get_recent_logs(self, user_id: str, strategy: str = 'bottom', limit: int = 10) -> list:
         from sqlalchemy import desc
         session = self.create_session()
         try:
-            return session.query(AutoScreeningLog).filter(
+            q = session.query(AutoScreeningLog).filter(
                 AutoScreeningLog.user_id == user_id
-            ).order_by(desc(AutoScreeningLog.run_date), desc(AutoScreeningLog.id)).limit(limit).all()
+            )
+            # 有 strategy 列时按策略过滤；旧库列不存在/为空时回退为全部日志
+            try:
+                q = q.filter(AutoScreeningLog.strategy == (strategy or 'bottom'))
+            except Exception:
+                pass
+            return q.order_by(desc(AutoScreeningLog.run_date), desc(AutoScreeningLog.id)).limit(limit).all()
         finally:
             session.close()
 
@@ -87,11 +93,12 @@ class AutoScreeningService(BaseService):
         except Exception as e:
             return False, str(e)
 
-    def get_recent_logs(self, user_id: str, limit: int = 10) -> Tuple[bool, str, Optional[list]]:
+    def get_recent_logs(self, user_id: str, strategy: str = 'bottom', limit: int = 10) -> Tuple[bool, str, Optional[list]]:
         try:
-            logs = self.auto_repo.get_recent_logs(user_id, limit)
+            logs = self.auto_repo.get_recent_logs(user_id, strategy, limit)
             return True, '获取成功', [{
                 'run_date': log.run_date.strftime('%Y-%m-%d') if log.run_date else '',
+                'strategy': getattr(log, 'strategy', None) or strategy or 'bottom',
                 'added_count': log.added_count,
                 'skipped_count': log.skipped_count,
                 'error_message': log.error_message or '',

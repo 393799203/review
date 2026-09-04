@@ -82,7 +82,7 @@ export const stockApi = {
 
   saveAutoScreeningConfig: (data) => api.put('/auto-screening/config', data),
 
-  getAutoScreeningLogs: () => api.get('/auto-screening/logs'),
+  getAutoScreeningLogs: (strategy) => api.get('/auto-screening/logs', { params: { strategy } }),
 
   runAutoScreeningNow: (strategy) => api.post('/auto-screening/run-now', { strategy }, { timeout: 120000 }),
 

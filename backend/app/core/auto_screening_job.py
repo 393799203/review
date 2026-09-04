@@ -22,10 +22,11 @@ _done_dates = set()
 _lock = threading.Lock()
 
 
-def _save_log(session, user_id, run_date, added=0, skipped=0, error=None):
+def _save_log(session, user_id, run_date, strategy='bottom', added=0, skipped=0, error=None):
     from models import AutoScreeningLog
     session.add(AutoScreeningLog(
         user_id=user_id,
+        strategy=strategy or 'bottom',
         run_date=run_date,
         added_count=added,
         skipped_count=skipped,
@@ -41,6 +42,7 @@ def _run_for_user(cfg, session):
 
     user_id = cfg.user_id
     run_date = date.today()
+    strategy = cfg.strategy or 'bottom'
 
     params = {}
     try:
@@ -48,11 +50,11 @@ def _run_for_user(cfg, session):
     except (ValueError, TypeError):
         params = {}
     params['date'] = run_date.strftime('%Y%m%d')
-    params['strategy'] = cfg.strategy or 'bottom'
+    params['strategy'] = strategy
 
     ok, msg, data = ScreeningService().run_screening(params)
     if not ok or not data:
-        _save_log(session, user_id, run_date, error=msg or '筛选无结果')
+        _save_log(session, user_id, run_date, strategy=strategy, error=msg or '筛选无结果')
         return
 
     wsvc = WatchlistService()
@@ -85,7 +87,6 @@ def _run_for_user(cfg, session):
             except Exception:
                 signal_date = None
 
-        strategy = cfg.strategy or 'bottom'
         add_reason = '突破放量' if strategy == 'breakout' else '抄底放量'
 
         try:
@@ -109,8 +110,8 @@ def _run_for_user(cfg, session):
         except Exception:
             skipped += 1
 
-    _save_log(session, user_id, run_date, added=added, skipped=skipped)
-    print(f"🤖 自动筛选完成 user={user_id} 新增{added} 跳过{skipped}")
+    _save_log(session, user_id, run_date, strategy=strategy, added=added, skipped=skipped)
+    print(f"🤖 自动筛选完成 user={user_id} strategy={strategy} 新增{added} 跳过{skipped}")
 
 
 def _cleanup_expired():
@@ -158,7 +159,8 @@ def _execute_once():
             except Exception as e:
                 print(f"✗ 自动筛选失败 user={cfg.user_id}: {e}")
                 try:
-                    _save_log(session, cfg.user_id, date.today(), error=str(e)[:500])
+                    _save_log(session, cfg.user_id, date.today(),
+                              strategy=cfg.strategy or 'bottom', error=str(e)[:500])
                 except Exception:
                     pass
     finally:

@@ -39,12 +39,13 @@ class AutoScreeningController(BaseController):
         return self.error(message, 400)
 
     def get_logs(self):
-        """获取当前用户自动筛选执行日志"""
+        """获取当前用户某策略的自动筛选执行日志（按策略隔离）"""
         user_id = self.get_current_user_uid()
         if not user_id:
             return self.error('未提供用户ID', 401)
+        strategy = str(self.get_query_param('strategy', 'bottom'))
         limit = int(self.get_query_param('limit', 10))
-        success, message, data = self.auto_service.get_recent_logs(user_id, limit)
+        success, message, data = self.auto_service.get_recent_logs(user_id, strategy, limit)
         if success:
             return self.success(data)
         return self.error(message, 500)

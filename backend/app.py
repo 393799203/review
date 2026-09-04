@@ -626,7 +626,9 @@ if __name__ == '__main__':
     # 初始化同花顺会话
     init_ths_session()
     # 启动每日自动筛选调度（每天 19:00）
+    # 显式关闭 reloader（use_reloader=False）保证单进程：否则 debug 模式会 fork 出
+    # 父子双进程，调度线程各跑一次，导致 19:00 重复执行（一条"新增"+一条"跳过"日志）。
     from app.core.auto_screening_job import start_scheduler
     start_scheduler()
     # 启动应用
-    app.run(host='0.0.0.0', port=5001, debug=True, threaded=True)
+    app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False, threaded=True)

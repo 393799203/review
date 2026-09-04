@@ -66,7 +66,7 @@ const ScreeningPage = () => {
         if (response.data.success) {
           setAutoEnabled(response.data.data?.enabled || false);
         }
-        const logsResponse = await stockApi.getAutoScreeningLogs();
+        const logsResponse = await stockApi.getAutoScreeningLogs(strategy);
         if (logsResponse.data.success) {
           setAutoLogs(logsResponse.data.data || []);
         }
@@ -192,7 +192,7 @@ const ScreeningPage = () => {
       const response = await stockApi.runAutoScreeningNow(strategy);
       if (response.data.success) {
         message.success('执行完成，已加入自选');
-        const logsResponse = await stockApi.getAutoScreeningLogs();
+        const logsResponse = await stockApi.getAutoScreeningLogs(strategy);
         if (logsResponse.data.success) {
           setAutoLogs(logsResponse.data.data || []);
         }

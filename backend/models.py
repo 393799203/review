@@ -387,10 +387,12 @@ class AutoScreeningLog(Base):
     __tablename__ = 'auto_screening_logs'
     __table_args__ = (
         Index('idx_auto_screening_user_date', 'user_id', 'run_date'),
+        Index('idx_auto_screening_user_strategy_date', 'user_id', 'strategy', 'run_date'),
     )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(String(36), ForeignKey('users.uid'), nullable=False)
+    strategy = Column(String(20), default='bottom')  # bottom=抄底放量 / breakout=突破放量
     run_date = Column(Date, nullable=False)
     added_count = Column(Integer, default=0)
     skipped_count = Column(Integer, default=0)

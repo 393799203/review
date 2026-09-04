@@ -420,6 +420,7 @@ COMMENT ON TABLE auto_screening_config IS '每日19:00自动筛选开关配置�
 CREATE TABLE IF NOT EXISTS auto_screening_logs (
     id SERIAL PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL REFERENCES users(uid),
+    strategy VARCHAR(20) NOT NULL DEFAULT 'bottom',  -- bottom=抄底放量 / breakout=突破放量
     run_date DATE NOT NULL,
     added_count INTEGER NOT NULL DEFAULT 0,
     skipped_count INTEGER NOT NULL DEFAULT 0,
@@ -428,4 +429,6 @@ CREATE TABLE IF NOT EXISTS auto_screening_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_auto_screening_user_date
     ON auto_screening_logs (user_id, run_date);
-COMMENT ON TABLE auto_screening_logs IS '每日自动筛选执行日志';
+CREATE INDEX IF NOT EXISTS idx_auto_screening_user_strategy_date
+    ON auto_screening_logs (user_id, strategy, run_date);
+COMMENT ON TABLE auto_screening_logs IS '每日自动筛选执行日志（按策略隔离）';
