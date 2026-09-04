@@ -129,7 +129,7 @@ docker run --rm --network host --env-file /opt/stock-review/tdx_daily/.env \
 
 | 事项 | 说明 |
 |---|---|
-| 自动筛选 | backend 内置调度，每天 19:00（RUN_HOUR=19），页面可开关/立即执行 |
+| 自动筛选 | backend 内置调度，每天 19:00（RUN_HOUR=19），页面可开关 |
 | 行情更新 | cron 周一至五 18:03 tdx-daily 增量；日志 `/opt/TDX_daily/logs/cron.log` |
 | 同花顺会话 | backend 自动心跳保活 |
 | 重启 | `cd /opt/stock-review && docker compose restart` |

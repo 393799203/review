@@ -55,7 +55,6 @@ const ScreeningPage = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
-  const [autoRunning, setAutoRunning] = useState(false);
   const [autoLogs, setAutoLogs] = useState([]);
 
   // 加载每日自动筛选配置（按当前策略分别读取/显示各自开关）
@@ -183,27 +182,6 @@ const ScreeningPage = () => {
     form.setFieldsValue({
       vol_window: value === 'bottom' ? BOTTOM_DEFAULT_PARAMS.vol_window : BREAKOUT_DEFAULT_PARAMS.vol_window,
     });
-  };
-
-  // 手动立即执行一次（当前策略）
-  const handleRunNow = async () => {
-    setAutoRunning(true);
-    try {
-      const response = await stockApi.runAutoScreeningNow(strategy);
-      if (response.data.success) {
-        message.success('执行完成，已加入自选');
-        const logsResponse = await stockApi.getAutoScreeningLogs(strategy);
-        if (logsResponse.data.success) {
-          setAutoLogs(logsResponse.data.data || []);
-        }
-      } else {
-        message.error(response.data.error || '执行失败');
-      }
-    } catch (error) {
-      message.error('执行失败：' + (error.response?.data?.error || error.message));
-    } finally {
-      setAutoRunning(false);
-    }
   };
 
   const handleRun = async (values) => {
@@ -582,9 +560,6 @@ const ScreeningPage = () => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-                  <Button size="small" onClick={handleRunNow} loading={autoRunning} style={{ flexShrink: 0 }}>
-                    立即执行
-                  </Button>
                   <Switch checked={autoEnabled} onChange={handleAutoToggle} loading={autoSaving} size="small" />
                 </div>
               </div>

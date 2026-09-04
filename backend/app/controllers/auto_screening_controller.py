@@ -50,36 +50,5 @@ class AutoScreeningController(BaseController):
             return self.success(data)
         return self.error(message, 500)
 
-    def run_now(self):
-        """手动立即执行一次自动筛选（当前用户 + 指定策略）"""
-        user_id = self.get_current_user_uid()
-        if not user_id:
-            return self.error('未提供用户ID', 401)
-        data = self.get_json_data()
-        strategy = str(data.get('strategy', 'bottom'))
-        try:
-            from database import get_db_session
-            from models import AutoScreeningConfig
-            session = get_db_session()
-            try:
-                cfg = session.query(AutoScreeningConfig).filter(
-                    AutoScreeningConfig.user_id == user_id,
-                    AutoScreeningConfig.strategy == strategy,
-                ).first()
-                if cfg is None:
-                    cfg = AutoScreeningConfig(
-                        user_id=user_id, strategy=strategy,
-                        enabled=1, params=None,
-                    )
-                    session.add(cfg)
-                    session.commit()
-                from app.core.auto_screening_job import _run_for_user
-                _run_for_user(cfg, session)
-            finally:
-                session.close()
-            return self.success(message='执行完成，请到自选股查看')
-        except Exception as e:
-            return self.error(f'执行失败: {e}', 500)
-
 
 auto_screening_controller = AutoScreeningController()

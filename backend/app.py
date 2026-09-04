@@ -610,13 +610,6 @@ def get_auto_screening_logs():
     return auto_screening_controller.get_logs()
 
 
-@app.route('/api/auto-screening/run-now', methods=['POST'])
-@login_required
-def run_auto_screening_now():
-    """手动立即执行一次自动筛选"""
-    return auto_screening_controller.run_now()
-
-
 
 # ==================== 其他路由（待重构） ====================
 # 这里会逐步添加其他模块的路由

@@ -84,8 +84,6 @@ export const stockApi = {
 
   getAutoScreeningLogs: (strategy) => api.get('/auto-screening/logs', { params: { strategy } }),
 
-  runAutoScreeningNow: (strategy) => api.post('/auto-screening/run-now', { strategy }, { timeout: 120000 }),
-
   updateWatchlistPrices: () => api.post('/watchlist/update-prices'),
 
   buyStock: (data) => api.post('/watchlist/buy', data),
