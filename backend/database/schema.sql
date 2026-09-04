@@ -403,7 +403,7 @@ CREATE TABLE IF NOT EXISTS keyword_analysis (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_keyword_analysis_trade_date UNIQUE (trade_date)
 );
-COMMENT ON TABLE keyword_analysis IS '每日涨停关键词AI归并分析缓存';
+COMMENT ON TABLE keyword_analysis IS '每日涨停关键词归并分析缓存';
 
 -- 每日自动筛选配置表（每策略一个开关：user_id + strategy）
 CREATE TABLE IF NOT EXISTS auto_screening_config (

@@ -268,7 +268,7 @@ class HotTopicAnalysisResult(Base):
 
 
 class KeywordAnalysis(Base):
-    """涨停关键词AI归并分析缓存表"""
+    """涨停关键词归并分析缓存表"""
     __tablename__ = 'keyword_analysis'
     __table_args__ = (
         Index('idx_ka_trade_date', 'trade_date', unique=True),

@@ -401,62 +401,62 @@ const LadderPage = () => {
     if (isMobile) {
       return (
         <div style={{ marginBottom: 12 }}>
-          <Row gutter={[8, 8]}>
-            <Col span={8}>
-              <Card size="small" styles={{ body: { padding: '10px 6px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
+          <Row gutter={0}>
+            <Col span={4}>
+              <Card size="small" styles={{ body: { padding: '8px 2px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)' }}>涨停总数</div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>
                     {statistics.total_count || 0}
                   </div>
                 </div>
               </Card>
             </Col>
-            <Col span={8}>
-              <Card size="small" styles={{ body: { padding: '10px 6px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'}}>
+            <Col span={4}>
+              <Card size="small" styles={{ body: { padding: '8px 2px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'}}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)' }}>首板</div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>
                     {statistics.first_board || 0}
                   </div>
                 </div>
               </Card>
             </Col>
-            <Col span={8}>
-              <Card size="small" styles={{ body: { padding: '10px 6px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'}}>
+            <Col span={4}>
+              <Card size="small" styles={{ body: { padding: '8px 2px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'}}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)' }}>2连板</div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>
                     {statistics.second_board || 0}
                   </div>
                 </div>
               </Card>
             </Col>
-            <Col span={8}>
-              <Card size="small" styles={{ body: { padding: '10px 6px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'}}>
+            <Col span={4}>
+              <Card size="small" styles={{ body: { padding: '8px 2px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'}}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)' }}>3连板</div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>
                     {statistics.third_board || 0}
                   </div>
                 </div>
               </Card>
             </Col>
-            <Col span={8}>
-              <Card size="small" styles={{ body: { padding: '10px 6px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'}}>
+            <Col span={4}>
+              <Card size="small" styles={{ body: { padding: '8px 2px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'}}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)' }}>4连板</div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>
                     {statistics.fourth_board || 0}
                   </div>
                 </div>
               </Card>
             </Col>
-            <Col span={8}>
-              <Card size="small" styles={{ body: { padding: '10px 6px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)'}}>
+            <Col span={4}>
+              <Card size="small" styles={{ body: { padding: '8px 2px' } }} style={{...cardStyle, background: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)'}}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.9)' }}>5连板+</div>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>
                     {statistics.fifth_plus_board || 0}
                   </div>
                 </div>
@@ -1217,7 +1217,7 @@ const LadderPage = () => {
         </div>
 
         <div style={{ marginBottom: isMobile ? 8 : 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: isMobile ? 50 : 84, lineHeight: '24px', flexShrink: 0 }}>{isMobile ? 'AI归并：' : '关键词AI归并：'}</span>
+          <span style={{ fontSize: isMobile ? 12 : 13, color: '#666', minWidth: isMobile ? 50 : 84, lineHeight: '24px', flexShrink: 0 }}>{isMobile ? '归并：' : '关键词归并：'}</span>
           {/* 控制组：分析按钮 + 展开/收起，固定同一行靠右 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, height: 24, marginLeft: 'auto', order: isMobile ? 2 : 3 }}>
             <Button
