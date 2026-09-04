@@ -14,7 +14,7 @@ import BrokenBoardTicker from '../components/BrokenBoardTicker';
 import IndexVolumeBar from '../components/IndexVolumeBar';
 import ComparableStockModal from '../components/ComparableStockModal';
 
-// AI 归并关键词趋势颜色：增强=红，新发=蓝，衰退=绿，平稳=灰
+// 关键词归并趋势颜色：增强=红，新发=蓝，衰退=绿，平稳=灰
 const TREND_TAG_COLORS = { '增强': 'red', '新发': 'blue', '衰退': 'green', '平稳': 'default' };
 const TREND_BADGE_COLORS = { '增强': '#cf1322', '新发': '#1890ff', '衰退': '#389e0d', '平稳': '#8c8c8c' };
 
@@ -1227,7 +1227,7 @@ const LadderPage = () => {
               onClick={() => setAiKeywordModalVisible(true)}
               style={{ fontSize: 12, padding: 0, color: '#13c2c2' }}
             >
-              {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行 AI 分析'}
+              {aiKeywordResult?.merged_keywords?.length > 0 ? '重新分析' : '点击进行归并分析'}
             </Button>
             {aiKeywordResult?.merged_keywords?.length > (isMobile ? 12 : 20) && (
               <Tag
@@ -1879,7 +1879,7 @@ const LadderPage = () => {
       <Modal
         title={
           <Space>
-            <span>涨停关键词 AI 分析</span>
+            <span>涨停关键词归并分析</span>
             <Tag color="blue">
               {currentDate ? dayjs(currentDate, 'YYYYMMDD').format('MM月DD日') : ''}
             </Tag>

@@ -519,7 +519,7 @@ class LadderController(BaseController):
             return self.error(f'AI 分析失败: {str(e)}', 500)
 
     def get_keyword_analysis(self, date_str: str):
-        """获取关键词 AI 分析缓存"""
+        """获取关键词归并分析缓存"""
         try:
             trade_date = datetime.strptime(date_str, '%Y%m%d').date()
 

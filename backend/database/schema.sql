@@ -392,7 +392,7 @@ COMMENT ON TABLE market_alerts IS '市场动态消息表';
 COMMENT ON COLUMN market_alerts.alert_type IS '告警类型(limit_up/break板/回封)';
 COMMENT ON COLUMN market_alerts.status IS '状态(close/open/new/reclose)';
 
--- 关键词 AI 分析缓存表（每日涨停关键词归并分析结果）
+-- 关键词归并分析缓存表（每日涨停关键词归并分析结果）
 CREATE TABLE IF NOT EXISTS keyword_analysis (
     id SERIAL PRIMARY KEY,
     trade_date DATE NOT NULL,

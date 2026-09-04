@@ -215,7 +215,7 @@ def update_stock_block():
 
 @app.route('/api/keyword-analysis/<date_str>', methods=['GET'])
 def get_keyword_analysis(date_str):
-    """获取关键词 AI 分析缓存"""
+    """获取关键词归并分析缓存"""
     return ladder_controller.get_keyword_analysis(date_str)
 
 
