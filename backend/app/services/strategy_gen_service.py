@@ -18,7 +18,7 @@ from app.core.llm_client import LLMClient
 # 数据环境说明（固定写入 system prompt，与 TDX 库实际结构保持一致）
 DATA_ENV_DOC = """PostgreSQL，连接串从环境变量 DB_URL 读取（psycopg2 + pandas，pd.read_sql），schema 为 tdx：
 - tdx.raw_stocks_daily(symbol, date, open, high, low, close, amount, volume)；symbol 形如 'sh600519'/'sz000001'/'bj920238'；volume 单位是「手」（1 手 = 100 股）
-- tdx.raw_stocks_basic(date, symbol, close, preclose, change_pct, amplitude, turnover, floatmv, totalmv)；change_pct/turnover/amplitude 为百分比数值；floatmv/totalmv 单位万元
+- tdx.raw_stocks_basic(date, symbol, close, preclose, change_pct, amplitude, turnover, floatmv, totalmv)；change_pct/turnover/amplitude 为百分比数值；floatmv/totalmv 单位为元（实测；茅台 12.5亿股×1330元≈1.66e12 与 totalmv 值一致）
 - tdx.v_hfq_daily / tdx.v_qfq_daily / tdx.v_bfq_daily：后复权/前复权/不复权日线视图（含 OHLC、preclose、turnover 等）。回测用 v_hfq_daily 避免未来函数；qfq 以最新日为基准
 - tdx.dim_sw_industry(symbol, code, name, market, sw1_code, sw1_name, sw2_code, sw2_name, sw3_code, sw3_name, start_date, end_date, is_latest)：申万行业维表，含历史归属（is_latest=1 为当前）
 - tdx.v_sw_industry_daily(date, sw1_code, sw1_name, sw2_code, sw2_name, stock_count, avg_change_pct)：行业日聚合，sw2_code 为 NULL 的行是申万一级"""

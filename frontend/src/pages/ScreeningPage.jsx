@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Form, DatePicker, InputNumber, Button, Table, Card, message, Empty, Row, Col, Space, Tooltip, Tag, Switch, Collapse, Checkbox } from 'antd';
-import { SearchOutlined, PlusOutlined, SlidersOutlined } from '@ant-design/icons';
+import { Form, DatePicker, InputNumber, Button, Table, Card, message, Empty, Row, Col, Space, Tooltip, Tag, Switch, Collapse, Checkbox, Select } from 'antd';
+import { SearchOutlined, PlusOutlined, MinusCircleOutlined, SlidersOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { stockApi } from '../services/api';
 import { useGlobal } from '../contexts/GlobalContext';
@@ -27,6 +27,49 @@ const BOTTOM_DEFAULT_PARAMS = {
   cv_max: 0.5,
   day1_change_min: 3,
 };
+
+// 因子条件候选（2026-09-05 精简：核心技术 14 个 + 基本面 12 个，其余已删）
+const FACTOR_OPTIONS = [
+  { value: 'vol_cv20', label: 'vol_cv20 量能变异系数(低波)' },
+  { value: 'corr_pv20', label: 'corr_pv20 量价相关性' },
+  { value: 'vol_pos20', label: 'vol_pos20 量能位置' },
+  { value: 'vr20', label: 'vr20 量比(20日)' },
+  { value: 'vr10', label: 'vr10 量比(10日)' },
+  { value: 'vol_trend', label: 'vol_trend 量能趋势' },
+  { value: 'vpt', label: 'vpt 量价趋势' },
+  { value: 'cmf20', label: 'cmf20 蔡金资金流' },
+  { value: 'mfi14', label: 'mfi14 资金流量' },
+  { value: 'mom60', label: 'mom60 长期动量(反向)' },
+  { value: 'mom20', label: 'mom20 动量' },
+  { value: 'dif', label: 'dif MACD快线' },
+  { value: 'dea', label: 'dea MACD信号线' },
+  { value: 'rsi24', label: 'rsi24 RSI' },
+];
+
+const FACTOR_OP_OPTIONS = [
+  { value: 'lt', label: '<' },
+  { value: 'le', label: '≤' },
+  { value: 'gt', label: '>' },
+  { value: 'ge', label: '≥' },
+  { value: 'eq', label: '=' },
+  { value: 'ne', label: '≠' },
+];
+
+// 基本面因子（calc_fundamental_standalone.py 计算，point-in-time 最新快照）
+const FUNDAMENTAL_OPTIONS = [
+  { value: 'pe', label: 'pe 市盈率' },
+  { value: 'pb', label: 'pb 市净率' },
+  { value: 'ps', label: 'ps 市销率' },
+  { value: 'pcf', label: 'pcf 市现率' },
+  { value: 'roe', label: 'roe 净资产收益率' },
+  { value: 'roa', label: 'roa 总资产收益率' },
+  { value: 'net_margin', label: 'net_margin 净利率' },
+  { value: 'op_margin', label: 'op_margin 主营利润率' },
+  { value: 'debt_ratio', label: 'debt_ratio 资产负债率' },
+  { value: 'cf_quality', label: 'cf_quality 盈利含金量' },
+  { value: 'ar_ratio', label: 'ar_ratio 应收占比' },
+  { value: 'inv_ratio', label: 'inv_ratio 存货占比' },
+];
 
 const DEFAULT_PARAMS = { ...BREAKOUT_DEFAULT_PARAMS, ...BOTTOM_DEFAULT_PARAMS };
 
@@ -147,6 +190,8 @@ const ScreeningPage = () => {
         params.close_window = values.close_window;
         params.close_ratio = values.close_ratio;
       }
+      const ffs = extractFactorFilters(values.factor_filters);
+      if (ffs.length > 0) params.factor_filters = ffs;
       const response = await stockApi.saveAutoScreeningConfig({
         enabled: checked,
         strategy,
@@ -228,6 +273,14 @@ const ScreeningPage = () => {
     });
   };
 
+  // 提取完整的因子条件（丢弃未填完的行）
+  const extractFactorFilters = (raw) => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((f) => f && f.factor && f.value !== undefined && f.value !== null && f.value !== '')
+      .map((f) => ({ factor: f.factor, op: f.op || 'lt', value: Number(f.value) }));
+  };
+
   const handleRun = async (values) => {
     setLoading(true);
     setSelectedRowKeys([]);
@@ -252,6 +305,8 @@ const ScreeningPage = () => {
         params.close_window = values.close_window;
         params.close_ratio = values.close_ratio;
       }
+      const ffs = extractFactorFilters(values.factor_filters);
+      if (ffs.length > 0) params.factor_filters = ffs;
       const response = await stockApi.runScreening(params);
       if (response.data.success) {
         setResults(response.data.data || []);
@@ -589,6 +644,70 @@ const ScreeningPage = () => {
     </>
   );
 
+  // 因子条件构建块（可选，作用于策略结果之上）
+  const factorFilterBlock = (
+    <Form.Item label="因子条件（可选）" style={{ marginBottom: 4 }}>
+      <Form.List name="factor_filters">
+        {(fields, { add, remove }) => (
+          <>
+            {fields.map((field) => (
+              <div key={field.key} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6, width: '100%' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Form.Item name={[field.name, 'factor']} noStyle rules={[{ required: true, message: '选因子' }]}>
+                    <Select
+                      placeholder="因子"
+                      style={{ width: '100%' }}
+                      showSearch
+                      optionFilterProp="label"
+                    >
+                      <Select.OptGroup label="技术面（14）">
+                        {FACTOR_OPTIONS.map((o) => (
+                          <Select.Option key={o.value} value={o.value} label={o.label}>{o.label}</Select.Option>
+                        ))}
+                      </Select.OptGroup>
+                      <Select.OptGroup label="基本面（12）">
+                        {FUNDAMENTAL_OPTIONS.map((o) => (
+                          <Select.Option key={o.value} value={o.value} label={o.label}>{o.label}</Select.Option>
+                        ))}
+                      </Select.OptGroup>
+                    </Select>
+                  </Form.Item>
+                </div>
+                <div style={{ width: 54, flexShrink: 0 }}>
+                  <Form.Item name={[field.name, 'op']} noStyle initialValue="lt">
+                    <Select style={{ width: '100%' }} options={FACTOR_OP_OPTIONS} />
+                  </Form.Item>
+                </div>
+                <div style={{ width: 84, flexShrink: 0 }}>
+                  <Form.Item name={[field.name, 'value']} noStyle rules={[{ required: true, message: '阈值' }]}>
+                    <InputNumber placeholder="阈值" style={{ width: '100%' }} />
+                  </Form.Item>
+                </div>
+                <Button
+                  type="text"
+                  htmlType="button"
+                  size="small"
+                  icon={<MinusCircleOutlined />}
+                  onClick={() => remove(field.name)}
+                  style={{ color: '#999', flexShrink: 0 }}
+                />
+              </div>
+            ))}
+            <Button
+              type="dashed"
+              block
+              icon={<PlusOutlined />}
+              onClick={() => add({ op: 'lt' })}
+              style={{ fontSize: 12, marginBottom: 4 }}
+            >
+              添加因子条件
+            </Button>
+          </>
+        )}
+      </Form.List>
+    </Form.Item>
+  );
+
   // 每日自动筛选开关块
   const autoScreeningBlock = (
     <div style={{ marginBottom: isMobile ? 0 : 12, padding: '8px 10px', background: '#fafafa', borderRadius: 6 }}>
@@ -716,6 +835,7 @@ const ScreeningPage = () => {
                       <InputNumber className="screening-field" style={{ width: '100%' }} min={1} precision={0} />
                     </Form.Item>
                     {strategyParamFields}
+                    {factorFilterBlock}
                   </Panel>
                 </Collapse>
                 {autoScreeningBlock}
@@ -726,6 +846,7 @@ const ScreeningPage = () => {
                   <InputNumber className="screening-field" style={{ width: '100%' }} min={1} precision={0} />
                 </Form.Item>
                 {strategyParamFields}
+                {factorFilterBlock}
                 {autoScreeningBlock}
                 <Form.Item style={{ marginBottom: 0 }}>
                   <Button

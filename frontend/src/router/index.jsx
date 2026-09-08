@@ -14,6 +14,7 @@ import AuthPage from '../pages/AuthPage';
 import FAQPage from '../pages/FAQPage';
 import FeaturesPage from '../pages/FeaturesPage';
 import ScreeningPage from '../pages/ScreeningPage';
+import FactorResearchPage from '../pages/FactorResearchPage';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -104,6 +105,7 @@ const AppRouter = () => {
                       <Route path="/reports" element={<ReportPage />} />
                       <Route path="/hot-stocks" element={<HotStocksPage />} />
                       <Route path="/screening" element={<ScreeningPage />} />
+                      <Route path="/factor-research" element={<FactorResearchPage />} />
                       <Route 
                         path="/user" 
                         element={

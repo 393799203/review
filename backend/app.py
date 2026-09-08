@@ -50,6 +50,8 @@ from app.controllers.weixin_controller import weixin_controller
 from app.controllers.comparable_controller import comparable_controller
 from app.controllers.strategy_controller import strategy_controller
 from app.controllers.screening_controller import screening_controller
+from app.controllers.factor_research_controller import factor_research_controller
+from app.controllers.backtest_controller import backtest_controller
 from app.controllers.strategy_gen_controller import strategy_gen_controller
 from app.controllers.auto_screening_controller import auto_screening_controller
 from app.utils.decorators import login_required
@@ -574,6 +576,39 @@ def get_screening_dates():
 def run_screening():
     """执行量化筛选"""
     return screening_controller.run_screening()
+
+
+
+# ==================== 因子研究路由（数据由 tdx_daily eval --save 落库） ====================
+
+@app.route('/api/factor-research/meta', methods=['GET'])
+@login_required
+def factor_research_meta():
+    """因子评估元信息：持有期、因子列表、最近评估时间"""
+    return factor_research_controller.get_meta()
+
+
+@app.route('/api/factor-research/summary', methods=['GET'])
+@login_required
+def factor_research_summary():
+    """某持有期的因子 IC/IR 汇总表"""
+    return factor_research_controller.get_summary()
+
+
+@app.route('/api/factor-research/ic-series', methods=['GET'])
+@login_required
+def factor_research_ic_series():
+    """某因子的逐日 IC 时间序列"""
+    return factor_research_controller.get_ic_series()
+
+
+# ==================== 组合回测路由 ====================
+
+@app.route('/api/backtest/run', methods=['POST'])
+@login_required
+def backtest_run():
+    """多因子组合回测：打分 → top N% 持仓 → T+1 开盘 → 再平衡"""
+    return backtest_controller.run()
 
 
 

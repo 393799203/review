@@ -2,7 +2,8 @@
 """
 TDX_daily 每日更新统一入口（纯 Python，不依赖 Go / tdx2db）。
 
-默认顺序（对齐原项目 cron 主干）：日线 → GBBQ → calc_basic → calc_factor → 复权视图 →（可选）分时。
+默认顺序（对齐原项目 cron 主干）：日线 → GBBQ → calc_basic → calc_factor → 复权视图 →
+技术指标/量价因子（calc_indicator）→（可选）分时。
 
 用法:
   cd /path/to/TDX_daily && source .venv/bin/activate
@@ -52,8 +53,11 @@ def main() -> int:
     p.add_argument("--skip-basic", action="store_true")
     p.add_argument("--skip-factor", action="store_true")
     p.add_argument("--skip-views", action="store_true")
+    p.add_argument("--skip-indicators", action="store_true", help="跳过技术指标/量价因子计算")
+    p.add_argument("--skip-fundamental", action="store_true", help="跳过财务快照同步与基本面因子计算")
     p.add_argument("--full-basic", action="store_true", help="calc_basic --full")
     p.add_argument("--full-factor", action="store_true", help="calc_factor --full")
+    p.add_argument("--full-indicators", action="store_true", help="calc_indicator --full")
     p.add_argument("--recent-days", type=int, default=None)
     p.add_argument("--min-date", type=str, default=None)
     p.add_argument("--max-date", type=str, default=None)
@@ -120,6 +124,18 @@ def main() -> int:
 
     if not args.skip_views:
         if run("create_adj_views_standalone.py", []) != 0:
+            return 1
+
+    if not args.skip_indicators:
+        iargs = ["--full"] if args.full_indicators else []
+        if run("calc_indicator_standalone.py", iargs) != 0:
+            return 1
+
+    if not args.skip_fundamental:
+        # 财务快照同步（mootdx 全市场约 6 秒，按 updated_date 保留历史）+ 基本面因子重算
+        if run("sync_fundamental_standalone.py", []) != 0:
+            return 1
+        if run("calc_fundamental_standalone.py", []) != 0:
             return 1
 
     if args.minline:

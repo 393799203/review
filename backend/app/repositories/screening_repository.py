@@ -66,6 +66,13 @@ class ScreeningRepository:
         max_window = max(prev_high_days, vol_window, close_window)
         start_date = trade_date - timedelta(days=max_window * 2 + 30)
 
+        # 因子条件（列名已由 service 白名单校验）：fi."col" op :ff_val_i
+        ff = params.get('factor_filters') or []
+        factor_where_sql = ""
+        if ff:
+            clauses = [f'fi."{f}" {op} :ff_val_{i}' for i, (f, op, _v) in enumerate(ff)]
+            factor_where_sql = " AND " + " AND ".join(clauses)
+
         sql = text(f"""
             WITH hist AS (
                 SELECT
@@ -134,6 +141,8 @@ class ScreeningRepository:
             FROM hist h
             LEFT JOIN tdx.dim_sw_industry i
                 ON i.symbol = h.symbol AND i.is_latest = 1
+            LEFT JOIN tdx.raw_stock_indicators fi
+                ON fi.symbol = h.symbol AND fi.date = h.date
             LEFT JOIN ind i1
                 ON i1.sw1_code = i.sw1_code AND i1.sw2_code IS NULL
             LEFT JOIN ind i2
@@ -150,20 +159,24 @@ class ScreeningRepository:
               AND h.volume <= (1 + :vol_pct_max / 100.0) * h.avg_vol
               AND h.ma_close IS NOT NULL AND h.ma_close > 0
               AND h.close <= :close_ratio * h.ma_close
+              {factor_where_sql}
             ORDER BY h.change_pct DESC
         """)
 
+        bind = {
+            'trade_date': trade_date,
+            'start_date': start_date,
+            'turnover_min': params['turnover_min'],
+            'upper_shadow_max': params['upper_shadow_max'],
+            'prev_high_coef': params['prev_high_coef'],
+            'vol_pct': params['vol_pct'],
+            'vol_pct_max': params['vol_pct_max'],
+            'close_ratio': params['close_ratio'],
+        }
+        for i, (_f, _op, v) in enumerate(ff):
+            bind[f'ff_val_{i}'] = v
         with self.engine.connect() as conn:
-            rows = conn.execute(sql, {
-                'trade_date': trade_date,
-                'start_date': start_date,
-                'turnover_min': params['turnover_min'],
-                'upper_shadow_max': params['upper_shadow_max'],
-                'prev_high_coef': params['prev_high_coef'],
-                'vol_pct': params['vol_pct'],
-                'vol_pct_max': params['vol_pct_max'],
-                'close_ratio': params['close_ratio'],
-            }).mappings().fetchall()
+            rows = conn.execute(sql, bind).mappings().fetchall()
 
         return self._rows_to_result(rows)
 
@@ -187,6 +200,13 @@ class ScreeningRepository:
 
         # 历史数据下界：vol_window 个交易日前高 + 3 天观察期，按 2 倍交易日->自然日放宽再加 40 天余量
         start_date = trade_date - timedelta(days=vol_window * 2 + 40)
+
+        # 因子条件（列名已由 service 白名单校验）：fi."col" op :ff_val_i，作用于信号日 D
+        ff = params.get('factor_filters') or []
+        factor_where_sql = ""
+        if ff:
+            clauses = [f'fi."{f}" {op} :ff_val_{i}' for i, (f, op, _v) in enumerate(ff)]
+            factor_where_sql = " AND " + " AND ".join(clauses)
 
         sql = text(f"""
             WITH hist AS (
@@ -293,24 +313,30 @@ class ScreeningRepository:
             FROM picked p
             LEFT JOIN tdx.dim_sw_industry i
                 ON i.symbol = p.symbol AND i.is_latest = 1
+            LEFT JOIN tdx.raw_stock_indicators fi
+                ON fi.symbol = p.symbol AND fi.date = p.date
             LEFT JOIN ind i1
                 ON i1.sw1_code = i.sw1_code AND i1.sw2_code IS NULL
             LEFT JOIN ind i2
                 ON i2.sw1_code = i.sw1_code AND i2.sw2_code = i.sw2_code
             WHERE (i.name IS NULL OR i.name NOT LIKE '%ST%')
+              {factor_where_sql}
             ORDER BY p.change_pct DESC
         """)
 
+        bind = {
+            'trade_date': trade_date,
+            'start_date': start_date,
+            'vol_window': vol_window,
+            'day1_mult': params['day1_mult'],
+            'day23_mult': params['day23_mult'],
+            'cv_max': params['cv_max'],
+            'day1_change_min': params['day1_change_min'],
+        }
+        for i, (_f, _op, v) in enumerate(ff):
+            bind[f'ff_val_{i}'] = v
         with self.engine.connect() as conn:
-            rows = conn.execute(sql, {
-                'trade_date': trade_date,
-                'start_date': start_date,
-                'vol_window': vol_window,
-                'day1_mult': params['day1_mult'],
-                'day23_mult': params['day23_mult'],
-                'cv_max': params['cv_max'],
-                'day1_change_min': params['day1_change_min'],
-            }).mappings().fetchall()
+            rows = conn.execute(sql, bind).mappings().fetchall()
 
         return self._rows_to_result(rows)
 

@@ -72,6 +72,23 @@ BOTTOM_DEFAULT_PARAMS = {
 
 STRATEGIES = ('bottom', 'breakout')
 
+# 因子条件白名单（对应 tdx.raw_stock_indicators 的列；2026-09-05 已精简为
+# 数据达标核心 14 个技术因子 + 12 个基本面因子，其余 33 个已删列）
+FACTOR_COLUMNS = (
+    # 核心技术：dif, dea, mom20, mom60, rsi24, vr10, vr20, vol_trend,
+    # vol_cv20, vol_pos20, corr_pv20, vpt, cmf20, mfi14
+    'dif', 'dea', 'mom20', 'mom60', 'rsi24', 'vr10', 'vr20', 'vol_trend',
+    'vol_cv20', 'vol_pos20', 'corr_pv20', 'vpt', 'cmf20', 'mfi14',
+    # 基本面（calc_fundamental_standalone.py 计算，point-in-time 最新快照）
+    'pe', 'pb', 'ps', 'pcf', 'roe', 'roa', 'net_margin', 'op_margin',
+    'debt_ratio', 'cf_quality', 'ar_ratio', 'inv_ratio',
+)
+
+# 因子比较算子（前端传 lt/le/gt/ge/eq/ne）
+FACTOR_OPS = {
+    'lt': '<', 'le': '<=', 'gt': '>', 'ge': '>=', 'eq': '=', 'ne': '<>',
+}
+
 
 class ScreeningService:
     """量化筛选服务类"""
@@ -120,14 +137,16 @@ class ScreeningService:
 
         repository = self._create_repository()
         try:
+            factor_filters = self._normalize_factor_filters(payload)
             if strategy == 'bottom':
-                data = repository.run_bottom_screening(
-                    self._normalize_bottom_params(payload, trade_date)
-                )
+                params = self._normalize_bottom_params(payload, trade_date)
             else:
-                data = repository.run_screening(
-                    self._normalize_breakout_params(payload, trade_date)
-                )
+                params = self._normalize_breakout_params(payload, trade_date)
+            params['factor_filters'] = factor_filters
+            if strategy == 'bottom':
+                data = repository.run_bottom_screening(params)
+            else:
+                data = repository.run_screening(params)
             # 规则打分卡：为每条结果计算 ml_score（0~100）
             for row in (data or []):
                 row['ml_score'] = scorer.score(row, strategy)
@@ -211,6 +230,35 @@ class ScreeningService:
                 row['concept_block_info'] = trend_list[0] if trend_list else None
         except Exception as e:
             print(f'⚠️ 富化概念板块失败: {e}')
+
+    def _normalize_factor_filters(self, payload: Dict) -> list:
+        """
+        归一化因子条件：payload 中 factor_filters 形如
+        [{"factor": "div20", "op": "lt", "value": -0.2}, ...]
+
+        Returns:
+            list: [(列名, SQL算子, 绑定值), ...]（列名已白名单校验，可直接进 SQL 标识符）
+        """
+        raw = payload.get('factor_filters') or []
+        if not isinstance(raw, list):
+            raise ValueError('factor_filters 必须为数组')
+        filters = []
+        for item in raw:
+            if not isinstance(item, dict):
+                raise ValueError('factor_filters 元素必须为对象 {"factor","op","value"}')
+            factor = str(item.get('factor', '')).strip()
+            op = str(item.get('op', '')).strip().lower()
+            value = item.get('value')
+            if factor not in FACTOR_COLUMNS:
+                raise ValueError(f'不支持的因子列: {factor}')
+            if op not in FACTOR_OPS:
+                raise ValueError(f'不支持的算子: {op}（可选 {" ".join(FACTOR_OPS)}）')
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                raise ValueError(f'因子 {factor} 的阈值必须为数值')
+            filters.append((factor, FACTOR_OPS[op], value))
+        return filters
 
     def _normalize_breakout_params(self, payload: Dict, trade_date) -> Dict:
         """归一化"突破放量"策略参数"""

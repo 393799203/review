@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, DatePicker, Button, Switch, Select, Popover, Avatar, Divider, message, Radio, Space } from 'antd';
-import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, FilterOutlined } from '@ant-design/icons';
+import { StockOutlined, StarOutlined, BarChartOutlined, ReloadOutlined, UserOutlined, LogoutOutlined, LoginOutlined, NotificationOutlined, FileTextOutlined, TeamOutlined, HeartOutlined, AppstoreOutlined, RiseOutlined, FallOutlined, FireOutlined, FilterOutlined, LineChartOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal } from '../contexts/GlobalContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,6 +70,7 @@ const MainLayout = ({ children }) => {
       '/reports': 'reports',
       '/hot-stocks': 'hot-stocks',
       '/screening': 'screening',
+      '/factor-research': 'factor-research',
     };
 
     const page = pageMap[location.pathname] || 'ladder';
@@ -139,6 +140,11 @@ const MainLayout = ({ children }) => {
       key: '/watchlist',
       icon: <StarOutlined />,
       label: '自选回溯',
+    },
+    {
+      key: '/factor-research',
+      icon: <LineChartOutlined />,
+      label: '因子研究',
     },
     {
       key: '/statistics',
@@ -450,7 +456,7 @@ const MainLayout = ({ children }) => {
           }}
         >
           {allMenuItems
-            .filter(item => item.type !== 'divider' && item.key !== '/statistics')
+            .filter(item => item.type !== 'divider' && item.key !== '/statistics' && item.key !== '/factor-research')
             .map(item => (
             <div
               key={item.key}

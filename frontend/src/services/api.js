@@ -84,6 +84,14 @@ export const stockApi = {
 
   getAutoScreeningLogs: (strategy) => api.get('/auto-screening/logs', { params: { strategy } }),
 
+  getFactorResearchMeta: () => api.get('/factor-research/meta'),
+
+  getFactorResearchSummary: (horizon) => api.get('/factor-research/summary', { params: { horizon } }),
+
+  getFactorResearchIcSeries: (factor, horizon) => api.get('/factor-research/ic-series', { params: { factor, horizon } }),
+
+  runBacktest: (data) => api.post('/backtest/run', data, { timeout: 180000 }),
+
   updateWatchlistPrices: () => api.post('/watchlist/update-prices'),
 
   buyStock: (data) => api.post('/watchlist/buy', data),
