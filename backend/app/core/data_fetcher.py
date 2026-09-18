@@ -186,14 +186,61 @@ class DataFetcher:
     
     def get_realtime_quote(self, stock_code: str) -> Optional[Dict]:
         """
-        获取单只股票的实时行情（使用mootdx）
+        获取单只股票的实时行情（使用mootdx,通达信 quotes 失效时回退新浪 HTTP 行情）
         """
         try:
             print(f"从mootdx获取 {stock_code} 实时行情...")
             
             quotes = self.mootdx_client.quotes(symbol=[stock_code])
             
-            if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
+            if quotes is None or not hasattr(quotes, 'empty') or quotes.empty:
+                # 通达信 quotes 命令已被服务器拒绝 → 回退新浪 HTTP 行情
+                print(f"mootdx返回空,回退新浪HTTP行情 {stock_code} ...")
+                from .quotes_utils import get_realtime_quotes_from_sina
+                sina = get_realtime_quotes_from_sina([stock_code])
+                q = sina.get(stock_code)
+                if not q:
+                    print(f"✗ 新浪行情也未获取到 {stock_code}")
+                    return None
+                return {
+                    'code': stock_code,
+                    'name': q.get('name', ''),
+                    'open': float(q.get('open', 0) or 0),
+                    'prev_close': float(q.get('prev_close', 0) or 0),
+                    'price': float(q.get('price', 0) or 0),
+                    'high': float(q.get('high', 0) or 0),
+                    'low': float(q.get('low', 0) or 0),
+                    'volume': float(q.get('volume', 0) or 0),
+                    'amount': float(q.get('amount', 0) or 0),
+                    'change_amount': (float(q.get('price', 0) or 0) - float(q.get('prev_close', 0) or 0)),
+                    'change_percent': (((float(q.get('price', 0) or 0) - float(q.get('prev_close', 0) or 0)) / float(q.get('prev_close', 0) or 0) * 100)
+                                       if float(q.get('prev_close', 0) or 0) else 0),
+                    'volatility': None,
+                    'turnover': None,
+                    'total_mv': None,
+                    'bid1': float(q.get('bid1', 0) or 0),
+                    'bid2': float(q.get('bid2', 0) or 0),
+                    'bid3': float(q.get('bid3', 0) or 0),
+                    'bid4': float(q.get('bid4', 0) or 0),
+                    'bid5': float(q.get('bid5', 0) or 0),
+                    'ask1': float(q.get('ask1', 0) or 0),
+                    'ask2': float(q.get('ask2', 0) or 0),
+                    'ask3': float(q.get('ask3', 0) or 0),
+                    'ask4': float(q.get('ask4', 0) or 0),
+                    'ask5': float(q.get('ask5', 0) or 0),
+                    'bid_vol1': float(q.get('bid_vol1', 0) or 0),
+                    'bid_vol2': float(q.get('bid_vol2', 0) or 0),
+                    'bid_vol3': float(q.get('bid_vol3', 0) or 0),
+                    'bid_vol4': float(q.get('bid_vol4', 0) or 0),
+                    'bid_vol5': float(q.get('bid_vol5', 0) or 0),
+                    'ask_vol1': float(q.get('ask_vol1', 0) or 0),
+                    'ask_vol2': float(q.get('ask_vol2', 0) or 0),
+                    'ask_vol3': float(q.get('ask_vol3', 0) or 0),
+                    'ask_vol4': float(q.get('ask_vol4', 0) or 0),
+                    'ask_vol5': float(q.get('ask_vol5', 0) or 0),
+                }
+            
+            if hasattr(quotes, 'empty') and not quotes.empty:
                 q = quotes.iloc[0]
                 price = float(q.get('price', 0) or 0)
                 prev_close = float(q.get('last_close', 0) or 0)

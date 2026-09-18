@@ -4,18 +4,137 @@
 行情数据获取工具
 """
 
+import re
+import urllib.request
 from typing import List, Dict, Optional
 from decimal import Decimal
 
+SINA_QUOTE_URL = "https://hq.sinajs.cn/list={symbols}"
+_SINA_CTX = None
 
-def get_realtime_quotes(stock_codes: List[str], debug: bool = False) -> Dict[str, Dict]:
+
+def _sina_ssl_ctx():
+    """新浪 hq.sinajs.cn 证书链在本机常缺根证书,按需绕过校验(仅读行情)"""
+    global _SINA_CTX
+    if _SINA_CTX is None:
+        import ssl
+        ctx = ssl.create_default_context()
+        try:
+            ctx.load_default_certs()
+        except Exception:
+            pass
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        _SINA_CTX = ctx
+    return _SINA_CTX
+
+
+def _sina_symbol(code: str) -> str:
+    """股票代码 → 新浪格式(沪: sh600519, 深: sz000001)"""
+    code = str(code).strip().lower()
+    if code.startswith(('sh', 'sz', 'bj')):
+        return code
+    if code.startswith('6'):
+        return 'sh' + code
+    if code.startswith(('0', '3')):
+        return 'sz' + code
+    if code.startswith(('4', '8')):
+        return 'bj' + code
+    return 'sh' + code
+
+
+def _parse_sina_line(line: str) -> Optional[Dict]:
+    """解析新浪行情行: var hq_str_sh600519="名称,今开,昨收,现价,最高,最低,...";"""
+    m = re.match(r'var hq_str_(\w+)="([^"]*)";', line.strip())
+    if not m:
+        return None
+    symbol = m.group(1)
+    fields = m.group(2).split(',')
+    if len(fields) < 32 or not fields[0]:
+        return None  # 停牌/无效代码返回空串
+
+    def f(idx: int) -> float:
+        try:
+            return float(fields[idx] or 0)
+        except (ValueError, IndexError):
+            return 0.0
+
+    def bid_ask(base: int) -> Dict[str, float]:
+        """五档: fields[10..19] 买五档(价,量), fields[20..29] 卖五档"""
+        out = {}
+        for i in range(5):
+            out[f'bid{i+1}'] = f(base + i * 2)
+            out[f'bid_vol{i+1}'] = f(base + i * 2 + 1)
+            out[f'ask{i+1}'] = f(base + 10 + i * 2)
+            out[f'ask_vol{i+1}'] = f(base + 10 + i * 2 + 1)
+        return out
+
+    code = symbol[2:]
+    price = f(3)
+    prev_close = f(2)
+    if price <= 0:  # 竞价时段现价为 0,用买一价兜底(与 mootdx 分支一致)
+        bid1 = f(10)
+        price = bid1 if bid1 > 0 else prev_close
+
+    quote = {
+        'code': code,
+        'name': fields[0],
+        'open': f(1),
+        'prev_close': prev_close,
+        'price': price,
+        'high': f(4),
+        'low': f(5),
+        'volume': f(8),
+        'amount': f(9),
+    }
+    quote.update(bid_ask(10))
+    return quote
+
+
+def get_realtime_quotes_from_sina(stock_codes: List[str], debug: bool = False) -> Dict[str, Dict]:
+    """通过新浪 HTTP 行情接口批量获取实时行情(通达信 quotes 协议失效时的兜底)。
+
+    Returns:
+        股票行情字典,格式: {股票代码: {'price': 价格, 'prev_close': 昨收, 'open': 开盘价, ...}}
+    """
+    if not stock_codes:
+        return {}
+    symbols = ','.join(_sina_symbol(c) for c in stock_codes)
+    req = urllib.request.Request(
+        SINA_QUOTE_URL.format(symbols=symbols),
+        headers={
+            'Referer': 'https://finance.sina.com.cn',
+            'User-Agent': 'Mozilla/5.0 (compatible; DeqingStock/1.0)',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=_sina_ssl_ctx()) as resp:
+            raw = resp.read().decode('gbk', errors='ignore')
+    except Exception as e:
+        if debug:
+            print(f"新浪行情请求失败: {e}")
+        return {}
+
+    quotes_dict = {}
+    for line in raw.strip().splitlines():
+        q = _parse_sina_line(line)
+        if q:
+            quotes_dict[q['code']] = q
+    if debug:
+        print(f"新浪行情返回 {len(quotes_dict)} 只")
+    return quotes_dict
+
+
+def get_realtime_quotes(stock_codes: List[str], debug: bool = False,
+                        use_sina_fallback: bool = True) -> Dict[str, Dict]:
     """
     批量获取股票实时行情
-    
+
     Args:
         stock_codes: 股票代码列表
         debug: 是否打印调试信息
-        
+        use_sina_fallback: mootdx(通达信) 返回为空时,是否回退新浪 HTTP 行情
+
     Returns:
         股票行情字典，格式：{股票代码: {'price': 价格, 'prev_close': 昨收, 'open': 开盘价}}
     """
@@ -75,6 +194,17 @@ def get_realtime_quotes(stock_codes: List[str], debug: bool = False) -> Dict[str
         except Exception as e:
             if debug:
                 print(f"批量获取深市实时行情失败: {e}")
+    
+    # mootdx(通达信 quotes) 为空 → 回退新浪 HTTP 行情(通达信服务器已拒绝旧 quotes 命令)
+    if use_sina_fallback and len(quotes_dict) < len(stock_codes):
+        missing = [c for c in stock_codes if c not in quotes_dict]
+        sina = get_realtime_quotes_from_sina(missing, debug=debug)
+        for code, q in sina.items():
+            quotes_dict[code] = {
+                'price': q['price'],
+                'prev_close': q['prev_close'],
+                'open': q['open'],
+            }
     
     return quotes_dict
 
