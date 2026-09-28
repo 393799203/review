@@ -20,6 +20,7 @@ from app.services.base_service import BaseService
 from app.repositories.stock_repository import StockRepository
 from app.core.trade_calendar import trade_calendar
 from models import LimitUpStock
+from app.core.tdx_server import make_client
 
 
 class BrokenBoardService(BaseService):
@@ -233,7 +234,7 @@ class BrokenBoardService(BaseService):
             if not group:
                 continue
             try:
-                client = Quotes.factory(market=market)
+                client = make_client(market=market)
                 quotes = client.quotes(symbol=group)
                 if quotes is None or (hasattr(quotes, 'empty') and quotes.empty):
                     # 通达信 quotes 被服务器拒绝 → 回退新浪 HTTP 行情

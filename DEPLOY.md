@@ -181,6 +181,8 @@ docker run --rm --network host --env-file /opt/stock-review/tdx_daily/.env \
 | 量化筛选 503 "TDX 行情库未配置" | .env 缺 `TDX_DATABASE_URL` 或 quantdb 未建 |
 | **重建镜像后容器启动即崩 `ModuleNotFoundError: No module named 'psycopg'`** | `sqlalchemy>=2.0.0` 没锁版本，重建拉到 2.1.x，而 **SQLAlchemy 2.1 起把 `postgresql://` 的默认驱动从 psycopg2 换成 psycopg(v3)**，镜像里只有 psycopg2 → `create_engine` 直接抛错。已锁 `sqlalchemy>=2.0.0,<2.1` 并补 `psycopg[binary]` 兜底 |
 | **重建镜像后其他功能悄悄坏掉** | requirements 里多为 `>=` 不锁版本，重建会带来大版本漂移（本次 pandas 2.x → **3.0.6**、Flask → 3.1.3、mootdx → 0.11.7）。**重建后务必冒烟**：`/api/latest`、`/api/data/<date>`、`/api/block-strength/<date>`、`/api/broken-board/strong/<date>`、`/api/stock/quote/<code>`、AI 三类接口、`POST /api/screening/run`（需 `X-User-Uid` 头） |
-| **`/api/stock/quote/<code>` 404「未找到该股票」+ AI 分析里写"无实时行情数据"** | `get_realtime_quote` 只在 mootdx 返回**空表**时回退新浪，而 tdxpy 在 quotes 协议被拒时是**抛 `NotImplementedError`**，落到 except 直接返回 None → 行情整条丢失。已抽 `_quote_from_sina()`，空表分支与异常分支都走兜底 |
+| **`/api/stock/quote/<code>` 404「未找到该股票」+ AI 分析里写"无实时行情数据"** | 两层原因：① `get_realtime_quote` 只在 mootdx 返回**空表**时回退新浪，而 tdxpy 在 quotes 协议失败时是**抛 `NotImplementedError`**，落到 except 直接返回 None —— 已抽 `_quote_from_sina()` 覆盖异常分支；② **mootdx 选错了行情节点**（见下一行） |
+| **通达信实时行情/K线拿不到（看起来像"协议被拒绝"）** | 真相是**节点问题**：mootdx 未固定 BESTIP 时用它列表里的第一台（实测 `180.153.18.170:7709`），该节点 TCP 能连但 quotes/bars **返回空数据**。逐家实测 tdxpy 内置 **104 家服务器，仅 8 家可用**（国泰君安 `117.34.114.13~20/27:7709`，价格与新浪一致）。修复：`app/core/tdx_server.py` 启动时按 `TDX_SERVER` 顺序探测并固定可用节点（mootdx 会写入 BESTIP 复用），且所有客户端创建统一走 `make_client()` —— **不能只在启动时固定**，因为 `app.py:68` 在 import 阶段就创建了模块级 `data_fetcher`，早于 `__main__` |
+| 自查行情来源 | 单只行情看日志有无 `回退新浪HTTP行情`；日K看有无 `腾讯HTTP兜底`；TDX 生效时应只有 `从mootdx获取 ... ` 与 `✓ 成功获取K线数据`。换手率/总市值只有走 TDX 才有值（兜底源拿不到） |
 | 认接口鉴权：不是 `Authorization: Bearer` | 后端读的是 **`X-User-Uid: <uid>`** 头（`app/utils/decorators.py`），`POST /api/auth/guest` 拿 uid 即可自测筛选等登录接口 |
 | embedding 模型警告刷日志 | 无 embed-cache；仅影响涨停天梯向量匹配，其余功能正常 |

@@ -9,6 +9,7 @@ import urllib.request
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from decimal import Decimal
+from app.core.tdx_server import make_client
 
 SINA_QUOTE_URL = "https://hq.sinajs.cn/list={symbols}"
 TENCENT_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},{period},{start},{end},{count},{fq}"
@@ -216,7 +217,7 @@ def get_realtime_quotes(stock_codes: List[str], debug: bool = False,
     if sh_codes:
         try:
             from mootdx.quotes import Quotes
-            client = Quotes.factory(market=1)
+            client = make_client(market=1)
             quotes = client.quotes(symbol=sh_codes)
             
             if debug:
@@ -239,7 +240,7 @@ def get_realtime_quotes(stock_codes: List[str], debug: bool = False,
     if sz_codes:
         try:
             from mootdx.quotes import Quotes
-            client = Quotes.factory(market=0)
+            client = make_client(market=0)
             quotes = client.quotes(symbol=sz_codes)
             
             if debug:

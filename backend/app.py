@@ -616,6 +616,10 @@ def get_auto_screening_logs():
 
 
 if __name__ == '__main__':
+    # 固定一台真正可用的通达信行情节点：mootdx 默认选的节点能连上但 quotes/bars 返回空，
+    # 会导致实时行情静默走新浪兜底（详见 app/core/tdx_server.py 注释）
+    from app.core.tdx_server import ensure_tdx_server
+    ensure_tdx_server()
     # 初始化同花顺会话
     init_ths_session()
     # 启动每日自动筛选调度（每天 19:00）

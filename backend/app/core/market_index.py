@@ -18,6 +18,7 @@
 import os
 from datetime import datetime, time as dtime
 from typing import Dict, List, Optional
+from app.core.tdx_server import make_client
 
 try:
     from zoneinfo import ZoneInfo
@@ -161,7 +162,7 @@ def get_index_volume_data(date_str: str = None) -> Dict:
             'is_history': is_history,
         }
         try:
-            client = Quotes.factory(market=idx['market'])
+            client = make_client(market=idx['market'])
             daily = client.index(symbol=idx['code'])
 
             if is_history:

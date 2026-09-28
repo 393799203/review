@@ -17,7 +17,7 @@ WATCHLIST_VEC_SIM_THRESHOLD = 0.5
 def _get_mootdx_client(market: int):
     from mootdx.quotes import Quotes
     if market not in _mootdx_clients:
-        _mootdx_clients[market] = Quotes.factory(market=market)
+        _mootdx_clients[market] = make_client(market=market)
     return _mootdx_clients[market]
 
 
@@ -561,3 +561,4 @@ class WatchlistService(BaseService):
 
 
 import json
+from app.core.tdx_server import make_client

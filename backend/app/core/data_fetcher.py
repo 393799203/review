@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from mootdx.quotes import Quotes
 from mootdx.utils.holiday import holiday
+from app.core.tdx_server import make_client
 
 
 class DataFetcher:
@@ -38,7 +39,7 @@ class DataFetcher:
             return
         self._initialized = True
         
-        self.mootdx_client = Quotes.factory(market='std')
+        self.mootdx_client = make_client(market='std')
         
         self.session = requests.Session()
         self.session.headers.update({
@@ -286,7 +287,7 @@ class DataFetcher:
                     volume = float(q.get('vol', 0) or 0)
                     if volume > 0:
                         market = 1 if stock_code.startswith('6') else 0
-                        client = Quotes.factory(market=market)
+                        client = make_client(market=market)
                         finance_data = client.finance(symbol=stock_code)
                         if finance_data is not None and not finance_data.empty:
                             liutongguben = float(finance_data['liutongguben'].iloc[0])
@@ -354,7 +355,7 @@ class DataFetcher:
             print(f"从mootdx获取 {stock_code} K线数据...")
             
             market = 1 if stock_code.startswith('6') else 0
-            client = Quotes.factory(market=market)
+            client = make_client(market=market)
             
             end_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
             start_date = (datetime.now() - timedelta(days=days * 2)).strftime('%Y-%m-%d')
