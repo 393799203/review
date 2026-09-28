@@ -179,4 +179,8 @@ docker run --rm --network host --env-file /opt/stock-review/tdx_daily/.env \
 | **改了 `frontend/nginx.conf` 容器里没生效** | 该文件是单文件 bind mount，`sed -i` 会换 inode，容器仍读旧文件 → `docker restart stock-review-frontend-1` 重新挂载 |
 | 域名打不开，curl 302 到 dnspod webblock | 域名在腾讯云**无接入备案** → 见第 7 节；备案前用 IP 访问 |
 | 量化筛选 503 "TDX 行情库未配置" | .env 缺 `TDX_DATABASE_URL` 或 quantdb 未建 |
+| **重建镜像后容器启动即崩 `ModuleNotFoundError: No module named 'psycopg'`** | `sqlalchemy>=2.0.0` 没锁版本，重建拉到 2.1.x，而 **SQLAlchemy 2.1 起把 `postgresql://` 的默认驱动从 psycopg2 换成 psycopg(v3)**，镜像里只有 psycopg2 → `create_engine` 直接抛错。已锁 `sqlalchemy>=2.0.0,<2.1` 并补 `psycopg[binary]` 兜底 |
+| **重建镜像后其他功能悄悄坏掉** | requirements 里多为 `>=` 不锁版本，重建会带来大版本漂移（本次 pandas 2.x → **3.0.6**、Flask → 3.1.3、mootdx → 0.11.7）。**重建后务必冒烟**：`/api/latest`、`/api/data/<date>`、`/api/block-strength/<date>`、`/api/broken-board/strong/<date>`、`/api/stock/quote/<code>`、AI 三类接口、`POST /api/screening/run`（需 `X-User-Uid` 头） |
+| **`/api/stock/quote/<code>` 404「未找到该股票」+ AI 分析里写"无实时行情数据"** | `get_realtime_quote` 只在 mootdx 返回**空表**时回退新浪，而 tdxpy 在 quotes 协议被拒时是**抛 `NotImplementedError`**，落到 except 直接返回 None → 行情整条丢失。已抽 `_quote_from_sina()`，空表分支与异常分支都走兜底 |
+| 认接口鉴权：不是 `Authorization: Bearer` | 后端读的是 **`X-User-Uid: <uid>`** 头（`app/utils/decorators.py`），`POST /api/auth/guest` 拿 uid 即可自测筛选等登录接口 |
 | embedding 模型警告刷日志 | 无 embed-cache；仅影响涨停天梯向量匹配，其余功能正常 |
