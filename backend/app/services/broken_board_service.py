@@ -236,6 +236,22 @@ class BrokenBoardService(BaseService):
                 client = Quotes.factory(market=market)
                 quotes = client.quotes(symbol=group)
                 if quotes is None or (hasattr(quotes, 'empty') and quotes.empty):
+                    # 通达信 quotes 被服务器拒绝 → 回退新浪 HTTP 行情
+                    from app.core.quotes_utils import get_realtime_quotes_from_sina
+                    sina = get_realtime_quotes_from_sina(group)
+                    for code, q in sina.items():
+                        if code not in missing_days:
+                            continue
+                        price = float(q.get('price') or 0)
+                        low = float(q.get('low') or 0) or price
+                        if price <= 0:
+                            continue
+                        symbol = symbols.get(code)
+                        if not symbol:
+                            continue
+                        for d in missing_days[code]:
+                            price_map[(symbol, d)] = {'close': price, 'low': low}
+                            total += 1
                     continue
                 for _, row in quotes.iterrows():
                     code = str(row.get('code', ''))

@@ -186,6 +186,18 @@ def get_index_volume_data(date_str: str = None) -> Dict:
                     item['price'] = float(r.get('price') or 0)
                     item['volume'] = float(r.get('vol') or 0)
                     item['amount'] = float(r.get('amount') or 0)
+                if item['price'] is None or item['price'] == 0:
+                    # 通达信 quotes 被服务器拒绝 → 新浪兜底指数行情
+                    try:
+                        from app.core.quotes_utils import get_realtime_quotes_from_sina
+                        sina = get_realtime_quotes_from_sina([idx['code']])
+                        q = sina.get(idx['code'])
+                        if q:
+                            item['price'] = float(q.get('price') or 0)
+                            item['volume'] = float(q.get('volume') or 0)
+                            item['amount'] = float(q.get('amount') or 0)
+                    except Exception:
+                        pass
 
                 # 2. 前一交易日全天成交额（指数日线，取最近一个 < today 的交易日）
                 if daily is not None and not daily.empty:

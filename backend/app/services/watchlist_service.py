@@ -62,7 +62,7 @@ class WatchlistService(BaseService):
             return False, str(e), None
     
     def _fetch_realtime_quotes(self, stock_codes: List[str]) -> Dict:
-        """获取实时行情（mootdx 客户端复用）"""
+        """获取实时行情（mootdx 优先,通达信 quotes 失效时回退新浪 HTTP）"""
         from mootdx.quotes import Quotes
 
         quotes_dict = {}
@@ -91,6 +91,22 @@ class WatchlistService(BaseService):
                         }
             except Exception as e:
                 print(f"批量获取{'沪' if market == 1 else '深'}市实时行情失败: {e}")
+        
+        # 通达信 quotes 被服务器拒绝 → 回退新浪 HTTP 行情补齐缺失
+        if len(quotes_dict) < len(stock_codes):
+            missing = [c for c in stock_codes if c not in quotes_dict]
+            try:
+                from app.core.quotes_utils import get_realtime_quotes_from_sina
+                sina = get_realtime_quotes_from_sina(missing)
+                for code, q in sina.items():
+                    quotes_dict[code] = {
+                        'price': float(q.get('price', 0) or 0),
+                        'high': float(q.get('high', 0) or 0),
+                        'low': float(q.get('low', 0) or 0),
+                        'prev_close': float(q.get('prev_close', 0) or 0),
+                    }
+            except Exception as e:
+                print(f"新浪行情兜底失败: {e}")
         
         return quotes_dict
     

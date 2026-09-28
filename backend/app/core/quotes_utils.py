@@ -6,10 +6,12 @@
 
 import re
 import urllib.request
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from decimal import Decimal
 
 SINA_QUOTE_URL = "https://hq.sinajs.cn/list={symbols}"
+TENCENT_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},{period},{start},{end},{count},{fq}"
 _SINA_CTX = None
 
 
@@ -29,11 +31,68 @@ def _sina_ssl_ctx():
     return _SINA_CTX
 
 
+def get_kline_from_tencent(stock_code: str, days: int = 60,
+                           start_date: str = "", end_date: str = "") -> Optional[List[Dict]]:
+    """通过腾讯 HTTP K线接口获取日K(通达信 bars 协议失效时的兜底,前复权)。
+
+    Returns:
+        K线列表,每项: {'date','open','close','high','low','volume'};失败返回 None。
+    """
+    try:
+        import json
+        import ssl as _ssl
+        import urllib.request as _ur
+        ctx = _ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = _ssl.CERT_NONE
+
+        symbol = _sina_symbol(stock_code)  # sh600519 / sz000001
+        if not end_date:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        if not start_date:
+            start_date = (datetime.now() - timedelta(days=days * 2)).strftime('%Y-%m-%d')
+        url = TENCENT_KLINE_URL.format(
+            symbol=symbol, period='day', start=start_date, end=end_date,
+            count=max(days * 2, 10), fq='qfq',
+        )
+        req = _ur.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; DeqingStock/1.0)',
+            'Referer': 'https://gu.qq.com/',
+        })
+        with _ur.urlopen(req, timeout=10, context=ctx) as resp:
+            j = json.loads(resp.read().decode('utf-8'))
+        node = j.get('data', {}).get(symbol, {})
+        klines = node.get('qfqday') or node.get('day') or []
+        out = []
+        for k in klines:
+            if len(k) < 6:
+                continue
+            try:
+                out.append({
+                    'date': str(k[0])[:10],
+                    'open': float(k[1]),
+                    'close': float(k[2]),
+                    'high': float(k[3]),
+                    'low': float(k[4]),
+                    'volume': float(k[5]),
+                })
+            except (ValueError, TypeError):
+                continue
+        return out[-days:] or None
+    except Exception as e:
+        print(f"腾讯K线兜底失败 {stock_code}: {e}")
+        return None
+
+
 def _sina_symbol(code: str) -> str:
     """股票代码 → 新浪格式(沪: sh600519, 深: sz000001)"""
     code = str(code).strip().lower()
     if code.startswith(('sh', 'sz', 'bj')):
         return code
+    # 通达信指数代码 → 新浪指数代码
+    tdx_index_map = {'999999': 'sh000001'}  # 上证指数
+    if code in tdx_index_map:
+        return tdx_index_map[code]
     if code.startswith('6'):
         return 'sh' + code
     if code.startswith(('0', '3')):
@@ -70,6 +129,11 @@ def _parse_sina_line(line: str) -> Optional[Dict]:
         return out
 
     code = symbol[2:]
+    # 新浪指数代码 → 通达信指数代码(供调用方按原代码取值)
+    # 注意：上证指数在新浪是 sh000001、在通达信是 999999，而深市 000001 是平安银行，
+    # 不区分会让指数把平安银行覆盖掉
+    sina_index_map = {'sh000001': '999999'}
+    tdx_code = sina_index_map.get(symbol, code)
     price = f(3)
     prev_close = f(2)
     if price <= 0:  # 竞价时段现价为 0,用买一价兜底(与 mootdx 分支一致)
@@ -77,7 +141,7 @@ def _parse_sina_line(line: str) -> Optional[Dict]:
         price = bid1 if bid1 > 0 else prev_close
 
     quote = {
-        'code': code,
+        'code': tdx_code,
         'name': fields[0],
         'open': f(1),
         'prev_close': prev_close,

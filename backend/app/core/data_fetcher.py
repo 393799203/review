@@ -349,6 +349,7 @@ class DataFetcher:
             
             if df is None or df.empty:
                 print(f"✗ mootdx未返回K线数据")
+                # 通达信 bars 命令被服务器拒绝 → 统一兜底链(腾讯 HTTP → TDX 行情库)
                 return self._get_kline_from_tdx(stock_code, days)
             
             df = df.tail(days)
@@ -466,10 +467,45 @@ class DataFetcher:
 
     def _get_kline_from_tdx(self, stock_code: str, days: int = 60) -> Optional[List[Dict]]:
         """
-        TDX 行情库兜底：mootdx 不可用时从 quantdb（tdx.raw_stocks_daily）读日线拼 K 线。
+        K线兜底链：先腾讯 HTTP K线（通达信 bars 协议被拒后数据最新），
+        再退 TDX 行情库（quantdb, tdx.raw_stocks_daily）。
 
         返回结构与 mootdx 路径一致（时间正序、含涨跌幅/前收），换手率与除权信息为空。
         """
+        # 1) 腾讯 HTTP K线兜底（优先：数据最新,通达信 bars 已失效）
+        try:
+            from .quotes_utils import get_kline_from_tencent
+            tencent_kline = get_kline_from_tencent(stock_code, days=days)
+            if tencent_kline:
+                print(f"✓ 腾讯HTTP兜底获取 {stock_code} K线，共 {len(tencent_kline)} 条")
+                prev_close = None
+                out = []
+                for k in tencent_kline:
+                    close = k['close']
+                    pre_close = prev_close if prev_close is not None else close
+                    change_percent = ((close - pre_close) / pre_close * 100) if pre_close > 0 else 0
+                    out.append({
+                        'date': k['date'],
+                        'open': k['open'],
+                        'close': close,
+                        'high': k['high'],
+                        'low': k['low'],
+                        'volume': k['volume'],
+                        'amount': 0,
+                        'change_percent': round(change_percent, 2),
+                        'change_amount': round(close - pre_close, 2),
+                        'turnover': 0,
+                        'pre_close': pre_close,
+                        'is_ex_dividend': False,
+                        'ex_dividend_ratio': None,
+                        'ex_dividend_desc': None,
+                    })
+                    prev_close = close
+                return out
+        except Exception as e:
+            print(f"✗ 腾讯HTTP K线兜底失败: {e}")
+
+        # 2) TDX 行情库兜底
         try:
             from app.core.tdx_db import get_tdx_engine
             from sqlalchemy import text
@@ -615,6 +651,16 @@ class DataFetcher:
             yesterday_close = 0
             if quotes is not None and hasattr(quotes, 'empty') and not quotes.empty:
                 yesterday_close = float(quotes.iloc[0].get('last_close', 0) or 0)
+            if yesterday_close <= 0:
+                # 通达信 quotes 被服务器拒绝 → 新浪兜底昨收
+                try:
+                    from .quotes_utils import get_realtime_quotes_from_sina
+                    sina = get_realtime_quotes_from_sina([stock_code])
+                    q = sina.get(stock_code)
+                    if q:
+                        yesterday_close = float(q.get('prev_close', 0) or 0)
+                except Exception:
+                    pass
             
             print(f"✓ 成功获取分时数据，共 {len(intraday_data)} 条记录")
             return {
