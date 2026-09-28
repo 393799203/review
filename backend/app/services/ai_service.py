@@ -6,6 +6,7 @@ import json
 from app.services.base_service import BaseService
 from app.repositories.ai_repository import AIRepository
 from app.core.limit_up_analyzer import LimitUpReasonAnalyzer
+from app.core.llm_params import build_payload, request_timeout
 from app.core.data_fetcher import DataFetcher
 
 
@@ -473,19 +474,19 @@ class AIService(BaseService):
                 "Content-Type": "application/json"
             }
             
-            payload = {
-                "model": model,
-                "messages": [
+            payload = build_payload(
+                model=model,
+                messages=[
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
             
-            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            response = requests.post(api_url, headers=headers, json=payload, timeout=request_timeout(60))
             
             if response.status_code == 200:
                 result = response.json()
@@ -542,19 +543,19 @@ class AIService(BaseService):
                 "Content-Type": "application/json"
             }
             
-            payload = {
-                "model": model,
-                "messages": [
+            payload = build_payload(
+                model=model,
+                messages=[
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
             
-            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            response = requests.post(api_url, headers=headers, json=payload, timeout=request_timeout(60))
             
             if response.status_code == 200:
                 result = response.json()

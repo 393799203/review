@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import re
 import json
+import os
 from app.core.fetch_data import LimitUpFetcher
 from datetime import datetime, date
 from flask import request
@@ -437,7 +438,13 @@ class LadderController(BaseController):
                 {"role": "user", "content": user_prompt}
             ]
 
-            result_text = llm_client._chat(messages, temperature=0.3, max_tokens=4096)
+            # 三天关键词归并的 prompt 很长，预算写死会在推理模型上被思考吃光导致正文为空，
+            # 改为可配置（配合 llm_params 关闭思考后，4096 已有充足余量）
+            result_text = llm_client._chat(
+                messages,
+                temperature=0.3,
+                max_tokens=int(os.environ.get('DEEPSEEK_MAX_TOKENS_LONG', '4096')),
+            )
 
             # 解析 AI 返回的 JSON（括号配平提取，避免 analysis 文本中的花括号干扰）
             def extract_json(text):

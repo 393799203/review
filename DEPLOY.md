@@ -171,8 +171,10 @@ docker run --rm --network host --env-file /opt/stock-review/tdx_daily/.env \
 | backend 连库报 no password / auth failed | .env 缺 `DB_PASSWORD` 或与 compose 硬编码不一致 → 统一为 `stock2024` |
 | AI 分析 "Invalid URL" | .env 缺 `DEEPSEEK_API_URL` → compose 已加默认值 |
 | AI 分析 402 / string indices | 网关账户余额不足 → 充值或换 key |
-| **AI 分析接口返回 200 但内容是"分析失败"** | 推理模型(`deepseek-v4.x`)先输出 `reasoning_content` 吃掉预算，正文被截断 → 后端日志 `API返回内容: `（空）+ `无法从返回内容中提取JSON` / `返回格式错误`。实测个股分析推理约 3100 token，预算 3000 时 `finish_reason=length` 随机失败，6000 时 `finish=stop` 正常。当前 SHORT=2000/MEDIUM=6000/LONG=10000 |
-| **AI 分析变慢（个股分析约 35~41s）** | 推理模型本身耗时。前端对 AI 接口已单独放宽超时（`/stock/analyze` 为 120s，批量分析 120s，默认 30s 不适用于这些调用），故正常；若后续新增 AI 调用记得一并放宽 |
+| **AI 分析接口返回 200 但内容是"分析失败"** | 推理模型(`deepseek-v4.x`)先输出 `reasoning_content` 吃掉预算，正文被截断/为空 → 后端日志 `API返回内容: `（空）+ `无法从返回内容中提取JSON` / `返回格式错误`。**根治办法是关思考**（见下一行），仅调大预算是治标 |
+| **AI 关键词归并一直 500「AI 返回格式解析失败」** | 三天关键词 prompt 极长，推理模型会把预算全烧在思考上：实测 4096 预算 → `content=0`；提到 16000 → 仍 `content=0`、耗时 149s。已统一在 `app/core/llm_params.py` 发 `enable_thinking=false`（网关实测支持），同一 prompt 降到 2~4s、推理 0 token，正常返回 JSON |
+| **思考开关 / 超时** | `DEEPSEEK_DISABLE_THINKING`（默认 `true`，关思考）、`DEEPSEEK_TIMEOUT`（默认 120s，原代码写死 60s 会让 40s+ 的个股分析直接超时）。需要推理质量时设为 `false` **并同步大幅调高 `DEEPSEEK_MAX_TOKENS_*`**，否则空正文老毛病复现 |
+| **AI 分析变慢（关思考前个股分析约 35~41s）** | 关思考后为秒级。前端对 AI 接口本就单独放宽超时（`/stock/analyze` 120s、批量 120s，默认 30s 不适用于这些调用），新增 AI 调用记得一并放宽 |
 | **改了 .env 但容器内环境变量没变** | compose 的 `environment:` 里写死了值会**覆盖** `env_file` → 改成 `${VAR:-默认值}` 形式（本次已修 4 个 DEEPSEEK_* 项） |
 | **改了 `frontend/nginx.conf` 容器里没生效** | 该文件是单文件 bind mount，`sed -i` 会换 inode，容器仍读旧文件 → `docker restart stock-review-frontend-1` 重新挂载 |
 | 域名打不开，curl 302 到 dnspod webblock | 域名在腾讯云**无接入备案** → 见第 7 节；备案前用 IP 访问 |

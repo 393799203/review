@@ -5,6 +5,7 @@ import json
 import re
 import requests
 from typing import Optional, Dict
+from app.core.llm_params import build_payload, request_timeout
 
 
 class LLMClient:
@@ -37,14 +38,15 @@ class LLMClient:
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
+            payload = build_payload(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
 
-            resp = requests.post(url, headers=headers, json=payload, timeout=60)
+            # 推理模型单次调用可能耗时较长（实测个股分析 40s+），超时统一走 DEEPSEEK_TIMEOUT
+            resp = requests.post(url, headers=headers, json=payload, timeout=request_timeout())
             resp.raise_for_status()
 
             result = resp.json()

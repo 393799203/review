@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
+from app.core.llm_params import build_payload, request_timeout
 
 # 配置日志
 logging.basicConfig(
@@ -241,14 +242,14 @@ class LimitUpReasonAnalyzer:
                     "Content-Type": "application/json"
                 }
                 
-                data = {
-                    "model": current_model,
-                    "messages": [
+                data = build_payload(
+                    model=current_model,
+                    messages=[
                         {"role": "user", "content": prompt}
                     ],
-                    "temperature": self.temperature,
-                    "max_tokens": self.max_tokens_medium
-                }
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens_medium,
+                )
                 
                 start_time = time.time()
                 logger.info(f"API调用开始时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -263,7 +264,7 @@ class LimitUpReasonAnalyzer:
                             logger.info(f"等待 {wait_time} 秒后重试...")
                             time.sleep(wait_time)
                         
-                        response = requests.post(self.api_url, headers=headers, json=data, timeout=120)
+                        response = requests.post(self.api_url, headers=headers, json=data, timeout=request_timeout(120))
                         
                         elapsed_time = time.time() - start_time
                         logger.info(f"API调用耗时: {elapsed_time:.2f}秒")
@@ -431,21 +432,21 @@ class LimitUpReasonAnalyzer:
                 "Content-Type": "application/json"
             }
 
-            data = {
-                "model": self.models[0],
-                "messages": [
+            data = build_payload(
+                model=self.models[0],
+                messages=[
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": self.temperature,
-                "max_tokens": self.max_tokens_short
-            }
+                temperature=self.temperature,
+                max_tokens=self.max_tokens_short,
+            )
 
             start_time = time.time()
             
             max_retries = 2
             for retry in range(max_retries):
                 try:
-                    response = requests.post(self.api_url, headers=headers, json=data, timeout=90)
+                    response = requests.post(self.api_url, headers=headers, json=data, timeout=request_timeout(90))
                     break
                 except requests.exceptions.Timeout:
                     if retry < max_retries - 1:
