@@ -151,6 +151,52 @@ class LadderService(BaseService):
         except Exception:
             return []
 
+    def _get_stock_boards(self, stock_codes: List[str]) -> Dict[str, List[str]]:
+        """
+        批量获取股票所属概念/行业板块名（quantdb.tdx.dim_stock_info）
+
+        返回 {6位代码: [板块名, ...]}；TDX 库不可用或查不到时返回空 dict。
+        """
+        if not stock_codes:
+            return {}
+        try:
+            from app.core.tdx_db import get_tdx_engine
+            engine = get_tdx_engine()
+            if engine is None:
+                return {}
+            import json as _json
+            from sqlalchemy import text
+            # 分批 IN 查询（避免超长 SQL）
+            result: Dict[str, List[str]] = {}
+            step = 500
+            with engine.connect() as conn:
+                for i in range(0, len(stock_codes), step):
+                    batch = stock_codes[i:i + step]
+                    rows = conn.execute(
+                        text(
+                            "SELECT stock_code, concept_names, industry_names "
+                            "FROM tdx.dim_stock_info WHERE stock_code = ANY(:codes)"
+                        ),
+                        {"codes": batch},
+                    ).fetchall()
+                    for code, cnames, inames in rows:
+                        names = []
+                        for blob in (cnames, inames):
+                            if not blob:
+                                continue
+                            if isinstance(blob, str):
+                                try:
+                                    names.extend(_json.loads(blob))
+                                except Exception:
+                                    continue
+                            else:  # psycopg2 JSONB 已解析
+                                names.extend(blob or [])
+                        result[str(code)] = [n for n in names if n]
+            return result
+        except Exception as e:
+            print(f"⚠️ 获取股票所属板块失败: {e}")
+            return {}
+
     def _build_ladder(self, stocks: List[LimitUpStock], trade_date: date = None, is_trading_hours: bool = False, blocks: List[Dict] = None) -> List[Dict]:
         """构建连板天梯数据"""
         ladder_dict = {}
@@ -165,7 +211,13 @@ class LadderService(BaseService):
             ]
             if need_fallback_codes:
                 prev_reason_map = self._get_prev_reasons(trade_date, need_fallback_codes)
-        
+
+        # 批量加载天梯股票所属概念/行业板块（候选池收窄用，一次查询）
+        try:
+            stock_boards = self._get_stock_boards([s.stock_code for s in stocks]) if stocks else {}
+        except Exception:
+            stock_boards = {}
+
         for stock in stocks:
             level = stock.continuous_days
             
@@ -212,8 +264,9 @@ class LadderService(BaseService):
                 'current_status': stock.current_status or 'close'
             }
 
-            # 当日所走板块：涨停原因未分类时不出板块，避免误导；
-            # 有原因时向量匹配（语义）优先，同花顺官方归属兜底
+            # 当日所走板块：股票所属题材内匹配（向量优先，官方归属兜底）。
+            # 候选池收窄为该股所属概念/行业板块（tdx.dim_stock_info），
+            # 避免匹配到它根本不属于的板块；涨停原因未分类时不出板块，避免误导。
             from app.core.block_matcher import pick_trend_block
             trend = None
             reason_text = (stock.limit_up_reason or '').strip()
@@ -221,7 +274,8 @@ class LadderService(BaseService):
                 trend = pick_trend_block(
                     stock.stock_code,
                     reason_text,
-                    blocks or []
+                    blocks or [],
+                    candidate_names=stock_boards.get(stock.stock_code),
                 )
             stock_data['trend_block'] = trend['block_name'] if trend else ''
             stock_data['trend_block_info'] = trend

@@ -136,9 +136,15 @@ def _to_result(block: Dict, match: float, strength: float, score: float, matched
     }
 
 
-def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) -> Optional[Dict]:
+def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict],
+                         candidate_names: Optional[List[str]] = None) -> Optional[Dict]:
     """
-    向量匹配：个股涨停原因 vs 全量板块，余弦相似度 × 板块强度 选最佳板块。
+    向量匹配：个股涨停原因 vs 板块，余弦相似度 × 板块强度 选最佳板块。
+
+    候选池：
+      - candidate_names 提供时（该股票所属概念/行业板块名集合），只在这些板块中匹配
+        （股票所属题材内匹配，避免匹配到它根本不属于的板块）；
+      - 不提供时匹配全量板块（保持原行为）。
 
     板块向量：内存 → 文件缓存 → embedding（落盘持久化）。
     个股 reason 向量：跨请求缓存（同题材复用）。
@@ -152,6 +158,14 @@ def pick_trend_block_vec(stock_code: str, reason_text: str, blocks: List[Dict]) 
     reason_text = reason_text.replace('+', ' ').strip()
     if not reason_text:
         return None
+
+    # 候选收窄：只保留该股票所属板块（名称精确匹配）
+    if candidate_names:
+        cand_set = {n for n in candidate_names if n}
+        if cand_set:
+            narrowed = [b for b in blocks if (b.get('block_name') or '') in cand_set]
+            if narrowed:
+                blocks = narrowed
 
     # 1. 补齐缺失板块的向量
     names = [b.get('block_name') or '' for b in blocks]
@@ -296,9 +310,12 @@ def pick_trend_blocks_em(stock_code: str, blocks: List[Dict], em_boards: Optiona
     return scored[:top_n]
 
 
-def pick_trend_block(stock_code: str, reason_text: str, blocks: List[Dict]) -> Optional[Dict]:
-    """统一入口：向量优先，官方归属兜底。
+def pick_trend_block(stock_code: str, reason_text: str, blocks: List[Dict],
+                     candidate_names: Optional[List[str]] = None) -> Optional[Dict]:
+    """统一入口：向量优先（候选收窄到该股所属板块），官方归属兜底。
 
+    candidate_names：该股票所属概念/行业板块名集合；提供时向量匹配只在
+    这些板块内进行（股票所属题材内匹配）。为 None 时匹配全量板块。
     涨停原因为空/占位(未分类)时直接返回 None，不做官方归属兜底——
     未分类股票不应展示任何"所走板块"，避免误导。
     """
@@ -307,9 +324,93 @@ def pick_trend_block(stock_code: str, reason_text: str, blocks: List[Dict]) -> O
         return None
     trend = None
     try:
-        trend = pick_trend_block_vec(stock_code, reason_text, blocks)
+        trend = pick_trend_block_vec(stock_code, reason_text, blocks, candidate_names=candidate_names)
     except Exception:
         trend = None
     if trend is None:
         trend = pick_official_block(stock_code, blocks)
     return trend
+
+
+def pick_trend_blocks_topn(stock_code: str, query_text: str, blocks: List[Dict],
+                           candidate_names: Optional[List[str]] = None,
+                           top_n: int = 3) -> List[Dict]:
+    """
+    股票所属题材内向量匹配 TopN（量化筛选"概念板块"用）。
+
+    候选池：
+      - candidate_names 提供时（该股所属概念/行业板块名集合），只在这些板块中匹配；
+      - 不提供时匹配全量板块。
+    query_text（涨停原因 / 申万行业近似文本）向量化后与候选板块余弦 × 强度，
+    按 score 降序返回前 top_n 个（score = sim × (0.5 + 0.5 × strength)）。
+
+    返回空列表表示无匹配结果（embedding 不可用 / 全部低于阈值）。
+    """
+    if not blocks or not query_text:
+        return []
+
+    query_text = query_text.replace('+', ' ').strip()
+    if not query_text:
+        return []
+
+    # 候选收窄：只保留该股票所属板块（名称精确匹配）
+    if candidate_names:
+        cand_set = {n for n in candidate_names if n}
+        if cand_set:
+            narrowed = [b for b in blocks if (b.get('block_name') or '') in cand_set]
+            if narrowed:
+                blocks = narrowed
+
+    names = [b.get('block_name') or '' for b in blocks]
+    if not _ensure_block_vecs(names):
+        return []
+
+    import re as _re
+    parts = [p.strip() for p in _re.split(r'[+\s]+', query_text) if p.strip()]
+    vec_texts = [query_text] + [p for p in parts if p != query_text]
+    vecs = []
+    for t in vec_texts:
+        sv = _ensure_reason_vec(t)
+        if sv is not None:
+            vecs.append(sv)
+    if not vecs:
+        return []
+
+    import numpy as np
+
+    topic_blocks = [
+        b for b in blocks
+        if is_pure_topic_block(b.get('block_name') or '')
+        and b.get('block_name') in _block_vec_cache
+    ]
+    if not topic_blocks:
+        return []
+
+    mat = np.array(
+        [_block_vec_cache[b['block_name']] for b in topic_blocks],
+        dtype=np.float32,
+    )
+    sims = None
+    for sv in vecs:
+        s = mat @ np.array(sv, dtype=np.float32)
+        sims = s if sims is None else np.maximum(sims, s)
+
+    hit_idx = np.where(sims >= VEC_SIM_THRESHOLD)[0]
+    if len(hit_idx) == 0:
+        return []
+
+    max_limit, max_change, max_cont = strength_basis(blocks)
+    scored = []
+    for i in hit_idx:
+        b = topic_blocks[int(i)]
+        sim = float(sims[i])
+        strength = block_strength(b, max_limit, max_change, max_cont)
+        score = sim * (0.5 + 0.5 * strength)
+        result = _to_result(
+            b, sim, strength, score,
+            f'语义相似 {round(sim * 100)}%'
+        )
+        result['vec'] = True
+        scored.append(result)
+    scored.sort(key=lambda x: x['score'], reverse=True)
+    return scored[:top_n]

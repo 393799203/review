@@ -53,7 +53,7 @@ class RuleScorer:
         'cv': 0.15,             # 地量充分度（放量前 CV 越小越好）
         'day1_change': 0.15,    # 首日涨幅（适中加分，过热降分）
         'turnover': 0.10,       # 换手率（D 日）
-        'industry': 0.10,       # 行业强度（申万一级当日涨跌）
+        'industry': 0.10,       # 行业强度（同花顺行业当日涨跌）
         'mktcap': 0.10,         # 市值（中小市值加分）
     }
 
@@ -96,10 +96,10 @@ class RuleScorer:
         return 1.0 - _lin(mv_yi, 100, 500)
 
     @staticmethod
-    def _industry_part(sw1_change_pct) -> float:
-        """行业分：申万一级当日涨幅 0~3% 线性，无数据给中性分"""
-        v = _f(sw1_change_pct, default=0.0)
-        if sw1_change_pct is None:
+    def _industry_part(ths_industry_change) -> float:
+        """行业分：同花顺行业当日涨幅 0~3% 线性，无数据给中性分"""
+        v = _f(ths_industry_change, default=0.0)
+        if ths_industry_change is None:
             return 0.4
         return _lin(v, 0, 3)
 
@@ -118,7 +118,7 @@ class RuleScorer:
             'cv': 1.0 - _lin(cv, 0.1, 0.5),          # CV 0.1 → 1，0.5 → 0
             'day1_change': _tri(_f(f.get('day1_change_pct')), 0, 5, 10),
             'turnover': _tri(_f(f.get('turnover')), 1, 8, 25),
-            'industry': self._industry_part(f.get('sw1_change_pct')),
+            'industry': self._industry_part(f.get('ths_industry_change')),
             'mktcap': self._mktcap_part(f.get('totalmv')),
         }
 
@@ -134,7 +134,7 @@ class RuleScorer:
             'upper_shadow': 1.0 - _lin(_f(f.get('upper_shadow')), 0, 10),
             'ma_dev': ma_dev_part,
             'change': _tri(_f(f.get('change_pct')), 0, 5, 9.5),
-            'industry': self._industry_part(f.get('sw1_change_pct')),
+            'industry': self._industry_part(f.get('ths_industry_change')),
             'mktcap': self._mktcap_part(f.get('totalmv')),
         }
 

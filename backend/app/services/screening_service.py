@@ -22,7 +22,7 @@
    （默认 3%，不限制必须阳线，可为负数）
 
 两个策略均只保留 00/30/60/68 开头的股票（沪深主板/创业板/科创板），
-且排除 ST/*ST 股票（按 dim_sw_industry.name 判断）。
+且排除 ST/*ST 股票（按 tdx.dim_stock_info.stock_name 判断）。
 
 策略二：突破放量（strategy='breakout'）
 1. 换手率：当日 turnover >= turnover_min（默认 15%）
@@ -39,8 +39,8 @@
 历史数据扫描范围：date 前推窗口天数 * 2 + 余量个自然日作为下界
 （交易日->自然日按 2 倍放宽），窗口函数在该范围内计算。
 
-结果按 change_pct 倒序。行业信息来自 dim_sw_industry（is_latest=1），
-行业当日涨跌幅来自 v_sw_industry_daily。ml_score 预留，当前一律为 null。
+结果按 change_pct 倒序。行业信息来自同花顺行业归属（tdx.dim_stock_info.industry_names），
+行业当日涨跌幅来自 THS 行业板块成分股聚合。ml_score 预留，当前一律为 null。
 """
 
 from datetime import datetime
@@ -143,22 +143,21 @@ class ScreeningService:
         """
         为筛选结果补充"当日所走概念板块"
 
-        匹配优先级：
-          1. 东财 F10 核心题材（官方归属 + 相关度排名，覆盖所有股票）
-          2. 当天涨停原因向量匹配（仅涨停股）
-          3. 申万行业名近似向量匹配
-          4. 同花顺官方归属（stock_codes）
+        数据源：服务器自建 THS 板块归属表（tdx.dim_stock_info，同花顺官方成分），
+        候选池收窄为该股所属概念/行业板块，对查询文本向量化取最相关 TopN。
+
+        匹配优先级（查询文本）：
+          1. 当天涨停原因（仅涨停股）
+          2. 同花顺行业名（ths_industry）
+          3. 官方归属兜底（该股所属板块按当日强度排序）
         """
         if not data:
             return
         try:
-            # 1. 东财批量获取板块归属（并发 + 缓存）
-            from app.core.em_fetcher import get_stock_boards_batch
-            em_map = get_stock_boards_batch([str(r.get('code', '')) for r in data])
-
-            # 2. 主库当天涨停股 reason（code -> reason）
+            # 1. 主库当天涨停股 reason（code -> reason，过滤占位原因）
             from models import LimitUpStock
             from app.repositories.stock_repository import StockRepository
+            PLACEHOLDER_REASONS = ('未分类', '无', '-')
             reasons = {}
             try:
                 session = StockRepository().create_session()
@@ -169,13 +168,16 @@ class ScreeningService:
                         LimitUpStock.trade_date == trade_date,
                         LimitUpStock.limit_up_reason.isnot(None),
                     ).all()
-                    reasons = {str(r[0]): r[1] for r in rows if r[1]}
+                    reasons = {
+                        str(r[0]): r[1] for r in rows
+                        if r[1] and str(r[1]).strip() not in PLACEHOLDER_REASONS
+                    }
                 finally:
                     session.close()
             except Exception:
                 pass
 
-            # 3. 板块候选池（dim_block 全量 + 当天 blocks 强度）
+            # 2. 板块候选池（dim_block 全量 + 当天 blocks 强度）
             blocks = []
             try:
                 from app.services.ladder_service import LadderService
@@ -183,29 +185,56 @@ class ScreeningService:
             except Exception:
                 blocks = []
 
-            from app.core.block_matcher import (
-                pick_official_block, pick_trend_block_vec, pick_trend_blocks_em
-            )
+            # 3. 批量取筛选股票所属 THS 板块（同花顺官方成分，替代东财 F10）
+            codes = [str(r.get('code', '')).strip() for r in data if r.get('code')]
+            stock_boards = {}
+            try:
+                from app.services.ladder_service import LadderService
+                stock_boards = LadderService()._get_stock_boards(codes)
+            except Exception as e:
+                print(f'⚠️ 获取股票所属板块失败: {e}')
+
+            from app.core.block_matcher import pick_trend_blocks_topn, pick_trend_block
             for row in data:
                 code = str(row.get('code', ''))
+                own_boards = stock_boards.get(code) or []
                 trend_list = []
-                # 东财归属（优先，返回 Top3）
-                if code in em_map:
-                    trend_list = pick_trend_blocks_em(code, blocks, em_map[code], top_n=3)
-                # 兜底：涨停原因向量 / 申万近似 / 官方归属（单个）
+                # 查询文本：涨停原因优先，同花顺行业名次之
+                query_text = ''
+                if code in reasons:
+                    query_text = reasons[code]
+                if not query_text:
+                    import json as _json
+                    inds = row.get('ths_industry') or []
+                    if isinstance(inds, str):
+                        try:
+                            inds = _json.loads(inds)
+                        except Exception:
+                            inds = []
+                    query_text = ' '.join(filter(None, (str(i) for i in inds if i))).strip()
+                if query_text:
+                    trend_list = pick_trend_blocks_topn(
+                        code, query_text, blocks,
+                        candidate_names=own_boards or None,
+                        top_n=3,
+                    )
+                # 兜底：无向量匹配时，该股所属板块按当日强度排序取前 3
                 if not trend_list:
-                    trend = None
-                    reason = reasons.get(code)
-                    if reason:
-                        trend = pick_trend_block_vec(code, reason, blocks)
-                    if trend is None:
-                        sw_text = ' '.join(filter(None, [row.get('sw1_name'), row.get('sw2_name')]))
-                        if sw_text.strip():
-                            trend = pick_trend_block_vec(code, sw_text, blocks)
-                    if trend is None:
-                        trend = pick_official_block(code, blocks)
-                    if trend:
-                        trend_list = [trend]
+                    fallback = []
+                    for b in blocks:
+                        if (b.get('block_name') or '') in set(own_boards):
+                            fallback.append(b)
+                    fallback.sort(key=lambda x: (float(x.get('limit_up_num') or 0) > 0, float(x.get('change_rate') or 0)), reverse=True)
+                    trend_list = [{
+                        'block_name': b.get('block_name'),
+                        'match': 1.0,
+                        'strength': 0.0,
+                        'score': 0.0,
+                        'matched_tag': '[THS板块归属]',
+                        'limit_up_num': b.get('limit_up_num') or 0,
+                        'continuous_plate_num': b.get('continuous_plate_num') or 0,
+                        'change_rate': float(b.get('change_rate') or 0),
+                    } for b in fallback[:3]]
                 row['concept_blocks'] = trend_list
                 row['concept_block'] = trend_list[0]['block_name'] if trend_list else ''
                 row['concept_block_info'] = trend_list[0] if trend_list else None

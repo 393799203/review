@@ -101,20 +101,21 @@ class ScreeningRepository:
                   AND (d.symbol LIKE 'sh60%' OR d.symbol LIKE 'sh68%'
                        OR d.symbol LIKE 'sz00%' OR d.symbol LIKE 'sz30%')
             ),
-            -- 行业涨跌只对目标日聚合一次（直接查基表；v_sw_industry_daily 是
-            -- GROUPING SETS 视图，相关子查询下推不了谓词，会反复全量聚合）
+            -- THS 行业板块当日涨跌（按板块代码一次性聚合，非申万）
             ind AS (
-                SELECT i.sw1_code, i.sw2_code, AVG(b.change_pct) AS avg_pct
-                FROM tdx.raw_stocks_basic b
-                JOIN tdx.dim_sw_industry i
-                    ON i.symbol = b.symbol AND i.is_latest = 1
-                WHERE b.date = :trade_date
-                GROUP BY GROUPING SETS ((i.sw1_code), (i.sw1_code, i.sw2_code))
+                SELECT t.code AS ind_code, AVG(b.change_pct) AS avg_pct
+                FROM tdx.dim_stock_info di
+                CROSS JOIN LATERAL jsonb_array_elements_text(di.industry_codes) AS t(code)
+                JOIN tdx.dim_stock_block sb
+                    ON sb.plate_code = t.code
+                JOIN tdx.raw_stocks_basic b
+                    ON b.symbol = sb.symbol AND b.date = :trade_date
+                GROUP BY t.code
             )
             SELECT
-                COALESCE(i.code, SUBSTRING(h.symbol FROM 3)) AS code,
+                COALESCE(di.stock_code, SUBSTRING(h.symbol FROM 3)) AS code,
                 h.symbol,
-                i.name AS name,
+                di.stock_name AS name,
                 h.date AS date,
                 h.close AS close,
                 h.low AS low,
@@ -127,19 +128,15 @@ class ScreeningRepository:
                 (h.high - GREATEST(h.open, h.close)) / NULLIF(h.preclose, 0) * 100 AS upper_shadow,
                 h.totalmv AS totalmv,
                 h.amplitude AS amplitude,
-                i.sw1_name AS sw1_name,
-                i1.avg_pct AS sw1_change_pct,
-                i.sw2_name AS sw2_name,
-                i2.avg_pct AS sw2_change_pct
+                di.industry_names AS ths_industry,
+                (SELECT i.avg_pct
+                 FROM ind i
+                 WHERE i.ind_code = (di.industry_codes->>0)) AS ths_industry_change
             FROM hist h
-            LEFT JOIN tdx.dim_sw_industry i
-                ON i.symbol = h.symbol AND i.is_latest = 1
-            LEFT JOIN ind i1
-                ON i1.sw1_code = i.sw1_code AND i1.sw2_code IS NULL
-            LEFT JOIN ind i2
-                ON i2.sw1_code = i.sw1_code AND i2.sw2_code = i.sw2_code
+            LEFT JOIN tdx.dim_stock_info di
+                ON di.symbol = h.symbol
             WHERE h.date = :trade_date
-              AND (i.name IS NULL OR i.name NOT LIKE '%ST%')
+              AND (di.stock_name IS NULL OR di.stock_name NOT LIKE '%ST%')
               AND h.turnover >= :turnover_min
               AND (h.high - GREATEST(h.open, h.close)) / NULLIF(h.preclose, 0) * 100
                   <= :upper_shadow_max
@@ -259,20 +256,21 @@ class ScreeningRepository:
                                      ELSE volume >= avg_vol * :day23_mult
                                 END)
             ),
-            -- 行业涨跌只对目标日聚合一次（直接查基表；v_sw_industry_daily 是
-            -- GROUPING SETS 视图，相关子查询下推不了谓词，会反复全量聚合）
+            -- THS 行业板块当日涨跌（按板块代码一次性聚合，非申万）
             ind AS (
-                SELECT i.sw1_code, i.sw2_code, AVG(b.change_pct) AS avg_pct
-                FROM tdx.raw_stocks_basic b
-                JOIN tdx.dim_sw_industry i
-                    ON i.symbol = b.symbol AND i.is_latest = 1
-                WHERE b.date = :trade_date
-                GROUP BY GROUPING SETS ((i.sw1_code), (i.sw1_code, i.sw2_code))
+                SELECT t.code AS ind_code, AVG(b.change_pct) AS avg_pct
+                FROM tdx.dim_stock_info di
+                CROSS JOIN LATERAL jsonb_array_elements_text(di.industry_codes) AS t(code)
+                JOIN tdx.dim_stock_block sb
+                    ON sb.plate_code = t.code
+                JOIN tdx.raw_stocks_basic b
+                    ON b.symbol = sb.symbol AND b.date = :trade_date
+                GROUP BY t.code
             )
             SELECT
-                COALESCE(i.code, SUBSTRING(p.symbol FROM 3)) AS code,
+                COALESCE(di.stock_code, SUBSTRING(p.symbol FROM 3)) AS code,
                 p.symbol,
-                i.name AS name,
+                di.stock_name AS name,
                 p.date AS date,
                 p.signal_date AS signal_date,
                 p.close AS close,
@@ -286,18 +284,14 @@ class ScreeningRepository:
                 p.day1_change_pct AS day1_change_pct,
                 p.totalmv AS totalmv,
                 p.amplitude AS amplitude,
-                i.sw1_name AS sw1_name,
-                i1.avg_pct AS sw1_change_pct,
-                i.sw2_name AS sw2_name,
-                i2.avg_pct AS sw2_change_pct
+                di.industry_names AS ths_industry,
+                (SELECT i.avg_pct
+                 FROM ind i
+                 WHERE i.ind_code = (di.industry_codes->>0)) AS ths_industry_change
             FROM picked p
-            LEFT JOIN tdx.dim_sw_industry i
-                ON i.symbol = p.symbol AND i.is_latest = 1
-            LEFT JOIN ind i1
-                ON i1.sw1_code = i.sw1_code AND i1.sw2_code IS NULL
-            LEFT JOIN ind i2
-                ON i2.sw1_code = i.sw1_code AND i2.sw2_code = i.sw2_code
-            WHERE (i.name IS NULL OR i.name NOT LIKE '%ST%')
+            LEFT JOIN tdx.dim_stock_info di
+                ON di.symbol = p.symbol
+            WHERE (di.stock_name IS NULL OR di.stock_name NOT LIKE '%ST%')
             ORDER BY p.change_pct DESC
         """)
 
@@ -345,10 +339,8 @@ class ScreeningRepository:
                 'upper_shadow': float(row['upper_shadow']) if row.get('upper_shadow') is not None else None,
                 'totalmv': float(row['totalmv']) if row.get('totalmv') is not None else None,
                 'amplitude': float(row['amplitude']) if row.get('amplitude') is not None else None,
-                'sw1_name': row['sw1_name'],
-                'sw1_change_pct': float(row['sw1_change_pct']) if row['sw1_change_pct'] is not None else None,
-                'sw2_name': row['sw2_name'],
-                'sw2_change_pct': float(row['sw2_change_pct']) if row['sw2_change_pct'] is not None else None,
+                'ths_industry': row.get('ths_industry'),
+                'ths_industry_change': float(row['ths_industry_change']) if row.get('ths_industry_change') is not None else None,
                 'ml_score': None,
             })
         return result

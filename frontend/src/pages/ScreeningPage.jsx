@@ -378,26 +378,31 @@ const ScreeningPage = () => {
       ),
     },
     {
-      title: '申万一级/涨跌',
-      key: 'sw1',
-      width: 115,
-      render: (_, record) => (
-        <div>
-          <div>{record.sw1_name || '-'}</div>
-          <div>{renderChangePct(record.sw1_change_pct)}</div>
-        </div>
-      ),
+      title: '同花顺行业',
+      key: 'ths_industry',
+      width: 150,
+      render: (_, record) => {
+        let inds = record.ths_industry || [];
+        if (typeof inds === 'string') {
+          try { inds = JSON.parse(inds); } catch (e) { inds = []; }
+        }
+        if (!Array.isArray(inds) || inds.length === 0) return '-';
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            {inds.slice(0, 3).map((nm, i) => (
+              <Tag key={`${nm}_${i}`} color="geekblue" style={{ fontSize: 10, margin: 0 }}>
+                {nm}
+              </Tag>
+            ))}
+          </div>
+        );
+      },
     },
     {
-      title: '申万二级/涨跌',
-      key: 'sw2',
-      width: 125,
-      render: (_, record) => (
-        <div>
-          <div>{record.sw2_name || '-'}</div>
-          <div>{renderChangePct(record.sw2_change_pct)}</div>
-        </div>
-      ),
+      title: '行业涨跌',
+      key: 'ths_industry_change',
+      width: 85,
+      render: (_, record) => renderChangePct(record.ths_industry_change),
     },
     {
       title: '概念板块',
@@ -486,7 +491,10 @@ const ScreeningPage = () => {
                   <span style={{ fontSize: 11, color: '#999' }}>{record.code}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                  放量日 {record.signal_date || '-'} · 申万 {record.sw1_name || '-'}
+                  放量日 {record.signal_date || '-'}
+                  {record.ths_industry && record.ths_industry.length > 0 && (
+                    <> · 行业 {Array.isArray(record.ths_industry) ? record.ths_industry.join('/') : record.ths_industry}</>
+                  )}
                 </div>
                 {blocks.length > 0 && (
                   <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
