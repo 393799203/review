@@ -40,6 +40,12 @@ cp .env.example .env   # 填写全部密钥
 关键项（详见 `.env.example` 注释）：
 - `DB_PASSWORD` 必须与 compose 中 db 硬编码密码一致（默认 `stock2024`，compose 已有默认值，缺省也行）
 - `DEEPSEEK_API_URL/MODEL/MODELS` 有默认值；`DEEPSEEK_API_KEY` 必填（账户欠费会 402）
+  - 当前生产走 wasu 网关：`DEEPSEEK_API_URL=https://token.wasu.cn/v1/chat/completions`、`DEEPSEEK_MODEL=deepseek-v4.1-flash`
+  - **注意 host 是 `token.wasu.cn`**（OpenAI 兼容 tokenhub）；`api.wasu.cn` 不是 AI 入口，所有路径均 404
+  - URL 必须是**完整端点**（到 `/chat/completions`），因为 `ai_service` / `limit_up_analyzer` 直接 POST 该值
+  - 模型名以 `GET https://token.wasu.cn/v1/models` 返回为准（该网关无 `deepseek-v1-flash`）
+- `DEEPSEEK_MAX_TOKENS_*` 用时务必确认在**容器内**生效（`docker exec stock-review-backend-1 env | grep DEEPSEEK_MAX`），
+  compose 写死会覆盖 .env；推理模型预算不足会导致 AI 分析“返回空正文”而失败
 - `TDX_DATABASE_URL=postgresql://stock_user:<密码>@db:5432/quantdb`（量化筛选用，缺省时筛选返回 503 提示）
 
 ### 3.3 启动
@@ -135,14 +141,40 @@ docker run --rm --network host --env-file /opt/stock-review/tdx_daily/.env \
 | 重启 | `cd /opt/stock-review && docker compose restart` |
 | 备份 | `pg_dump -U stock_user stock_review` + `pg_dump -U stock_user quantdb`（quantdb 可从 vipdoc 重建，优先备份 stock_review） |
 
-## 7. 常见问题
+## 7. 域名访问与备案（2026-09-28 实测）
+
+域名 `ladder.yunqueai.cloud` 已正确解析到 `124.221.228.215`，但外部访问被拦。排查结论：
+
+| 现象 | 实测结果 | 说明 |
+|---|---|---|
+| 外部 `curl http://ladder.yunqueai.cloud/` | `HTTP/1.1 302 OK` → `https://dnspod.qcloud.com/static/webblock.html?d=ladder.yunqueai.cloud` | 腾讯云**未接入备案**拦截 |
+| 外部 `curl http://124.221.228.215/` | 200（`/api/health` → `{"status":"ok"}`） | 应用本身完全正常 |
+| 服务器本机 `curl -H "Host: ladder.yunqueai.cloud" http://127.0.0.1/` | 200 | 拦截在**腾讯云网络侧**，nginx/应用无感知 |
+| 域名 + 非 80 端口（7200） | 同样 302 | 拦截按 Host 做，不限于 80 |
+| `-H "Host: totally-random-test-12345.com"` 直连该 IP | 200 | 腾讯云按“已知域名清单”拦，不是见未备案 Host 就拦 |
+| 根域名 `yunqueai.cloud` | 解析到 `60.188.49.208`（CHINANET-ZJ-TZ 浙江电信台州），301 → HTTPS，正常服务 | 域名本身大概率已备案，但**接入商不是腾讯云** |
+
+**结论（关键认知）**：ICP 备案不登记 IP，备案三要素是 **域名 + 主体 + 接入商**。所以不是“备案时漏了 IP”，
+而是**该域名在腾讯云没有接入备案**（接入商不是腾讯云这台 CVM）。备案以根域名 `yunqueai.cloud` 为单位，
+子域 `ladder.*` 不需要单独备案——在腾讯云为根域名做一次「新增接入」即可覆盖全部子域。
+
+**修复路径**：
+1. 腾讯云备案控制台 → 新增接入（用已有备案号复用主体信息）→ 绑定该 CVM 实例 → 提交管局审核（各省 1~20 工作日）
+2. 生效前用 IP 访问 `http://124.221.228.215/`（已验证正常），或把服务放到接入商已备案的机房/境外机
+3. 注意：`.cloud` 后缀能否备案以腾讯云备案控制台校验为准（本次外网备案查询接口均不可用，未取得官方结论）
+
+## 8. 常见问题
 
 | 现象 | 原因/解决 |
 |---|---|
 | DB 无表（"Did not find any relations"） | schema.sql 含 `CREATE DATABASE` 与 POSTGRES_DB 冲突 → 已从仓库移除；重建卷重试 |
 | backend 连库报 no password / auth failed | .env 缺 `DB_PASSWORD` 或与 compose 硬编码不一致 → 统一为 `stock2024` |
 | AI 分析 "Invalid URL" | .env 缺 `DEEPSEEK_API_URL` → compose 已加默认值 |
-| AI 分析 402 / string indices | DeepSeek 账户余额不足 → 平台充值或换 key |
-| 域名打不开，curl 302 到 dnspod webblock | 域名未备案被腾讯云拦截 → 完成 ICP 备案；备案前用 IP 访问 |
+| AI 分析 402 / string indices | 网关账户余额不足 → 充值或换 key |
+| **AI 分析接口返回 200 但内容是"分析失败"** | 推理模型(`deepseek-v4.x`)先输出 `reasoning_content` 吃掉预算，正文被截断 → 后端日志 `API返回内容: `（空）+ `无法从返回内容中提取JSON` / `返回格式错误`。实测个股分析推理约 3100 token，预算 3000 时 `finish_reason=length` 随机失败，6000 时 `finish=stop` 正常。当前 SHORT=2000/MEDIUM=6000/LONG=10000 |
+| **AI 分析变慢（个股分析约 35~41s）** | 推理模型本身耗时。前端对 AI 接口已单独放宽超时（`/stock/analyze` 为 120s，批量分析 120s，默认 30s 不适用于这些调用），故正常；若后续新增 AI 调用记得一并放宽 |
+| **改了 .env 但容器内环境变量没变** | compose 的 `environment:` 里写死了值会**覆盖** `env_file` → 改成 `${VAR:-默认值}` 形式（本次已修 4 个 DEEPSEEK_* 项） |
+| **改了 `frontend/nginx.conf` 容器里没生效** | 该文件是单文件 bind mount，`sed -i` 会换 inode，容器仍读旧文件 → `docker restart stock-review-frontend-1` 重新挂载 |
+| 域名打不开，curl 302 到 dnspod webblock | 域名在腾讯云**无接入备案** → 见第 7 节；备案前用 IP 访问 |
 | 量化筛选 503 "TDX 行情库未配置" | .env 缺 `TDX_DATABASE_URL` 或 quantdb 未建 |
 | embedding 模型警告刷日志 | 无 embed-cache；仅影响涨停天梯向量匹配，其余功能正常 |
