@@ -2,7 +2,12 @@ flask>=2.3.0
 flask-cors>=4.0.0
 flask-mail>=0.9.1
 psycopg2-binary>=2.9.0
-sqlalchemy>=2.0.0
+# 必须锁 <2.1：SQLAlchemy 2.1 起把 `postgresql://` 的默认驱动从 psycopg2 换成 psycopg(v3)，
+# 版本没锁时重建镜像会拉到 2.1.x，而镜像里只有 psycopg2 → 启动即崩：
+#   ModuleNotFoundError: No module named 'psycopg'
+sqlalchemy>=2.0.0,<2.1
+# 保险：将来若升到 2.1+，plain postgresql:// 走 psycopg(v3) 也能连
+psycopg[binary]>=3.1.0
 pandas>=2.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0

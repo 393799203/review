@@ -184,62 +184,76 @@ class DataFetcher:
         
         return None
     
+    def _quote_from_sina(self, stock_code: str) -> Optional[Dict]:
+        """新浪 HTTP 行情兜底（通达信 quotes 协议被拒时使用）。
+
+        注意：mootdx/tdxpy 在 quotes 协议被拒时是**抛异常**而不是返回空表，
+        所以调用方必须在异常分支也走这里，否则行情会整条丢失。
+        """
+        from .quotes_utils import get_realtime_quotes_from_sina
+
+        print(f"回退新浪HTTP行情 {stock_code} ...")
+        sina = get_realtime_quotes_from_sina([stock_code])
+        q = sina.get(stock_code)
+        if not q:
+            print(f"✗ 新浪行情也未获取到 {stock_code}")
+            return None
+        return {
+            'code': stock_code,
+            'name': q.get('name', ''),
+            'open': float(q.get('open', 0) or 0),
+            'prev_close': float(q.get('prev_close', 0) or 0),
+            'price': float(q.get('price', 0) or 0),
+            'high': float(q.get('high', 0) or 0),
+            'low': float(q.get('low', 0) or 0),
+            'volume': float(q.get('volume', 0) or 0),
+            'amount': float(q.get('amount', 0) or 0),
+            'change_amount': (float(q.get('price', 0) or 0) - float(q.get('prev_close', 0) or 0)),
+            'change_percent': (((float(q.get('price', 0) or 0) - float(q.get('prev_close', 0) or 0)) / float(q.get('prev_close', 0) or 0) * 100)
+                               if float(q.get('prev_close', 0) or 0) else 0),
+            'volatility': None,
+            'turnover': None,
+            'total_mv': None,
+            'bid1': float(q.get('bid1', 0) or 0),
+            'bid2': float(q.get('bid2', 0) or 0),
+            'bid3': float(q.get('bid3', 0) or 0),
+            'bid4': float(q.get('bid4', 0) or 0),
+            'bid5': float(q.get('bid5', 0) or 0),
+            'ask1': float(q.get('ask1', 0) or 0),
+            'ask2': float(q.get('ask2', 0) or 0),
+            'ask3': float(q.get('ask3', 0) or 0),
+            'ask4': float(q.get('ask4', 0) or 0),
+            'ask5': float(q.get('ask5', 0) or 0),
+            'bid_vol1': float(q.get('bid_vol1', 0) or 0),
+            'bid_vol2': float(q.get('bid_vol2', 0) or 0),
+            'bid_vol3': float(q.get('bid_vol3', 0) or 0),
+            'bid_vol4': float(q.get('bid_vol4', 0) or 0),
+            'bid_vol5': float(q.get('bid_vol5', 0) or 0),
+            'ask_vol1': float(q.get('ask_vol1', 0) or 0),
+            'ask_vol2': float(q.get('ask_vol2', 0) or 0),
+            'ask_vol3': float(q.get('ask_vol3', 0) or 0),
+            'ask_vol4': float(q.get('ask_vol4', 0) or 0),
+            'ask_vol5': float(q.get('ask_vol5', 0) or 0),
+        }
+    
+
     def get_realtime_quote(self, stock_code: str) -> Optional[Dict]:
         """
         获取单只股票的实时行情（使用mootdx,通达信 quotes 失效时回退新浪 HTTP 行情）
         """
+        quotes = None
         try:
             print(f"从mootdx获取 {stock_code} 实时行情...")
-            
             quotes = self.mootdx_client.quotes(symbol=[stock_code])
+        except Exception as e:
+            # tdxpy 抛 NotImplementedError（quotes 协议被服务器拒绝），不能只凭"返回空"判断
+            print(f"mootdx 获取 {stock_code} 失败({type(e).__name__}: {e})")
             
+        try:
             if quotes is None or not hasattr(quotes, 'empty') or quotes.empty:
                 # 通达信 quotes 命令已被服务器拒绝 → 回退新浪 HTTP 行情
-                print(f"mootdx返回空,回退新浪HTTP行情 {stock_code} ...")
-                from .quotes_utils import get_realtime_quotes_from_sina
-                sina = get_realtime_quotes_from_sina([stock_code])
-                q = sina.get(stock_code)
-                if not q:
-                    print(f"✗ 新浪行情也未获取到 {stock_code}")
-                    return None
-                return {
-                    'code': stock_code,
-                    'name': q.get('name', ''),
-                    'open': float(q.get('open', 0) or 0),
-                    'prev_close': float(q.get('prev_close', 0) or 0),
-                    'price': float(q.get('price', 0) or 0),
-                    'high': float(q.get('high', 0) or 0),
-                    'low': float(q.get('low', 0) or 0),
-                    'volume': float(q.get('volume', 0) or 0),
-                    'amount': float(q.get('amount', 0) or 0),
-                    'change_amount': (float(q.get('price', 0) or 0) - float(q.get('prev_close', 0) or 0)),
-                    'change_percent': (((float(q.get('price', 0) or 0) - float(q.get('prev_close', 0) or 0)) / float(q.get('prev_close', 0) or 0) * 100)
-                                       if float(q.get('prev_close', 0) or 0) else 0),
-                    'volatility': None,
-                    'turnover': None,
-                    'total_mv': None,
-                    'bid1': float(q.get('bid1', 0) or 0),
-                    'bid2': float(q.get('bid2', 0) or 0),
-                    'bid3': float(q.get('bid3', 0) or 0),
-                    'bid4': float(q.get('bid4', 0) or 0),
-                    'bid5': float(q.get('bid5', 0) or 0),
-                    'ask1': float(q.get('ask1', 0) or 0),
-                    'ask2': float(q.get('ask2', 0) or 0),
-                    'ask3': float(q.get('ask3', 0) or 0),
-                    'ask4': float(q.get('ask4', 0) or 0),
-                    'ask5': float(q.get('ask5', 0) or 0),
-                    'bid_vol1': float(q.get('bid_vol1', 0) or 0),
-                    'bid_vol2': float(q.get('bid_vol2', 0) or 0),
-                    'bid_vol3': float(q.get('bid_vol3', 0) or 0),
-                    'bid_vol4': float(q.get('bid_vol4', 0) or 0),
-                    'bid_vol5': float(q.get('bid_vol5', 0) or 0),
-                    'ask_vol1': float(q.get('ask_vol1', 0) or 0),
-                    'ask_vol2': float(q.get('ask_vol2', 0) or 0),
-                    'ask_vol3': float(q.get('ask_vol3', 0) or 0),
-                    'ask_vol4': float(q.get('ask_vol4', 0) or 0),
-                    'ask_vol5': float(q.get('ask_vol5', 0) or 0),
-                }
-            
+                return self._quote_from_sina(stock_code)
+
             if hasattr(quotes, 'empty') and not quotes.empty:
                 q = quotes.iloc[0]
                 price = float(q.get('price', 0) or 0)
@@ -257,18 +271,18 @@ class DataFetcher:
                         price = ask1
                     elif prev_close > 0:
                         price = prev_close
-                
+
                 volatility = None
                 turnover = None
                 total_mv = None
-                
+
                 try:
                     high = float(q.get('high', 0) or 0)
                     low = float(q.get('low', 0) or 0)
-                    
+
                     if high > 0 and low > 0 and prev_close > 0:
                         volatility = ((high - low) / prev_close) * 100
-                    
+
                     volume = float(q.get('vol', 0) or 0)
                     if volume > 0:
                         market = 1 if stock_code.startswith('6') else 0
@@ -288,7 +302,7 @@ class DataFetcher:
                                 pass
                 except Exception as e:
                     print(f"计算波动率和换手率失败: {e}")
-                
+
                 return {
                     'code': stock_code,
                     'name': '',
@@ -325,12 +339,12 @@ class DataFetcher:
                     'ask_vol4': float(q.get('ask_vol4', 0) or 0),
                     'ask_vol5': float(q.get('ask_vol5', 0) or 0),
                 }
-            
+
             return None
-            
+
         except Exception as e:
-            print(f"✗ 获取股票 {stock_code} 实时行情失败: {e}")
-            return None
+            print(f"✗ 获取股票 {stock_code} mootdx 行情失败: {e}，尝试新浪兜底")
+            return self._quote_from_sina(stock_code)
     
     def get_stock_kline(self, stock_code: str, days: int = 60) -> Optional[List[Dict]]:
         """
